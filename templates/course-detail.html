@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Course Program & Live Classes — Simple NCLEX Platform</title>
+  <meta name="description" content="Explore full course details, live class schedule on Google Meet, and interactive curriculum before enrolling."/>
+  <link rel="icon" type="image/png" href="/static/images/favicon.png"/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <link rel="stylesheet" href="/static/css/courses.css"/>
+  <style>
+    .course-detail-layout {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 2rem;
+      align-items: start;
+    }
+    .curriculum-module-box {
+      background: #ffffff;
+      border: 1.5px solid var(--border-color);
+      border-radius: var(--radius-md);
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+    .curriculum-module-head {
+      padding: 1.1rem 1.35rem;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+    .curriculum-topics-list {
+      list-style: none;
+      padding: 1rem 1.35rem;
+      margin: 0;
+    }
+    .curriculum-topic-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border-light);
+      font-size: 0.9rem;
+      color: var(--text-body);
+    }
+    .curriculum-topic-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    @media (max-width: 960px) {
+      .course-detail-layout {
+        grid-template-columns: 1fr !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── MAIN NAVBAR ── -->
+  <header class="fame-navbar" id="navbar">
+    <div class="container fame-navbar-inner">
+      <a href="index.html" class="fame-logo">
+        <img src="/static/images/logo.png" alt="Simple NCLEX Platform Logo" class="fame-logo-img"/>
+        <div class="fame-logo-text">
+          <span class="fame-name">Simple NCLEX Platform</span>
+          <span class="fame-tag">Master Nursing Excellence</span>
+        </div>
+      </a>
+
+      <nav>
+        <ul class="fame-nav-menu" id="navMenu">
+          <li class="fame-nav-item"><a href="index.html" class="fame-nav-link">Home</a></li>
+          <li class="fame-nav-item"><a href="courses.html" class="fame-nav-link active">Courses</a></li>
+          <li class="fame-nav-item"><a href="index.html#demo-mcqs" class="fame-nav-link">NCLEX Q-Bank DEMO MCQs</a></li>
+          <li class="fame-nav-item"><a href="about.html" class="fame-nav-link">About Us</a></li>
+        </ul>
+      </nav>
+
+      <div class="fame-nav-actions nav-actions">
+        <a href="login.html" class="fame-auth-btn fame-auth-btn--login">Login</a>
+        <a href="register.html" class="fame-auth-btn fame-auth-btn--register">Register</a>
+      </div>
+
+      <button class="fame-hamburger" id="hamburger" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── BREADCRUMBS & COURSE HERO ── -->
+  <section class="section" style="padding-top:2.5rem;padding-bottom:1.5rem;background:#f8fafc;border-bottom:1px solid var(--border-color)">
+    <div class="container">
+      <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+        <a href="index.html" style="color:var(--text-muted);text-decoration:none">Home</a>
+        <span>›</span>
+        <a href="courses.html" style="color:var(--text-muted);text-decoration:none">Courses</a>
+        <span>›</span>
+        <span style="color:var(--primary);font-weight:700" id="detailBreadcrumbTitle">NCLEX-RN Complete Prep 2026</span>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1.5rem;flex-wrap:wrap">
+        <div>
+          <div style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.6rem;flex-wrap:wrap">
+            <span class="fame-level-badge" id="detailCategoryBadge">NCLEX-RN</span>
+            <span style="font-size:0.85rem;font-weight:700;color:var(--text-title)" id="detailRatingText">⭐ 4.9 Rating (18,240 Students)</span>
+          </div>
+          <h1 class="fame-title" style="font-size:2.2rem;margin-bottom:0.75rem;line-height:1.2" id="detailCourseTitle">
+            NCLEX-RN Complete Prep 2026
+          </h1>
+          <p class="fame-desc" style="margin:0;max-width:850px;color:var(--text-muted);line-height:1.6" id="detailCourseDesc">
+            Comprehensive exam preparation covering all NCSBN Client Needs categories, Saunders & ATI frameworks, and interactive Google Meet live classes.
+          </p>
+        </div>
+
+        <a href="courses.html" class="btn btn-outline btn-sm" style="align-self:flex-start">
+          ← Back to All Courses
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MAIN CONTENT & PROGRAM CURRICULUM AREA ── -->
+  <section class="section" style="padding-top:2rem;padding-bottom:4rem">
+    <div class="container">
+
+
+      <!-- Two-column Layout -->
+      <div class="course-detail-layout">
+
+        <!-- ── LEFT / MAIN COLUMN ── -->
+        <div>
+
+          <!-- Program Overview Card -->
+          <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border-color);padding:2rem;box-shadow:var(--shadow-sm);margin-bottom:2rem">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
+              <span style="font-size:1.75rem">🎯</span>
+              <div>
+                <h2 style="font-size:1.35rem;font-weight:800;color:var(--text-title);margin:0">
+                  Program Overview & Clinical Framework
+                </h2>
+                <p style="font-size:0.85rem;color:var(--text-muted);margin:0">
+                  Interactive real-time instruction grounded in Saunders 9th Edition & ATI frameworks
+                </p>
+              </div>
+            </div>
+
+            <p style="font-size:0.92rem;color:var(--text-body);line-height:1.7;margin-bottom:1.5rem" id="detailOverviewText">
+              This intensive preparation program prepares registered nurses for first-attempt success. All sessions are delivered interactively via Google Meet with comprehensive clinical discussions, test-taking strategies, and daily clinical rationales in our private WhatsApp community.
+            </p>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:1rem">
+              <div style="padding:1rem;background:#f8fafc;border-radius:var(--radius-md);border:1px solid var(--border-light)">
+                <div style="font-weight:700;color:var(--text-title);margin-bottom:0.25rem">⏱ Total Program Hours</div>
+                <div style="font-size:1.2rem;font-weight:900;color:var(--primary)" id="detailDurationText">48+ Hours Live</div>
+              </div>
+              <div style="padding:1rem;background:#f8fafc;border-radius:var(--radius-md);border:1px solid var(--border-light)">
+                <div style="font-weight:700;color:var(--text-title);margin-bottom:0.25rem">📝 Practice Question Bank</div>
+                <div style="font-size:1.2rem;font-weight:900;color:var(--primary)" id="detailQuestionsText">2,500+ MCQs & NGN</div>
+              </div>
+              <div style="padding:1rem;background:#f8fafc;border-radius:var(--radius-md);border:1px solid var(--border-light)">
+                <div style="font-weight:700;color:var(--text-title);margin-bottom:0.25rem">👨‍🏫 Class Platform</div>
+                <div style="font-size:1.2rem;font-weight:900;color:#059669">Google Meet Live</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Structured Course Curriculum / Syllabus -->
+          <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border-color);padding:2rem;box-shadow:var(--shadow-sm);margin-bottom:2rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:0.75rem">
+              <div>
+                <h3 style="font-size:1.35rem;font-weight:800;color:var(--text-title);margin:0 0 0.25rem">
+                  📚 Detailed Program Curriculum & Modules
+                </h3>
+                <p style="font-size:0.88rem;color:var(--text-muted);margin:0">
+                  Comprehensive topic breakdown covered during interactive live classes:
+                </p>
+              </div>
+              <span id="detailModuleCountBadge" style="font-size:0.82rem;font-weight:700;background:var(--bg-soft);color:var(--primary);padding:0.35rem 0.85rem;border-radius:9999px;border:1px solid var(--border-light)">
+                Interactive Curriculum
+              </span>
+            </div>
+
+            <!-- Modules list rendered dynamically via JS -->
+            <div id="curriculumModulesContainer">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- How Live Classes Work Section -->
+          <div style="background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border-color);padding:1.75rem;box-shadow:var(--shadow-sm)">
+            <h3 style="font-size:1.25rem;font-weight:800;color:var(--text-title);margin-bottom:1rem">
+              📖 How Live Classes Work on Google Meet & WhatsApp
+            </h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">
+              <div style="padding:1.25rem;background:var(--bg-soft);border-radius:var(--radius-md);border:1px solid var(--border-light)">
+                <div style="font-size:1.5rem;margin-bottom:0.5rem">💻</div>
+                <h4 style="font-size:1rem;font-weight:700;color:var(--text-title);margin-bottom:0.3rem">1. Daily Google Meet Live Sessions</h4>
+                <p style="font-size:0.85rem;color:var(--text-muted);margin:0;line-height:1.6">
+                  Interactive real-time classes covering client needs, prioritization (ABCDE), and Saunders rationales with live question-and-answer.
+                </p>
+              </div>
+              <div style="padding:1.25rem;background:var(--bg-soft);border-radius:var(--radius-md);border:1px solid var(--border-light)">
+                <div style="font-size:1.5rem;margin-bottom:0.5rem">💬</div>
+                <h4 style="font-size:1rem;font-weight:700;color:var(--text-title);margin-bottom:0.3rem">2. Official WhatsApp Community</h4>
+                <p style="font-size:0.85rem;color:var(--text-muted);margin:0;line-height:1.6">
+                  Direct WhatsApp group where Google Meet links, daily recall questions, high-yield PDF summaries, and lecture notes are distributed.
+                </p>
+              </div>
+              <div style="padding:1.25rem;background:var(--bg-soft);border-radius:var(--radius-md);border:1px solid var(--border-light)">
+                <div style="font-size:1.5rem;margin-bottom:0.5rem">🎥</div>
+                <h4 style="font-size:1rem;font-weight:700;color:var(--text-title);margin-bottom:0.3rem">3. Class Recordings & Rationales</h4>
+                <p style="font-size:0.85rem;color:var(--text-muted);margin:0;line-height:1.6">
+                  Missed a live session? All Google Meet classes are recorded and provided to enrolled students so you can revise at your own pace.
+                </p>
+              </div>
+              <div style="padding:1.25rem;background:var(--bg-soft);border-radius:var(--radius-md);border:1px solid var(--border-light)">
+                <div style="font-size:1.5rem;margin-bottom:0.5rem">🩺</div>
+                <h4 style="font-size:1rem;font-weight:700;color:var(--text-title);margin-bottom:0.3rem">4. 24/7 Clinical Faculty Mentorship</h4>
+                <p style="font-size:0.85rem;color:var(--text-muted);margin:0;line-height:1.6">
+                  Reach out anytime on WhatsApp for personalized feedback on tricky questions, dosage calculations, and study plans.
+                </p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ── RIGHT COLUMN (STICKY SIDEBAR) ── -->
+        <div style="position:sticky;top:90px">
+
+          <!-- Enrollment & Pricing Card -->
+          <div style="background:#fff;border-radius:var(--radius-lg);border:1.5px solid #cbd5e1;padding:1.75rem;box-shadow:var(--shadow-md);margin-bottom:1.5rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+              <span style="font-size:0.82rem;font-weight:800;color:#047857;text-transform:uppercase;letter-spacing:0.05em">Registration Open</span>
+              <span id="detailEnrollStatusBadge" style="background:#ecfdf5;color:#065f46;font-size:0.78rem;font-weight:700;padding:0.25rem 0.65rem;border-radius:9999px;border:1px solid #a7f3d0">
+                🟢 Admission Open
+              </span>
+            </div>
+
+            <div style="margin-bottom:1.25rem">
+              <div style="font-size:0.82rem;color:var(--text-muted);font-weight:600">Complete Live Program Fee</div>
+              <div style="display:flex;align-items:baseline;gap:0.5rem">
+                <span style="font-size:1.85rem;font-weight:900;color:var(--text-title)" id="detailPriceText">Rs. 15,000</span>
+                <span style="font-size:0.85rem;color:var(--text-muted)">/ Complete Batch</span>
+              </div>
+              <div style="font-size:0.75rem;color:#059669;font-weight:600;margin-top:0.25rem">✓ Includes Live Google Meet Sessions & WhatsApp Group</div>
+            </div>
+
+            <!-- Features included -->
+            <div style="margin-bottom:1.5rem">
+              <div style="font-size:0.82rem;font-weight:700;color:var(--text-title);margin-bottom:0.6rem">What is included:</div>
+              <ul style="list-style:none;padding:0;margin:0;font-size:0.85rem;color:#334155;line-height:1.9">
+                <li>🔴 <strong>Daily Google Meet Live Classes</strong></li>
+                <li>💬 <strong>Official WhatsApp Group Access</strong></li>
+                <li>📚 <strong>NCSBN Client Needs & Saunders Pearls</strong></li>
+                <li>📝 <strong>NGN Case Studies & Recall Recaps</strong></li>
+                <li>👨‍🏫 <strong>24/7 Academic Mentorship</strong></li>
+              </ul>
+            </div>
+
+            <!-- Enroll Action Button -->
+            <button type="button" class="btn btn-primary btn-lg" id="detailEnrollBtn" style="width:100%;justify-content:center;margin-bottom:0.75rem;font-weight:800">
+              Enroll & Join Live Classes →
+            </button>
+            <p style="font-size:0.75rem;color:var(--text-muted);text-align:center;margin:0">
+              Transfer fee via Easypaisa or Bank IBAN, upload receipt and enter WhatsApp for Google Meet invites.
+            </p>
+          </div>
+
+          <!-- Direct WhatsApp Support Card -->
+          <div style="background:linear-gradient(135deg, #064e3b, #047857);border-radius:var(--radius-lg);padding:1.5rem;color:#fff;box-shadow:var(--shadow-sm)">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">
+              <span style="font-size:1.75rem">💬</span>
+              <div>
+                <h4 style="font-size:1rem;font-weight:800;margin:0;color:#fff">Questions About Live Classes?</h4>
+                <span style="font-size:0.78rem;color:#a7f3d0">Chat directly with faculty</span>
+              </div>
+            </div>
+            <p style="font-size:0.82rem;color:#e2e8f0;margin-bottom:1rem;line-height:1.5">
+              Ask about batch timings, Google Meet requirements, and fee submission on WhatsApp:
+            </p>
+            <a class="wa-link btn" href="https://web.whatsapp.com/send?phone=923085737093&text=Hi%2C%20I%20want%20to%20inquire%20about%20the%20Google%20Meet%20live%20NCLEX%20classes." data-phone="923085737093" target="_blank" rel="noopener" style="background:#25d366;color:#fff;width:100%;justify-content:center;font-weight:700">
+              Chat on WhatsApp (+92 308 5737093)
+            </a>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── RICH FOOTER ── -->
+  <footer class="fame-footer">
+    <div class="container">
+      <div class="fame-footer-grid">
+        <!-- Col 1: Brand & Socials -->
+        <div class="fame-footer-brand">
+          <div class="fame-logo" style="margin-bottom:1rem">
+            <img src="/static/images/logo.png" alt="Simple NCLEX Platform Logo" class="fame-logo-img"/>
+            <div class="fame-logo-text">
+              <span class="fame-name" style="color:#fff">Simple NCLEX Platform</span>
+              <span class="fame-tag" style="color:#60a5fa">Master Nursing Excellence</span>
+            </div>
+          </div>
+          <p>
+            Specialized preparation materials for NCLEX-RN, SNLE, and Prometric nursing exams. International nurses prepare with confidence using our Saunders & ATI clinical integration.
+          </p>
+          <div class="fame-footer-social">
+            <a href="https://www.facebook.com/share/1diP5AnmkS/" class="social-facebook" target="_blank" rel="noopener" title="Facebook">f</a>
+            <a href="https://youtube.com/@famelectures" class="social-youtube" target="_blank" rel="noopener" title="YouTube">▶</a>
+            <a href="https://www.instagram.com/firstaidmadeeasy_/" class="social-instagram" target="_blank" rel="noopener" title="Instagram">📷</a>
+            <a href="https://www.linkedin.com/company/firstaidmadeeasy/" class="social-linkedin" target="_blank" rel="noopener" title="LinkedIn">in</a>
+          </div>
+        </div>
+
+        <!-- Col 2: Navigation Links -->
+        <div class="fame-footer-col">
+          <h4>Navigation</h4>
+          <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="courses.html">Courses</a></li>
+            <li><a href="index.html#demo-mcqs">NCLEX Q-Bank DEMO MCQs</a></li>
+            <li><a href="about.html">About Us</a></li>
+            <li><a href="admin.html" style="color:#38bdf8;font-weight:600">⚡ Admin Portal</a></li>
+          </ul>
+        </div>
+
+        <!-- Col 3: Exam Programs -->
+        <div class="fame-footer-col">
+          <h4>Exam Tracks</h4>
+          <ul>
+            <li><a href="courses.html?filter=nclex-rn">NCLEX-RN Prep 2026</a></li>
+            <li><a href="courses.html?filter=snle">SNLE Saudi Licensure</a></li>
+            <li><a href="courses.html?filter=prometric">Prometric Exam (Gulf & DHA)</a></li>
+            <li><a href="login.html">Student Portal Login</a></li>
+            <li><a href="register.html">Student Registration</a></li>
+          </ul>
+        </div>
+
+        <!-- Col 4: Contact Us -->
+        <div class="fame-footer-col">
+          <h4>Contact Us</h4>
+          <div class="fame-contact-row">
+            <span>📞</span>
+            <p><a class="wa-link wa-text" href="https://web.whatsapp.com/send?phone=923085737093&text=Hi%2C%20I%20am%20interested%20in%20the%20NCLEX%20preparation%20courses." data-phone="923085737093" target="_blank" rel="noopener">+92 308 5737093</a></p>
+          </div>
+          <div class="fame-contact-row">
+            <span>✉️</span>
+            <p><a href="mailto:talhasadeeq.email@gmail.com">talhasadeeq.email@gmail.com</a></p>
+          </div>
+          <div class="fame-contact-row">
+            <span>📍</span>
+            <p class="contact-address-text">kumber maidan dir lower kpk</p>
+          </div>
+          <div class="fame-contact-row">
+            <span>⏱️</span>
+            <p>24/7 Academic Mentorship</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="fame-footer-bottom">
+        <div>© 2026 Simple NCLEX Platform. All Rights Reserved.</div>
+        <div style="display:flex;gap:1.5rem">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ── FLOATING WHATSAPP ── -->
+  <a class="fame-wa-float wa-link" href="https://web.whatsapp.com/send?phone=923085737093&text=Hi%2C%20I%20am%20interested%20in%20the%20NCLEX%20preparation%20courses." data-phone="923085737093" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">
+    <div class="fame-wa-icon">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path fill="#25D366" d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2z"/>
+        <path fill="#FFFFFF" d="M16.56 13.66c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.02-1.25-.75-.67-1.26-1.5-1.41-1.75-.15-.25-.02-.39.11-.51.11-.11.25-.29.37-.44.12-.14.17-.25.25-.41.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43h-.48c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.24.9 2.44 1.03 2.61.13.17 1.78 2.72 4.31 3.81.6.26 1.07.42 1.44.54.61.19 1.16.17 1.6.1.49-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.15-1.18-.06-.1-.23-.17-.48-.29z"/>
+      </svg>
+    </div>
+    <div class="fame-wa-label">
+      <span class="l1">Online Support</span>
+      <span class="l2">+92 308 5737093</span>
+    </div>
+  </a>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/static/js/main.js"></script>
+  <script src="/static/js/course-detail.js"></script>
+</body>
+</html>

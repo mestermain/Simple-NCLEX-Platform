@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Portal — Simple NCLEX Platform</title>
+  <link rel="icon" type="image/png" href="/static/images/favicon.png"/>
+  <link rel="stylesheet" href="/static/css/admin.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="admin-layout">
+    <!-- ── SIDEBAR ── -->
+    <aside class="admin-sidebar" id="adminSidebar">
+      <a href="index.html" class="admin-brand">
+        <img src="/static/images/logo.png" alt="Simple NCLEX Platform" class="admin-brand-logo"/>
+        <div class="admin-brand-info">
+          <h2>Simple NCLEX</h2>
+          <span>Admin Portal</span>
+        </div>
+      </a>
+
+      <nav class="admin-nav">
+        <a class="admin-nav-item active" data-target="dashboardView">
+          <div class="admin-nav-link-content">
+            <span>📊</span>
+            <span>Dashboard</span>
+          </div>
+        </a>
+
+        <a class="admin-nav-item" data-target="registrationsView">
+          <div class="admin-nav-link-content">
+            <span>💳</span>
+            <span>Enrollments & Payments</span>
+          </div>
+          <span class="admin-badge-count" id="sidebarPendingBadge" style="display:none">0</span>
+        </a>
+
+        <a class="admin-nav-item" data-target="coursesView">
+          <div class="admin-nav-link-content">
+            <span>📚</span>
+            <span>Courses & Pictures</span>
+          </div>
+        </a>
+
+        <a class="admin-nav-item" data-target="curriculumView">
+          <div class="admin-nav-link-content">
+            <span>📚</span>
+            <span>Course Curriculum & Modules</span>
+          </div>
+        </a>
+
+        <a class="admin-nav-item" data-target="demoMcqsView">
+          <div class="admin-nav-link-content">
+            <span>📝</span>
+            <span>NCLEX Q-Bank DEMO MCQs</span>
+          </div>
+        </a>
+
+        <a class="admin-nav-item" data-target="settingsView">
+          <div class="admin-nav-link-content">
+            <span>⚙️</span>
+            <span>Site & Personal Info</span>
+          </div>
+        </a>
+
+        <a class="admin-nav-item" data-target="usersView">
+          <div class="admin-nav-link-content">
+            <span>👥</span>
+            <span>Students & Users</span>
+          </div>
+        </a>
+      </nav>
+
+      <div class="admin-sidebar-footer">
+        <div class="admin-user-info">
+          <div class="admin-avatar" id="sidebarAvatar">A</div>
+          <div class="admin-user-details">
+            <p id="sidebarAdminName">Admin</p>
+            <span>Verified Admin</span>
+          </div>
+        </div>
+        <button class="admin-btn admin-btn-secondary admin-btn-sm" id="logoutBtn" title="Logout" style="padding:0.4rem 0.6rem">🚪</button>
+      </div>
+    </aside>
+
+    <!-- ── MAIN CONTENT ── -->
+    <div class="admin-main">
+      <!-- Topbar -->
+      <header class="admin-topbar">
+        <div class="admin-topbar-title">
+          <h1 id="pageTitle">Dashboard Overview</h1>
+        </div>
+        <div class="admin-topbar-actions">
+          <a href="index.html" target="_blank" class="admin-btn admin-btn-secondary" title="View main platform website">
+            <span>🌐 View Website</span>
+          </a>
+          <button class="admin-btn admin-btn-primary" id="topbarNewCourseBtn">
+            <span>➕ Add Course</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="admin-content">
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- VIEW 1: DASHBOARD OVERVIEW                                        -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="admin-view active" id="dashboardView">
+          <!-- Metric KPI Cards -->
+          <div class="admin-stats-grid">
+            <div class="admin-stat-card">
+              <div class="admin-stat-icon" style="background:#fef3c7;color:#b45309">⏳</div>
+              <div class="admin-stat-info">
+                <h3 id="statPending">0</h3>
+                <p>Pending Approvals</p>
+              </div>
+            </div>
+
+            <div class="admin-stat-card">
+              <div class="admin-stat-icon" style="background:#e0f2fe;color:#0284c7">👥</div>
+              <div class="admin-stat-info">
+                <h3 id="statStudents">0</h3>
+                <p>Total Students</p>
+              </div>
+            </div>
+
+            <div class="admin-stat-card">
+              <div class="admin-stat-icon" style="background:#d1fae5;color:#065f46">📚</div>
+              <div class="admin-stat-info">
+                <h3 id="statCourses">0</h3>
+                <p>Active Courses</p>
+              </div>
+            </div>
+
+            <div class="admin-stat-card">
+              <div class="admin-stat-icon" style="background:#f3e8ff;color:#7c3aed">✅</div>
+              <div class="admin-stat-info">
+                <h3 id="statApproved">0</h3>
+                <p>Approved Students</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pending Approvals Alert Section -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h2><span>💳</span> Course Enrollments & Payments Awaiting Review</h2>
+              <button class="admin-btn admin-btn-secondary admin-btn-sm" id="viewAllRegistrationsBtn">
+                View All Enrollments →
+              </button>
+            </div>
+            <div class="admin-table-wrap">
+              <table class="admin-table" id="dashboardPendingTable">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Course</th>
+                    <th>WhatsApp</th>
+                    <th>Receipt</th>
+                    <th>Date Applied</th>
+                    <th>Status</th>
+                    <th style="text-align:right">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboardPendingTbody">
+                  <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--admin-text-muted)">Loading pending enrollments…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </section>
+
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- VIEW 2: COURSE REGISTRATIONS & APPROVAL QUEUE                     -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="admin-view" id="registrationsView">
+          <div class="admin-card">
+            <!-- Tabs -->
+            <div class="admin-tabs">
+              <button class="admin-tab active" data-reg-status="all">All (<span id="tabCountAll">0</span>)</button>
+              <button class="admin-tab" data-reg-status="pending" style="color:#b45309">
+                Pending (<span id="tabCountPending">0</span>) ⏳
+              </button>
+              <button class="admin-tab" data-reg-status="approved" style="color:#065f46">
+                Approved (<span id="tabCountApproved">0</span>) ✓
+              </button>
+              <button class="admin-tab" data-reg-status="rejected" style="color:#991b1b">
+                Rejected (<span id="tabCountRejected">0</span>) ✕
+              </button>
+            </div>
+
+            <div class="admin-card-body" style="padding-bottom:0">
+              <div class="admin-toolbar">
+                <div class="admin-search-wrap">
+                  <span class="search-icon">🔍</span>
+                  <input type="text" id="regSearchInput" placeholder="Search student name, email, or course…"/>
+                </div>
+                <div style="display:flex;gap:0.75rem">
+                  <button class="admin-btn admin-btn-secondary" id="refreshRegistrationsBtn">🔄 Refresh</button>
+                  <button class="admin-btn admin-btn-primary" id="manualEnrollBtn">➕ Manual Course Grant</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="admin-table-wrap admin-table-scroll-xy">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Course</th>
+                    <th>WhatsApp</th>
+                    <th>Payment Receipt</th>
+                    <th>Trx ID</th>
+                    <th>Applied At</th>
+                    <th>Status</th>
+                    <th>Notes</th>
+                    <th style="text-align:right">Review Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="registrationsTbody">
+                  <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--admin-text-muted)">Loading course enrollments & payments…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- VIEW 3: COURSES & PICTURE EDITOR                                  -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="admin-view" id="coursesView">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h2><span>📚</span> Manage Courses & Pictures</h2>
+              <div style="display:flex;gap:0.75rem">
+                <button class="admin-btn admin-btn-secondary" id="refreshCoursesBtn">🔄 Refresh</button>
+                <button class="admin-btn admin-btn-primary" id="addNewCourseBtn">➕ Add New Course</button>
+              </div>
+            </div>
+
+            <div class="admin-card-body">
+              <div class="admin-toolbar">
+                <div class="admin-search-wrap">
+                  <span class="search-icon">🔍</span>
+                  <input type="text" id="courseSearchInput" placeholder="Search course by title or category…"/>
+                </div>
+                <div>
+                  <select id="courseCategoryFilter" style="padding:0.55rem 1rem;border:1px solid var(--admin-border);border-radius:var(--admin-radius-sm);font-size:0.9rem">
+                    <option value="all">All Categories</option>
+                    <option value="nclex-rn">NCLEX-RN</option>
+                    <option value="nclex-pn">NCLEX-PN</option>
+                    <option value="pharmacology">Pharmacology</option>
+                    <option value="specialty">Specialty</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Courses Grid -->
+              <div class="admin-courses-grid" id="coursesGrid">
+                <div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--admin-text-muted)">Loading courses…</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- VIEW 4: STUDENTS & USERS                                          -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="admin-view" id="usersView">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h2><span>👥</span> Registered Students & Administrators</h2>
+              <button class="admin-btn admin-btn-secondary" id="refreshUsersBtn">🔄 Refresh</button>
+            </div>
+
+            <div class="admin-card-body" style="padding-bottom:0">
+              <div class="admin-toolbar">
+                <div class="admin-search-wrap">
+                  <span class="search-icon">🔍</span>
+                  <input type="text" id="userSearchInput" placeholder="Search user by name or email…"/>
+                </div>
+              </div>
+            </div>
+
+            <div class="admin-table-wrap admin-table-scroll-xy">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Email</th>
+                    <th>Password</th>
+                    <th>Exam Type</th>
+                    <th>Role</th>
+                    <th>Courses</th>
+                    <th>Status</th>
+                    <th>Joined</th>
+                    <th style="text-align:right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="usersTbody">
+                  <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--admin-text-muted)">Loading users…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- VIEW 6: COURSE CURRICULUM & MODULES                               -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="admin-view" id="curriculumView">
+          <div class="curriculum-control-bar">
+            <div style="display:flex;align-items:center;gap:1rem;flex:1;min-width:280px">
+              <label style="font-weight:700;color:var(--admin-text-main);white-space:nowrap">Select Course:</label>
+              <select id="curriculumCourseSelect" style="flex:1;max-width:420px;font-weight:600;padding:0.6rem;border-radius:var(--admin-radius-sm);border:1px solid var(--admin-border)">
+                <option value="">Loading courses…</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.75rem">
+              <button type="button" class="admin-btn admin-btn-secondary" id="addModuleBtn">
+                <span>➕ Add Module</span>
+              </button>
+              <button type="button" class="admin-btn admin-btn-primary" id="saveCurriculumBtn">
+                <span>💾 Save Course Curriculum</span>
+              </button>
+            </div>
+          </div>
+
+          <div style="background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;padding:0.75rem 1.25rem;border-radius:var(--admin-radius-sm);margin-bottom:1.25rem;font-size:0.88rem;display:flex;align-items:center;gap:0.75rem">
+            <span style="font-size:1.25rem">🔴</span>
+            <div>
+              <strong>Live Classes Model (Google Meet & WhatsApp):</strong>
+              All full courses and interactive live sessions are conducted directly through WhatsApp and Google Meet.
+            </div>
+          </div>
+
+          <div id="curriculumModulesContainer">
+            <div style="text-align:center;padding:3rem;color:var(--admin-text-muted);background:#fff;border-radius:var(--admin-radius);border:1px solid var(--admin-border)">
+              Select a course above to manage its modules, clinical notes, and curriculum outline.
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- VIEW 7: SITE SETTINGS & PERSONAL DETAILS                           -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="admin-view" id="settingsView">
+          <form id="siteSettingsForm">
+            <!-- Hero & Announcement Settings -->
+            <div class="settings-section-card">
+              <div class="settings-section-header">
+                <span style="font-size:1.5rem">🚀</span>
+                <div>
+                  <h3>Homepage Hero & Announcements</h3>
+                  <p>Control the main headline, subtitle, and top announcement banner displayed to all visitors.</p>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Top Announcement Banner</label>
+                <input type="text" id="setting_hero_announcement" placeholder="🎯 Next-Gen 2026 Material Now Live for NCLEX-RN, SNLE & Prometric!"/>
+              </div>
+              <div class="form-group">
+                <label>Hero Headline</label>
+                <input type="text" id="setting_hero_headline" placeholder="Master NCLEX-RN, SNLE & Prometric on Your First Attempt"/>
+              </div>
+              <div class="form-group">
+                <label>Hero Subtitle</label>
+                <textarea id="setting_hero_subtitle" rows="2" placeholder="Interactive live clinical sessions, Next-Gen case studies..."></textarea>
+              </div>
+            </div>
+
+            <!-- Director & Faculty Personal Details -->
+            <div class="settings-section-card">
+              <div class="settings-section-header">
+                <span style="font-size:1.5rem">👩‍⚕️</span>
+                <div>
+                  <h3>Lead Educator & Faculty Profile</h3>
+                  <p>Update personal credentials, bio, instructor photo, and verified pass rate metrics across homepage and about sections.</p>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Instructor / Director Full Name</label>
+                  <input type="text" id="setting_instructor_name" placeholder="Dr. Sarah Jenkins, DNP, RN, CCRN"/>
+                </div>
+                <div class="form-group">
+                  <label>Professional Designation / Title</label>
+                  <input type="text" id="setting_instructor_title" placeholder="Director of Nursing Education & NCLEX / SNLE Lead Strategist"/>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Personal Bio / Clinical Experience Overview</label>
+                <textarea id="setting_instructor_bio" rows="3" placeholder="Over 14 years of critical care experience and nursing exam prep coaching..."></textarea>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Experience Badge</label>
+                  <input type="text" id="setting_instructor_experience" placeholder="14+ Years Clinical & Prep Experience"/>
+                </div>
+                <div class="form-group">
+                  <label>Verified Pass Rate</label>
+                  <input type="text" id="setting_pass_rate" placeholder="99.4%"/>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Students Mentored</label>
+                  <input type="text" id="setting_students_helped" placeholder="12,500+"/>
+                </div>
+                <div class="form-group">
+                  <label>Active Faculty Mentors</label>
+                  <input type="text" id="setting_active_mentors" placeholder="50+"/>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Instructor Photo URL</label>
+                <input type="text" id="setting_instructor_photo" placeholder="https://example.com/photo.jpg or /uploads/courses/xxx.jpg"/>
+              </div>
+            </div>
+
+            <!-- Contact & Institutional Information -->
+            <div class="settings-section-card">
+              <div class="settings-section-header">
+                <span style="font-size:1.5rem">📞</span>
+                <div>
+                  <h3>Direct Contact & Support Channels</h3>
+                  <p>Control official email address, phone, WhatsApp helpline, and medical campus address.</p>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Support Email Address</label>
+                  <input type="email" id="setting_contact_email" placeholder="support@simplenclex.com"/>
+                </div>
+                <div class="form-group">
+                  <label>Helpline Phone Number</label>
+                  <input type="text" id="setting_contact_phone" placeholder="+1 (800) 555-NCLEX"/>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Official WhatsApp Number (with country code, e.g. +18005556253)</label>
+                  <input type="text" id="setting_contact_whatsapp" placeholder="+18005556253"/>
+                </div>
+                <div class="form-group">
+                  <label>Campus / Facility Address</label>
+                  <input type="text" id="setting_contact_address" placeholder="Houston Medical Center, Texas, USA"/>
+                </div>
+              </div>
+              <div class="settings-section-header" style="margin-top:1.5rem">
+                <span style="font-size:1.5rem">🌐</span>
+                <div>
+                  <h3>Official Social Media Channels</h3>
+                  <p>Update links for Facebook, YouTube, Instagram, and LinkedIn displayed in the platform footer.</p>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Facebook Page URL</label>
+                  <input type="url" id="setting_social_facebook" placeholder="https://www.facebook.com/your-page"/>
+                </div>
+                <div class="form-group">
+                  <label>YouTube Channel URL</label>
+                  <input type="url" id="setting_social_youtube" placeholder="https://youtube.com/@your-channel"/>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Instagram Profile URL</label>
+                  <input type="url" id="setting_social_instagram" placeholder="https://www.instagram.com/your-handle"/>
+                </div>
+                <div class="form-group">
+                  <label>LinkedIn Company URL</label>
+                  <input type="url" id="setting_social_linkedin" placeholder="https://www.linkedin.com/company/your-company"/>
+                </div>
+              </div>
+              <div class="form-group" style="margin-top:1.5rem">
+                <label>Platform Mission Statement (About Section)</label>
+                <textarea id="setting_about_mission" rows="2" placeholder="Empowering nursing professionals worldwide to conquer NCLEX-RN, SNLE, and Prometric licensing exams..."></textarea>
+              </div>
+            </div>
+
+            <!-- 💳 Easypaisa, Bank IBAN & Live Classes Settings Card -->
+            <div class="settings-section-card">
+              <div class="settings-section-header">
+                <span style="font-size:1.5rem">💳</span>
+                <div>
+                  <h3>Easypaisa, Bank IBAN & Live Classes Settings</h3>
+                  <p>Configure the official Easypaisa account details, Bank IBAN, and WhatsApp group link displayed to students during course enrollment.</p>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Easypaisa Account Title / Name</label>
+                  <input type="text" id="setting_payment_easypaisa_name" placeholder="e.g. Muhammad Talha Sadeeq"/>
+                </div>
+                <div class="form-group">
+                  <label>Easypaisa Account / Mobile Number</label>
+                  <input type="text" id="setting_payment_easypaisa_number" placeholder="e.g. 0300-1234567"/>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Bank Name</label>
+                  <input type="text" id="setting_payment_bank_name" placeholder="e.g. Meezan Bank / HBL"/>
+                </div>
+                <div class="form-group">
+                  <label>Bank Account / IBAN Number</label>
+                  <input type="text" id="setting_payment_bank_iban" placeholder="e.g. PK00MEZN0000000000000000"/>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Official WhatsApp Group Invite Link (for Google Meet live classes & study guide)</label>
+                <input type="url" id="setting_payment_whatsapp_group_link" placeholder="https://chat.whatsapp.com/..."/>
+              </div>
+              <div class="form-group">
+                <label>Payment & Live Class Instructions</label>
+                <textarea id="setting_payment_instructions" rows="2" placeholder="Transfer course fee via Easypaisa or Bank IBAN, upload payment screenshot receipt with your WhatsApp number. Admin will confirm and add you to WhatsApp Group for Google Meet live classes."></textarea>
+              </div>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;margin-bottom:2rem">
+              <button type="submit" class="admin-btn admin-btn-primary" style="padding:0.75rem 1.75rem;font-size:1rem" id="saveSettingsBtn">
+                <span>💾 Save Platform & Personal Details</span>
+              </button>
+            </div>
+          </form>
+        </section>
+
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- VIEW 8: FREE DEMO MCQS                                             -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="admin-view" id="demoMcqsView">
+          <div class="admin-card">
+            <div class="admin-card-header" style="flex-wrap:wrap;gap:1rem">
+              <div>
+                <h2><span>📝</span> NCLEX Q-Bank DEMO MCQs</h2>
+                <p style="font-size:0.88rem;color:var(--admin-text-muted);margin-top:0.25rem">
+                  Manage the interactive clinical practice questions featured on the homepage. Edit question statements, options, rationales, and clinical pearls.
+                </p>
+              </div>
+              <div style="display:flex;gap:0.75rem;align-items:center">
+                <button type="button" class="admin-btn admin-btn-secondary" id="resetDemoMcqsBtn">
+                  <span>🔄 Reset to Defaults</span>
+                </button>
+                <button type="button" class="admin-btn admin-btn-primary" id="addDemoMcqBtn">
+                  <span>➕ Add Demo Question</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="admin-card-body">
+              <div id="demoMcqsListContainer" class="admin-mcq-list">
+                <div style="text-align:center;padding:3rem;color:var(--admin-text-muted)">
+                  Loading Demo MCQs…
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <!-- MODAL: COURSE & PICTURE EDITOR                                      -->
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <div class="admin-modal-backdrop" id="courseModal">
+    <div class="admin-modal">
+      <div class="admin-modal-header">
+        <h3 id="courseModalTitle">Edit Course & Picture</h3>
+        <button class="admin-modal-close" data-close-modal="courseModal">×</button>
+      </div>
+      <div class="admin-modal-body">
+        <form id="courseForm">
+          <input type="hidden" id="courseId" value=""/>
+
+          <!-- Picture Upload & Live Preview Section -->
+          <div class="form-group">
+            <label>Course Picture / Banner Image</label>
+            <div class="picture-preview-box" id="modalPicturePreview">
+              <span class="empty-text">No custom picture set (fallback emoji will show)</span>
+            </div>
+
+            <div class="picture-uploader-wrap">
+              <p style="font-size:0.85rem;color:var(--admin-text-muted);margin-bottom:0.6rem">
+                Upload a new course picture (PNG, JPG, WEBP)
+              </p>
+              <input type="file" id="coursePictureFile" accept="image/*" style="display:none"/>
+              <button type="button" class="admin-btn admin-btn-secondary admin-btn-sm" onclick="document.getElementById('coursePictureFile').click()">
+                📁 Choose Image File
+              </button>
+              <span id="uploadStatusText" style="font-size:0.8rem;color:var(--admin-primary);margin-left:0.5rem"></span>
+            </div>
+
+            <div>
+              <label style="font-size:0.8rem;color:var(--admin-text-muted)">Or Image URL directly:</label>
+              <input type="text" id="courseImageUrl" placeholder="https://example.com/image.jpg or /uploads/courses/xxx.jpg"/>
+            </div>
+          </div>
+
+          <!-- Basic Course Info -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Course Title *</label>
+              <input type="text" id="courseTitle" required placeholder="e.g. NCLEX-RN Complete Prep"/>
+            </div>
+            <div class="form-group">
+              <label>Category *</label>
+              <select id="courseCategory" required>
+                <option value="nclex-rn">NCLEX-RN</option>
+                <option value="snle">SNLE (Saudi Licensure)</option>
+                <option value="prometric">Prometric Nursing</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Description *</label>
+            <textarea id="courseDesc" rows="3" required placeholder="Detailed course description…"></textarea>
+          </div>
+
+          <!-- Pricing & Hours -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Sale Price ($) *</label>
+              <input type="number" id="coursePrice" step="1" required placeholder="89"/>
+            </div>
+            <div class="form-group">
+              <label>Original Price ($)</label>
+              <input type="number" id="courseOriginalPrice" step="1" placeholder="199"/>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Duration (Hours)</label>
+              <input type="number" id="courseDuration" placeholder="48"/>
+            </div>
+            <div class="form-group">
+              <label>Practice Questions Count</label>
+              <input type="number" id="courseQuestions" placeholder="2500"/>
+            </div>
+          </div>
+
+          <!-- Icon, Level, Badges -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Fallback Emoji Icon</label>
+              <input type="text" id="courseEmoji" placeholder="🏥" style="max-width:90px"/>
+            </div>
+            <div class="form-group">
+              <label>Level</label>
+              <select id="courseLevel">
+                <option value="Beginner → Pro">Beginner → Pro</option>
+                <option value="All Levels">All Levels</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Advanced">Advanced</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Badge Text</label>
+              <input type="text" id="courseBadgeText" placeholder="Bestseller, Hot, New, etc."/>
+            </div>
+            <div class="form-group">
+              <label>Badge Color Style</label>
+              <select id="courseBadgeStyle">
+                <option value="accent">Blue Accent</option>
+                <option value="purple">Purple</option>
+                <option value="gold">Gold</option>
+                <option value="green">Green</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" style="display:flex;align-items:center;gap:0.5rem">
+            <input type="checkbox" id="courseFeatured" style="width:auto"/>
+            <label for="courseFeatured" style="margin:0;cursor:pointer">Feature this course prominently on homepage</label>
+          </div>
+        </form>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="courseModal">Cancel</button>
+        <button type="button" class="admin-btn admin-btn-primary" id="saveCourseBtn">💾 Save Course</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <!-- MODAL: REJECT REGISTRATION                                          -->
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <div class="admin-modal-backdrop" id="rejectModal">
+    <div class="admin-modal" style="max-width:480px">
+      <div class="admin-modal-header">
+        <h3>Decline Course Registration</h3>
+        <button class="admin-modal-close" data-close-modal="rejectModal">×</button>
+      </div>
+      <div class="admin-modal-body">
+        <p style="font-size:0.92rem;color:var(--admin-text-main);margin-bottom:1rem" id="rejectModalPrompt">
+          Are you sure you want to decline this registration?
+        </p>
+        <div class="form-group">
+          <label>Reason / Notes for student (Optional):</label>
+          <textarea id="rejectNotes" rows="3" placeholder="e.g. Payment receipt verification pending or incorrect student ID."></textarea>
+        </div>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="rejectModal">Cancel</button>
+        <button type="button" class="admin-btn admin-btn-danger" id="confirmRejectBtn">✕ Decline Registration</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <!-- MODAL: MANUAL ENROLLMENT GRANT                                      -->
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <div class="admin-modal-backdrop" id="manualEnrollModal">
+    <div class="admin-modal" style="max-width:500px">
+      <div class="admin-modal-header">
+        <h3>Manual Course Grant</h3>
+        <button class="admin-modal-close" data-close-modal="manualEnrollModal">×</button>
+      </div>
+      <div class="admin-modal-body">
+        <p style="font-size:0.88rem;color:var(--admin-text-muted);margin-bottom:1.25rem">
+          Directly enroll a registered student with approved status (for offline cash payments, promotional grants, or transfers).
+        </p>
+        <div class="form-group">
+          <label>Select Student *</label>
+          <select id="manualStudentSelect" required>
+            <option value="">Loading students…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Select Course *</label>
+          <select id="manualCourseSelect" required>
+            <option value="">Loading courses…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Notes / Reference</label>
+          <input type="text" id="manualNotes" placeholder="e.g. Offline bank transfer reference #1234"/>
+        </div>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="manualEnrollModal">Cancel</button>
+        <button type="button" class="admin-btn admin-btn-success" id="confirmManualEnrollBtn">✓ Grant Course Access</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <!-- MODAL: EDIT USER PERSONAL DETAILS                                    -->
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <div class="admin-modal-backdrop" id="editUserModal">
+    <div class="admin-modal" style="max-width:540px">
+      <div class="admin-modal-header">
+        <h3>Edit Student / User Details</h3>
+        <button class="admin-modal-close" data-close-modal="editUserModal">×</button>
+      </div>
+      <div class="admin-modal-body">
+        <form id="editUserForm">
+          <input type="hidden" id="editUserId" value=""/>
+          <div class="form-row">
+            <div class="form-group">
+              <label>First Name *</label>
+              <input type="text" id="editUserFirstName" required placeholder="First Name"/>
+            </div>
+            <div class="form-group">
+              <label>Last Name *</label>
+              <input type="text" id="editUserLastName" required placeholder="Last Name"/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Email Address *</label>
+            <input type="email" id="editUserEmail" required placeholder="user@example.com"/>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Exam Focus / Track</label>
+              <select id="editUserExamType">
+                <option value="NCLEX-RN">NCLEX-RN</option>
+                <option value="SNLE">SNLE (Saudi Licensure)</option>
+                <option value="Prometric">Prometric (Gulf/Middle East)</option>
+                <option value="NCLEX-PN">NCLEX-PN</option>
+                <option value="Other">Other Nursing Exam</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>System Role *</label>
+              <select id="editUserRole" required>
+                <option value="student">Student / Candidate</option>
+                <option value="admin">Administrator</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Password (View or Change)</label>
+            <div style="display:flex;align-items:center;position:relative">
+              <input type="text" id="editUserPassword" placeholder="User password (enter new to update)"/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Account Status</label>
+            <select id="editUserActive">
+              <option value="true">Active (Access Allowed)</option>
+              <option value="false">Inactive / Suspended</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="editUserModal">Cancel</button>
+        <button type="button" class="admin-btn admin-btn-primary" id="saveUserDetailsBtn">💾 Save User Details</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <!-- MODAL: DEMO MCQ EDITOR                                              -->
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <div class="admin-modal-backdrop" id="demoMcqModal">
+    <div class="admin-modal" style="max-width:760px">
+      <div class="admin-modal-header">
+        <h3 id="demoMcqModalTitle">Edit NCLEX Q-Bank DEMO MCQ</h3>
+        <button class="admin-modal-close" data-close-modal="demoMcqModal">×</button>
+      </div>
+      <div class="admin-modal-body">
+        <form id="demoMcqForm">
+          <input type="hidden" id="demoMcqId" value=""/>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Category / Track *</label>
+              <input type="text" id="demoMcqCategory" required placeholder="e.g. NCLEX-RN • Pharmacology & Client Needs"/>
+            </div>
+            <div class="form-group">
+              <label>Difficulty Badge *</label>
+              <input type="text" id="demoMcqDifficulty" required placeholder="e.g. High Yield or SCFHS High Yield"/>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Client Need / Category Area (Optional)</label>
+              <input type="text" id="demoMcqClientNeed" placeholder="e.g. Physiological Adaptation — Pharmacological & Parenteral Therapies"/>
+            </div>
+            <div class="form-group">
+              <label>Sort Order</label>
+              <input type="number" id="demoMcqSortOrder" placeholder="1" value="1"/>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Question Clinical Scenario / Statement *</label>
+            <textarea id="demoMcqStatement" rows="4" required placeholder="Enter the full clinical scenario / patient stem..."></textarea>
+          </div>
+
+          <!-- Options Section with Correct Answer Radio -->
+          <div class="form-group">
+            <label style="margin-bottom:0.6rem">Options & Correct Answer Selection *</label>
+            <p style="font-size:0.8rem;color:var(--admin-text-muted);margin-bottom:0.75rem">
+              Select the radio button next to the option that is the correct clinical answer.
+            </p>
+
+            <div class="mcq-option-row">
+              <label class="mcq-option-radio-wrap" id="wrap_opt_0">
+                <input type="radio" name="mcqCorrectOption" value="0" checked/>
+                <span>Option A (Correct)</span>
+              </label>
+              <input type="text" id="demoMcqOpt0" required placeholder="Option A text"/>
+            </div>
+
+            <div class="mcq-option-row">
+              <label class="mcq-option-radio-wrap" id="wrap_opt_1">
+                <input type="radio" name="mcqCorrectOption" value="1"/>
+                <span>Option B (Correct)</span>
+              </label>
+              <input type="text" id="demoMcqOpt1" required placeholder="Option B text"/>
+            </div>
+
+            <div class="mcq-option-row">
+              <label class="mcq-option-radio-wrap" id="wrap_opt_2">
+                <input type="radio" name="mcqCorrectOption" value="2"/>
+                <span>Option C (Correct)</span>
+              </label>
+              <input type="text" id="demoMcqOpt2" required placeholder="Option C text"/>
+            </div>
+
+            <div class="mcq-option-row">
+              <label class="mcq-option-radio-wrap" id="wrap_opt_3">
+                <input type="radio" name="mcqCorrectOption" value="3"/>
+                <span>Option D (Correct)</span>
+              </label>
+              <input type="text" id="demoMcqOpt3" required placeholder="Option D text"/>
+            </div>
+          </div>
+
+          <!-- Rationales Section -->
+          <div class="form-group">
+            <label>Correct Answer Detailed Clinical Rationale *</label>
+            <textarea id="demoMcqCorrectRationale" rows="3" required placeholder="Comprehensive physiological explanation for why the chosen option is correct..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Why Other Options Are Incorrect (Distractor Explanations)</label>
+            <p style="font-size:0.8rem;color:var(--admin-text-muted);margin-bottom:0.4rem">
+              Enter each distractor reason on a new line (e.g. "Option A: Antidote for warfarin...").
+            </p>
+            <textarea id="demoMcqDistractors" rows="3" placeholder="Option A: ...&#10;Option C: ...&#10;Option D: ..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Saunders & ATI Clinical Pearl / High-Yield Rule</label>
+            <textarea id="demoMcqClinicalPearl" rows="2" placeholder="e.g. NCLEX High-Yield Rule: Post-thyroidectomy emergencies are..."></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="demoMcqModal">Cancel</button>
+        <button type="button" class="admin-btn admin-btn-primary" id="saveDemoMcqBtn">💾 Save Demo Question</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 💳 Lightbox Modal for Payment Screenshot -->
+  <div class="admin-modal-backdrop" id="screenshotLightboxModal">
+    <div class="admin-modal" style="max-width:720px">
+      <div class="admin-modal-header">
+        <h3 id="screenshotModalTitle"><span>💳</span> Student Payment Screenshot Receipt</h3>
+        <button class="admin-modal-close" data-close-modal="screenshotLightboxModal">✕</button>
+      </div>
+      <div class="admin-modal-body" style="text-align:center;padding:1.5rem">
+        <div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;padding:0.75rem 1rem;border-radius:8px;border:1px solid var(--admin-border)">
+          <div style="text-align:left">
+            <strong id="screenshotStudentName" style="color:var(--admin-text-main);font-size:1rem;display:block">Student Name</strong>
+            <span id="screenshotCourseTitle" style="color:var(--admin-text-muted);font-size:0.85rem">Course Title</span>
+          </div>
+          <a id="screenshotDownloadBtn" href="#" target="_blank" class="admin-btn admin-btn-secondary admin-btn-sm">
+            ↗ Open Original File
+          </a>
+        </div>
+        <div style="background:#0f172a;border-radius:8px;padding:1rem;display:flex;align-items:center;justify-content:center;min-height:300px;max-height:550px;overflow:auto">
+          <img id="screenshotModalImg" src="" alt="Payment Receipt" style="max-width:100%;max-height:500px;border-radius:6px;object-fit:contain;box-shadow:0 10px 25px rgba(0,0,0,0.5)"/>
+        </div>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="screenshotLightboxModal">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification container -->
+  <div class="admin-toast-container" id="toastContainer"></div>
+
+  <script src="/static/js/admin.js"></script>
+</body>
+</html>

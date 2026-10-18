@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign Up — Simple NCLEX Platform</title>
+  <meta name="description" content="Create your free Simple NCLEX Platform account."/>
+  <link rel="icon" type="image/png" href="/static/images/favicon.png"/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <link rel="stylesheet" href="/static/css/auth.css"/>
+</head>
+<body class="auth-page-simple">
+  <div class="auth-simple-box" style="max-width:480px">
+
+    <!-- Brand Header -->
+    <div class="auth-simple-header">
+      <a href="index.html" class="auth-brand" style="justify-content:center;margin-bottom:0.85rem;text-decoration:none">
+        <img src="/static/images/logo.png" alt="Simple NCLEX Platform Logo" class="auth-logo-img"/>
+        <span style="color:var(--text-title);font-size:1.3rem;font-weight:800">Simple NCLEX Platform</span>
+      </a>
+      <h1 style="font-size:1.65rem;font-weight:800;color:var(--text-title);margin:0 0 0.35rem">Create Free Account</h1>
+      <p style="font-size:0.9rem;color:var(--text-muted);margin:0">Get started with your nursing exam preparation in seconds</p>
+    </div>
+
+    <!-- Register Card -->
+    <div class="auth-simple-card">
+      <form id="registerForm" class="auth-form" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="firstName">First Name</label>
+            <div class="input-icon-wrap">
+              <span class="icon">👤</span>
+              <input type="text" id="firstName" class="form-input" placeholder="First name" autocomplete="given-name" required/>
+            </div>
+            <p class="field-error" id="firstNameError"></p>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="lastName">Last Name</label>
+            <div class="input-icon-wrap">
+              <span class="icon">👤</span>
+              <input type="text" id="lastName" class="form-input" placeholder="Last name" autocomplete="family-name" required/>
+            </div>
+            <p class="field-error" id="lastNameError"></p>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="regEmail">Email Address</label>
+          <div class="input-icon-wrap">
+            <span class="icon">✉️</span>
+            <input type="email" id="regEmail" class="form-input" placeholder="name@example.com" autocomplete="email" required/>
+          </div>
+          <p class="field-error" id="regEmailError"></p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="examType">Exam Program</label>
+          <select id="examType" class="form-input" required style="padding-left:1rem">
+            <option value="">— Select your exam program —</option>
+            <option value="NCLEX-RN" selected>NCLEX-RN Complete Prep 2026</option>
+            <option value="SNLE">SNLE (Saudi Nursing Licensing Exam)</option>
+            <option value="Prometric">Prometric Exam (DHA, MOH, Qatar, Oman)</option>
+          </select>
+          <p class="field-error" id="examTypeError"></p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="regPassword">Password (Min. 8 characters)</label>
+          <div class="input-icon-wrap">
+            <span class="icon">🔒</span>
+            <input type="password" id="regPassword" class="form-input" placeholder="Min. 8 characters" autocomplete="new-password" required/>
+            <button type="button" class="toggle-pw" id="toggleRegPw" aria-label="Toggle password">👁️</button>
+          </div>
+          <p class="field-error" id="regPwError"></p>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:0.85rem;font-weight:700;margin-top:0.5rem" id="registerBtn">
+          <span id="registerBtnText">Create Account →</span>
+          <span id="registerSpinner" class="spinner hidden"></span>
+        </button>
+      </form>
+
+      <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border-light);text-align:center;font-size:0.9rem">
+        <span style="color:var(--text-muted)">Already have an account?</span>
+        <a href="login.html" class="auth-link" style="font-weight:700;margin-left:0.25rem">Log In →</a>
+      </div>
+    </div>
+
+    <div class="auth-simple-footer">
+      <a href="index.html" style="color:var(--text-muted);text-decoration:none;font-size:0.85rem;display:inline-flex;align-items:center;gap:0.35rem">
+        ← Back to Simple NCLEX Platform Home
+      </a>
+    </div>
+
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="/static/js/main.js"></script>
+  <script src="/static/js/auth.js"></script>
+</body>
+</html>
