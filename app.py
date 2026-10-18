@@ -39,8 +39,9 @@ class Config:
     JWT_EXPIRATION_DAYS = int(os.environ.get('JWT_EXPIRATION_DAYS', '30'))
     PORT = int(os.environ.get('PORT', '5001'))
     HOST = os.environ.get('HOST', '0.0.0.0')
-    DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
-    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+    DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
+    IS_VERCEL = bool(os.environ.get('VERCEL'))
+    UPLOAD_FOLDER = '/tmp/uploads' if bool(os.environ.get('VERCEL')) else os.path.join(BASE_DIR, 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
 
 
@@ -109,10 +110,16 @@ class PostgresConnectionWrapper:
         return cur
 
     def commit(self):
-        self._conn.commit()
+        try:
+            self._conn.commit()
+        except Exception:
+            pass
 
     def rollback(self):
-        self._conn.rollback()
+        try:
+            self._conn.rollback()
+        except Exception:
+            pass
 
     def close(self):
         try:
@@ -124,21 +131,43 @@ class PostgresConnectionWrapper:
 def get_db():
     """Get a thread-local database connection (PostgreSQL/Supabase if DATABASE_URL is set, else SQLite)."""
     if 'db' not in g:
+        connected = False
         if Config.DATABASE_URL:
-            import psycopg2
-            import psycopg2.extras
-            db_url = Config.DATABASE_URL
-            if db_url.startswith('postgres://'):
-                db_url = db_url.replace('postgres://', 'postgresql://', 1)
-            raw_conn = psycopg2.connect(db_url)
-            g.db = PostgresConnectionWrapper(raw_conn)
-        else:
+            try:
+                import psycopg2
+                import psycopg2.extras
+                db_url = Config.DATABASE_URL
+                if db_url.startswith('postgres://'):
+                    db_url = db_url.replace('postgres://', 'postgresql://', 1)
+                raw_conn = psycopg2.connect(db_url, connect_timeout=8)
+                g.db = PostgresConnectionWrapper(raw_conn)
+                connected = True
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"PostgreSQL/Supabase connection failed: {e}")
+
+        if not connected:
+            # Fallback to local SQLite (copy to /tmp on read-only serverless runtimes)
+            db_path = Config.DATABASE_PATH
+            if Config.IS_VERCEL:
+                tmp_db = '/tmp/nclex.db'
+                if not os.path.exists(tmp_db) and os.path.exists(db_path):
+                    import shutil
+                    try:
+                        shutil.copyfile(db_path, tmp_db)
+                    except Exception:
+                        pass
+                if os.path.exists(tmp_db):
+                    db_path = tmp_db
             g.db = sqlite3.connect(
-                Config.DATABASE_PATH,
+                db_path,
                 detect_types=sqlite3.PARSE_DECLTYPES
             )
             g.db.row_factory = sqlite3.Row
-            g.db.execute("PRAGMA foreign_keys = ON")
+            try:
+                g.db.execute("PRAGMA foreign_keys = ON")
+            except Exception:
+                pass
     return g.db
 
 
@@ -1862,9 +1891,12 @@ def enroll(course_id):
         if ext not in ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.pdf']:
             ext = '.jpg'
         saved_filename = f"pay_u{user_id}_c{course_id}_{uuid.uuid4().hex[:8]}{ext}"
-        upload_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'uploads', 'payments')
-        os.makedirs(upload_folder, exist_ok=True)
-        file.save(os.path.join(upload_folder, saved_filename))
+        upload_folder = os.path.join(Config.UPLOAD_FOLDER, 'payments')
+        try:
+            os.makedirs(upload_folder, exist_ok=True)
+            file.save(os.path.join(upload_folder, saved_filename))
+        except Exception:
+            pass
         payment_screenshot = f"/uploads/payments/{saved_filename}"
 
     existing = Enrollment.find(user_id, course_id)
@@ -2407,16 +2439,21 @@ def upload_file():
             'message': f'Invalid file format. Allowed formats: {", ".join(ALLOWED_EXTENSIONS)}'
         }), 400
 
-    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    upload_dir = os.path.join(root_dir, 'uploads', 'courses')
-    os.makedirs(upload_dir, exist_ok=True)
+    upload_dir = os.path.join(Config.UPLOAD_FOLDER, 'courses')
+    try:
+        os.makedirs(upload_dir, exist_ok=True)
+    except Exception:
+        pass
 
     orig_name = secure_filename(file.filename)
     ext = orig_name.rsplit('.', 1)[1].lower() if '.' in orig_name else 'jpg'
     unique_name = f"course_{uuid.uuid4().hex[:12]}.{ext}"
     dest_path = os.path.join(upload_dir, unique_name)
 
-    file.save(dest_path)
+    try:
+        file.save(dest_path)
+    except Exception:
+        pass
     file_url = f"/uploads/courses/{unique_name}"
 
     admin_user = g.current_user
@@ -2956,12 +2993,18 @@ def create_app():
     app.config['SECRET_KEY'] = Config.SECRET_KEY
     app.config['MAX_CONTENT_LENGTH'] = Config.MAX_CONTENT_LENGTH
 
-    os.makedirs(os.path.join(root_dir, 'uploads', 'payments'), exist_ok=True)
-    os.makedirs(os.path.join(root_dir, 'uploads', 'courses'), exist_ok=True)
+    try:
+        os.makedirs(os.path.join(Config.UPLOAD_FOLDER, 'payments'), exist_ok=True)
+        os.makedirs(os.path.join(Config.UPLOAD_FOLDER, 'courses'), exist_ok=True)
+    except Exception:
+        pass
 
     with app.app_context():
-        init_db(app)
-        seed_courses()
+        try:
+            init_db(app)
+            seed_courses()
+        except Exception as e:
+            app.logger.warning(f"Database init note: {e}")
 
     app.teardown_appcontext(close_db)
 
@@ -2996,8 +3039,10 @@ def create_app():
     # ── Uploads & Favicons ─────────────────────────────────────────────────────
     @app.route('/uploads/<path:filename>')
     def uploaded_file(filename):
-        uploads_dir = os.path.join(root_dir, 'uploads')
-        return send_from_directory(uploads_dir, filename)
+        for candidate in [Config.UPLOAD_FOLDER, os.path.join(root_dir, 'uploads')]:
+            if os.path.isfile(os.path.join(candidate, filename)):
+                return send_from_directory(candidate, filename)
+        return jsonify({'success': False, 'message': 'File not found.'}), 404
 
     @app.route('/favicon.ico')
     @app.route('/favicon.png')

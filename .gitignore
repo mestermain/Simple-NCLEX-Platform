@@ -25,6 +25,7 @@ wheels/
 
 # Database & Environment
 *.db
+!nclex.db
 *.sqlite3
 .env
 .env.local
