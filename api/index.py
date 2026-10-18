@@ -16,18 +16,28 @@ class VercelWSGIMiddleware:
         self.wsgi = wsgi
 
     def __call__(self, environ, start_response):
-        matched_path = environ.get('HTTP_X_MATCHED_PATH')
-        if not matched_path:
-            matches = environ.get('HTTP_X_NOW_ROUTE_MATCHES')
-            if matches:
-                for part in matches.split('&'):
-                    if part.startswith('1='):
-                        matched_path = '/' + urllib.parse.unquote(part[2:])
-                        break
+        qs = environ.get('QUERY_STRING', '')
+        route_path = None
+
+        if '__route__=' in qs:
+            params = urllib.parse.parse_qs(qs)
+            routes = params.get('__route__')
+            if routes and routes[0]:
+                route_path = routes[0]
+                if not route_path.startswith('/'):
+                    route_path = '/' + route_path
+                # Clean __route__ from query string so request.args stays clean
+                clean_parts = [p for p in qs.split('&') if not p.startswith('__route__=')]
+                environ['QUERY_STRING'] = '&'.join(clean_parts)
+
+        if not route_path:
+            matched_path = environ.get('HTTP_X_MATCHED_PATH')
+            if matched_path:
+                route_path = matched_path
 
         current_path = environ.get('PATH_INFO', '')
-        if matched_path:
-            environ['PATH_INFO'] = matched_path
+        if route_path:
+            environ['PATH_INFO'] = route_path
         elif current_path in ('/api/index.py', '/api/index', '/api'):
             environ['PATH_INFO'] = '/'
         elif current_path.startswith('/api/index.py/'):
