@@ -3094,14 +3094,32 @@ def create_app():
             if os.path.isfile(os.path.join(sub_dir, filename)):
                 return send_from_directory(sub_dir, filename)
         if request.path.startswith('/api/'):
-            return jsonify({'success': False, 'message': 'Resource not found.'}), 404
+            return jsonify({
+                'success': False,
+                'message': 'Resource not found.',
+                'debug': {
+                    'path': request.path,
+                    'environ_path': request.environ.get('PATH_INFO'),
+                    'script_name': request.environ.get('SCRIPT_NAME'),
+                    'qs': request.environ.get('QUERY_STRING')
+                }
+            }), 404
         return render_template('index.html'), 404
 
     # ── Error handlers ─────────────────────────────────────────────────────────
     @app.errorhandler(404)
     def not_found(e):
         if request.path.startswith('/api/'):
-            return jsonify({'success': False, 'message': 'API endpoint not found.'}), 404
+            return jsonify({
+                'success': False,
+                'message': 'API endpoint not found.',
+                'debug': {
+                    'path': request.path,
+                    'environ_path': request.environ.get('PATH_INFO'),
+                    'script_name': request.environ.get('SCRIPT_NAME'),
+                    'qs': request.environ.get('QUERY_STRING')
+                }
+            }), 404
         return render_template('index.html'), 404
 
     @app.errorhandler(500)
