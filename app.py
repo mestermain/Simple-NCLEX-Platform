@@ -3094,32 +3094,14 @@ def create_app():
             if os.path.isfile(os.path.join(sub_dir, filename)):
                 return send_from_directory(sub_dir, filename)
         if request.path.startswith('/api/'):
-            return jsonify({
-                'success': False,
-                'message': 'Resource not found.',
-                'debug': {
-                    'path': request.path,
-                    'environ_path': request.environ.get('PATH_INFO'),
-                    'script_name': request.environ.get('SCRIPT_NAME'),
-                    'qs': request.environ.get('QUERY_STRING')
-                }
-            }), 404
+            return jsonify({'success': False, 'message': 'Resource not found.'}), 404
         return render_template('index.html'), 404
 
     # ── Error handlers ─────────────────────────────────────────────────────────
     @app.errorhandler(404)
     def not_found(e):
         if request.path.startswith('/api/'):
-            return jsonify({
-                'success': False,
-                'message': 'API endpoint not found.',
-                'debug': {
-                    'path': request.path,
-                    'environ_path': request.environ.get('PATH_INFO'),
-                    'script_name': request.environ.get('SCRIPT_NAME'),
-                    'qs': request.environ.get('QUERY_STRING')
-                }
-            }), 404
+            return jsonify({'success': False, 'message': 'API endpoint not found.'}), 404
         return render_template('index.html'), 404
 
     @app.errorhandler(500)
@@ -3128,7 +3110,32 @@ def create_app():
             return jsonify({'success': False, 'message': 'Internal server error.'}), 500
         return render_template('index.html'), 500
 
+    # Wrap WSGI app to fix Vercel rewrite paths
+    app.wsgi_app = VercelRouteFixMiddleware(app.wsgi_app)
+
     return app
+
+
+class VercelRouteFixMiddleware:
+    """Extract and restore rewritten URL paths on Vercel Serverless environment."""
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        qs = environ.get('QUERY_STRING', '')
+        if '__route__=' in qs:
+            import urllib.parse
+            params = urllib.parse.parse_qs(qs)
+            routes = params.get('__route__')
+            if routes and routes[0]:
+                route_path = urllib.parse.unquote(routes[0])
+                if not route_path.startswith('/'):
+                    route_path = '/' + route_path
+                environ['PATH_INFO'] = route_path
+                clean_parts = [p for p in qs.split('&') if not p.startswith('__route__=')]
+                environ['QUERY_STRING'] = '&'.join(clean_parts)
+        environ['SCRIPT_NAME'] = ''
+        return self.wsgi_app(environ, start_response)
 
 
 # Module-level app instance
