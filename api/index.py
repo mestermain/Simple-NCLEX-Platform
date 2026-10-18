@@ -45,6 +45,7 @@ class VercelWSGIMiddleware:
         elif current_path.startswith('/api/index/'):
             environ['PATH_INFO'] = current_path[len('/api/index'):]
 
+        environ['SCRIPT_NAME'] = ''
         return self.wsgi(environ, start_response)
 
 

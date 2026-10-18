@@ -3052,8 +3052,6 @@ def create_app():
     # ── Frontend Web Pages ─────────────────────────────────────────────────────
     @app.route('/')
     @app.route('/index.html')
-    @app.route('/api/index.py')
-    @app.route('/api/index')
     def home():
         return render_template('index.html')
 
