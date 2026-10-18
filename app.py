@@ -33,6 +33,7 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'nclex-pro-super-secret-key-2024-change-in-prod')
+    DATABASE_URL = os.environ.get('DATABASE_URL')
     DATABASE_PATH = os.environ.get('DATABASE_PATH', os.path.join(BASE_DIR, 'nclex.db'))
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'nclex-jwt-secret-2024')
     JWT_EXPIRATION_DAYS = int(os.environ.get('JWT_EXPIRATION_DAYS', '30'))
@@ -46,16 +47,98 @@ class Config:
 # ==============================================================================
 # 2. DATABASE LAYER & DATA MODELS
 # ==============================================================================
+class PostgresCursorWrapper:
+    """Wrapper around psycopg2 RealDictCursor providing sqlite-compatible interface."""
+    def __init__(self, cur):
+        self._cur = cur
+        self.lastrowid = None
+
+    def execute(self, query, params=None):
+        pg_query = query.replace('?', '%s')
+        if params is not None:
+            self._cur.execute(pg_query, params)
+        else:
+            self._cur.execute(pg_query)
+        if pg_query.strip().upper().startswith('INSERT'):
+            try:
+                self._cur.execute("SELECT LASTVAL()")
+                r = self._cur.fetchone()
+                if r:
+                    self.lastrowid = list(r.values())[0] if isinstance(r, dict) else r[0]
+            except Exception:
+                self.lastrowid = None
+        return self
+
+    def executemany(self, query, seq_of_params):
+        pg_query = query.replace('?', '%s')
+        self._cur.executemany(pg_query, seq_of_params)
+        return self
+
+    def fetchone(self):
+        return self._cur.fetchone()
+
+    def fetchall(self):
+        return self._cur.fetchall()
+
+    def fetchmany(self, size=None):
+        return self._cur.fetchmany(size)
+
+    def __iter__(self):
+        return iter(self._cur)
+
+    def close(self):
+        try:
+            self._cur.close()
+        except Exception:
+            pass
+
+
+class PostgresConnectionWrapper:
+    """Wrapper around psycopg2 connection providing sqlite-compatible interface."""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def cursor(self):
+        import psycopg2.extras
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        return PostgresCursorWrapper(cur)
+
+    def execute(self, query, params=None):
+        cur = self.cursor()
+        cur.execute(query, params)
+        return cur
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        try:
+            self._conn.close()
+        except Exception:
+            pass
+
+
 def get_db():
-    """Get a thread-local SQLite database connection."""
+    """Get a thread-local database connection (PostgreSQL/Supabase if DATABASE_URL is set, else SQLite)."""
     if 'db' not in g:
-        g.db = sqlite3.connect(
-            Config.DATABASE_PATH,
-            detect_types=sqlite3.PARSE_DECLTYPES
-        )
-        g.db.row_factory = sqlite3.Row
-        # Enable foreign key support in SQLite
-        g.db.execute("PRAGMA foreign_keys = ON")
+        if Config.DATABASE_URL:
+            import psycopg2
+            import psycopg2.extras
+            db_url = Config.DATABASE_URL
+            if db_url.startswith('postgres://'):
+                db_url = db_url.replace('postgres://', 'postgresql://', 1)
+            raw_conn = psycopg2.connect(db_url)
+            g.db = PostgresConnectionWrapper(raw_conn)
+        else:
+            g.db = sqlite3.connect(
+                Config.DATABASE_PATH,
+                detect_types=sqlite3.PARSE_DECLTYPES
+            )
+            g.db.row_factory = sqlite3.Row
+            g.db.execute("PRAGMA foreign_keys = ON")
     return g.db
 
 
@@ -171,7 +254,9 @@ def get_default_demo_mcqs(now=None):
 
 
 def init_db(app=None):
-    """Initialize SQLite database tables and apply backward-compatible schema migrations."""
+    """Initialize database tables and apply schema migrations (skipped on Supabase/PostgreSQL)."""
+    if Config.DATABASE_URL:
+        return
     conn = sqlite3.connect(Config.DATABASE_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
     cursor = conn.cursor()
@@ -2805,6 +2890,8 @@ def reset_demo_mcqs():
 # ==============================================================================
 def seed_courses():
     """Populate the database with strictly NCLEX-RN, SNLE, and Prometric courses."""
+    if Config.DATABASE_URL:
+        return
     db = get_db()
     cursor = db.cursor()
     rows = cursor.execute("SELECT category FROM courses").fetchall()
