@@ -35,25 +35,45 @@
   }
 
   function updateNavAuth() {
-    const navActions = document.querySelector('.nav-actions');
-    if (!navActions) return;
+    const desktopActions = document.querySelector('.fame-navbar-inner > .fame-nav-actions');
+    const navMenu = document.getElementById('navMenu');
+
+    // Create or locate the mobile auth item inside #navMenu
+    let mobileAuthLi = document.getElementById('mobileNavAuth');
+    if (navMenu && !mobileAuthLi) {
+      mobileAuthLi = document.createElement('li');
+      mobileAuthLi.id = 'mobileNavAuth';
+      mobileAuthLi.className = 'fame-nav-item fame-mobile-nav-auth';
+      navMenu.appendChild(mobileAuthLi);
+    }
 
     const { token, user } = getSession();
 
     if (token && user) {
       const isAdmin = user.role === 'admin';
-      navActions.innerHTML = `
+      const desktopHtml = `
         ${isAdmin ? `<a href="admin.html" class="fame-auth-btn" style="background:#0284c7;color:#fff;padding:0.4rem 0.95rem;font-size:0.85rem;display:inline-flex;align-items:center;gap:0.4rem;font-weight:700;border-radius:8px;box-shadow:0 2px 8px rgba(2,132,199,0.35);">⚡ Admin Panel</a>` : ''}
         <div class="nav-user-pill" title="${user.email}">
           <span>${isAdmin ? '👑' : '🩺'}</span>
           <span>Hi, ${user.firstName || 'User'}</span>
         </div>
-        <button class="fame-auth-btn fame-auth-btn--login" id="logoutBtn" style="padding:0.4rem 0.9rem;font-size:0.85rem">Log Out</button>
+        <button class="fame-auth-btn fame-auth-btn--login logout-trigger" style="padding:0.4rem 0.9rem;font-size:0.85rem">Log Out</button>
       `;
 
-      const logoutBtn = document.getElementById('logoutBtn');
-      if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
+      const mobileHtml = `
+        ${isAdmin ? `<a href="admin.html" class="fame-auth-btn" style="background:#0284c7;color:#fff;font-weight:700;border-radius:8px;box-shadow:0 2px 8px rgba(2,132,199,0.35);">⚡ Admin Panel</a>` : ''}
+        <div class="nav-user-pill" title="${user.email}">
+          <span>${isAdmin ? '👑' : '🩺'}</span>
+          <span>Hi, ${user.firstName || 'User'}</span>
+        </div>
+        <button class="fame-auth-btn fame-auth-btn--login logout-trigger">Log Out</button>
+      `;
+
+      if (desktopActions) desktopActions.innerHTML = desktopHtml;
+      if (mobileAuthLi) mobileAuthLi.innerHTML = mobileHtml;
+
+      document.querySelectorAll('.logout-trigger').forEach(btn => {
+        btn.addEventListener('click', () => {
           localStorage.removeItem('nclex_token');
           localStorage.removeItem('nclex_user');
           showToast('You have been logged out.', 'info');
@@ -61,7 +81,14 @@
             window.location.reload();
           }, 500);
         });
-      }
+      });
+    } else {
+      const authHtml = `
+        <a href="login.html" class="fame-auth-btn fame-auth-btn--login">Login</a>
+        <a href="register.html" class="fame-auth-btn fame-auth-btn--register">Register</a>
+      `;
+      if (desktopActions) desktopActions.innerHTML = authHtml;
+      if (mobileAuthLi) mobileAuthLi.innerHTML = authHtml;
     }
   }
 
@@ -80,6 +107,13 @@
       if (!hamburger.contains(e.target) && !navMenu.contains(e.target)) {
         navMenu.classList.remove('active');
       }
+    });
+
+    // Close when clicking nav links
+    navMenu.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', () => {
+        navMenu.classList.remove('active');
+      });
     });
   }
 
@@ -911,7 +945,7 @@
       const waMsg = encodeURIComponent('Hi, I would like to get more information about the NCLEX preparation courses.');
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       const waUrl = isMobile 
-        ? `https://api.whatsapp.com/send?phone=${waNumber}&text=${waMsg}`
+        ? `https://wa.me/${waNumber}?text=${waMsg}`
         : `https://web.whatsapp.com/send?phone=${waNumber}&text=${waMsg}`;
 
       document.querySelectorAll('.fame-wa-float, .wa-link').forEach(a => {
@@ -971,18 +1005,22 @@
     document.addEventListener('click', (e) => {
       const waBtn = e.target.closest('.fame-wa-float, .wa-link, [href*="wa.me"], [href*="whatsapp.com"]');
       if (!waBtn) return;
-      e.preventDefault();
 
       const phone = (waBtn.getAttribute('data-phone') || '923085737093').replace(/[^0-9]/g, '');
       const defaultText = waBtn.getAttribute('data-text') || 'Hi, I would like to get more information about the NCLEX preparation courses.';
       const encodedMsg = encodeURIComponent(defaultText);
 
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const url = isMobile
-        ? `https://api.whatsapp.com/send?phone=${phone}&text=${encodedMsg}`
-        : `https://web.whatsapp.com/send?phone=${phone}&text=${encodedMsg}`;
 
-      window.open(url, '_blank', 'noopener,noreferrer');
+      if (isMobile) {
+        // Universal wa.me link directly opens native WhatsApp app instantly on mobile
+        e.preventDefault();
+        window.location.href = `https://wa.me/${phone}?text=${encodedMsg}`;
+      } else {
+        // On desktop, open WhatsApp Web in a separate tab
+        e.preventDefault();
+        window.open(`https://web.whatsapp.com/send?phone=${phone}&text=${encodedMsg}`, '_blank', 'noopener,noreferrer');
+      }
     });
   }
 

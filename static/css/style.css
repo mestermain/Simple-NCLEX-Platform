@@ -344,6 +344,18 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0.5px;
 }
 
+.fame-footer .fame-logo-text .fame-name {
+  color: #ffffff !important;
+}
+
+.fame-footer .fame-logo-text .fame-tag {
+  color: #60a5fa !important;
+}
+
+.fame-mobile-nav-auth {
+  display: none;
+}
+
 /* Navigation Links */
 .fame-nav-menu {
   display: flex;
@@ -1374,26 +1386,99 @@ h1, h2, h3, h4, h5, h6 {
   .top-contact-bar {
     display: none;
   }
+  .fame-navbar-inner {
+    height: 64px;
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .fame-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+    flex: 1;
+    text-decoration: none;
+  }
+  .fame-logo-img {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 50%;
+  }
+  .fame-logo-text {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .fame-logo-text .fame-name {
+    font-size: 1.15rem;
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.15;
+  }
+  .fame-logo-text .fame-tag {
+    font-size: 0.66rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.3px;
+  }
+  .fame-navbar-inner > .fame-nav-actions {
+    display: none !important;
+  }
   .fame-hamburger {
     display: flex;
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 6px;
   }
   .fame-nav-menu {
     display: none;
     position: fixed;
-    top: 80px;
+    top: 64px;
     left: 0;
     right: 0;
     background: #ffffff;
     flex-direction: column;
-    padding: 1.5rem;
-    box-shadow: var(--shadow-lg);
+    padding: 1.25rem 1.5rem 2rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
     border-bottom: 1px solid var(--border-light);
-    gap: 1rem;
-    max-height: calc(100vh - 80px);
+    gap: 0.85rem;
+    max-height: calc(100vh - 64px);
     overflow-y: auto;
+    z-index: 999;
   }
   .fame-nav-menu.active {
     display: flex;
+  }
+  .fame-mobile-nav-auth {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding-top: 1rem;
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--border-light);
+  }
+  .fame-mobile-nav-auth .fame-auth-btn {
+    width: 100%;
+    text-align: center;
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    font-weight: 700;
+  }
+  .fame-mobile-nav-auth .nav-user-pill {
+    justify-content: center;
+    padding: 0.65rem 1rem;
+    width: 100%;
   }
   .fame-dropdown {
     position: static;
@@ -1415,7 +1500,41 @@ h1, h2, h3, h4, h5, h6 {
     display: none;
   }
   .fame-wa-float {
+    bottom: 1.25rem;
+    right: 1.25rem;
     padding: 0.6rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .fame-navbar-inner {
+    height: 58px;
+    min-height: 58px;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  .fame-nav-menu {
+    top: 58px;
+    max-height: calc(100vh - 58px);
+  }
+  .fame-logo {
+    gap: 0.5rem;
+  }
+  .fame-logo-img {
+    width: 36px;
+    height: 36px;
+  }
+  .fame-logo-text .fame-name {
+    font-size: 1.02rem;
+  }
+  .fame-logo-text .fame-tag {
+    display: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .fame-logo-text .fame-name {
+    font-size: 0.92rem;
   }
 }
 
