@@ -148,8 +148,14 @@ CREATE TABLE IF NOT EXISTS qbank_questions (
     clinical_pearl TEXT DEFAULT '',
     is_demo INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER DEFAULT 0,
+    question_type TEXT NOT NULL DEFAULT 'single',
+    correct_indices_json TEXT NOT NULL DEFAULT '[]',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration for existing qbank_questions table
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS question_type TEXT DEFAULT 'single';
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS correct_indices_json TEXT DEFAULT '[]';
 
 -- 8. Q-Bank Subscription Plans Table
 CREATE TABLE IF NOT EXISTS qbank_plans (

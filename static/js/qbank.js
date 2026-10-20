@@ -18,7 +18,8 @@
     questions: [],
     currentIndex: 0,
     selectedOption: null,
-    answersRecord: {}, // { questionId: { selectedIndex, isCorrect, checked: true } }
+    selectedIndices: new Set(),
+    answersRecord: {}, // { questionId: { selectedIndices, selectedIndex, isCorrect, checked: true, resultData } }
     filters: {
       category: 'all',
       difficulty: 'all',
@@ -44,7 +45,9 @@
   const questionCategoryTag = document.getElementById('questionCategoryTag');
   const questionDifficultyTag = document.getElementById('questionDifficultyTag');
   const questionExamTag = document.getElementById('questionExamTag');
+  const questionTypeTag = document.getElementById('questionTypeTag');
   const questionDemoTag = document.getElementById('questionDemoTag');
+  const questionSataBanner = document.getElementById('questionSataBanner');
   const rationaleContainer = document.getElementById('rationaleContainer');
 
   const plansContainer = document.getElementById('qbankPlansContainer');
@@ -244,12 +247,15 @@
       if (prevQuestionBtn) prevQuestionBtn.disabled = true;
       if (rationaleContainer) rationaleContainer.style.display = 'none';
       if (questionProgress) questionProgress.textContent = 'Question 0 of 0';
+      if (questionTypeTag) questionTypeTag.style.display = 'none';
+      if (questionSataBanner) questionSataBanner.style.display = 'none';
       return;
     }
 
     const q = state.questions[state.currentIndex];
-    const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+    const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     const currentAnswer = state.answersRecord[q.id];
+    const isSata = Boolean(q.isMultipleResponse || q.isSata || q.questionType === 'multiple' || (q.correctIndices && q.correctIndices.length > 1));
 
     // Tags
     if (questionCategoryTag) questionCategoryTag.textContent = q.category || 'General';
@@ -257,6 +263,17 @@
     if (questionExamTag) questionExamTag.textContent = q.examType || 'NCLEX-RN';
     if (questionDemoTag) {
       questionDemoTag.style.display = q.isDemo ? 'inline-block' : 'none';
+    }
+    if (questionTypeTag) {
+      if (isSata) {
+        questionTypeTag.style.display = 'inline-block';
+        questionTypeTag.textContent = 'Select All That Apply';
+      } else {
+        questionTypeTag.style.display = 'none';
+      }
+    }
+    if (questionSataBanner) {
+      questionSataBanner.style.display = isSata ? 'flex' : 'none';
     }
 
     // Progress
@@ -269,8 +286,13 @@
       questionStem.textContent = q.statement;
     }
 
-    // Options
-    state.selectedOption = currentAnswer ? currentAnswer.selectedIndex : null;
+    // Restore selected indices
+    if (currentAnswer) {
+      state.selectedIndices = new Set(currentAnswer.selectedIndices || (currentAnswer.selectedIndex !== null && currentAnswer.selectedIndex !== undefined ? [currentAnswer.selectedIndex] : []));
+    } else {
+      state.selectedIndices = new Set();
+    }
+
     let opts = [];
     try {
       opts = Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]');
@@ -279,23 +301,38 @@
     }
 
     if (optionsList) {
+      const targetCorrect = q.correctIndices || (q.correctIndex !== undefined ? [q.correctIndex] : [0]);
+
       optionsList.innerHTML = opts.map((opt, idx) => {
-        let cls = 'qbank-option-item';
+        let cls = `qbank-option-item ${isSata ? 'sata' : ''}`;
+        let statusBadgeHtml = '';
+
         if (currentAnswer && currentAnswer.checked) {
           cls += ' locked';
-          if (idx === q.correctIndex) {
-            cls += ' correct';
-          } else if (idx === currentAnswer.selectedIndex) {
-            cls += ' incorrect';
+          const userPicked = state.selectedIndices.has(idx);
+          const isTarget = targetCorrect.includes(idx);
+
+          if (userPicked && isTarget) {
+            cls += ' correct-picked';
+            statusBadgeHtml = `<span class="qbank-option-status-pill correct-picked">✓ Correct</span>`;
+          } else if (userPicked && !isTarget) {
+            cls += ' incorrect-picked';
+            statusBadgeHtml = `<span class="qbank-option-status-pill incorrect-picked">✗ Incorrect</span>`;
+          } else if (!userPicked && isTarget) {
+            cls += ' correct-missed';
+            statusBadgeHtml = `<span class="qbank-option-status-pill correct-missed">⚠️ Missed Answer</span>`;
           }
-        } else if (state.selectedOption === idx) {
+        } else if (state.selectedIndices.has(idx)) {
           cls += ' selected';
         }
 
+        const letterDisplay = letters[idx] || (idx + 1);
+
         return `
           <div class="${cls}" data-index="${idx}">
-            <div class="qbank-option-letter">${letters[idx] || idx + 1}</div>
+            <div class="qbank-option-letter">${letterDisplay}</div>
             <div class="qbank-option-text">${escapeHtml(opt)}</div>
+            ${statusBadgeHtml}
           </div>
         `;
       }).join('');
@@ -305,7 +342,7 @@
         optionsList.querySelectorAll('.qbank-option-item').forEach(el => {
           el.addEventListener('click', () => {
             const idx = parseInt(el.dataset.index, 10);
-            selectOption(idx);
+            toggleOption(idx, isSata);
           });
         });
       }
@@ -317,7 +354,7 @@
         submitAnswerBtn.style.display = 'none';
       } else {
         submitAnswerBtn.style.display = 'inline-flex';
-        submitAnswerBtn.disabled = (state.selectedOption === null);
+        submitAnswerBtn.disabled = (state.selectedIndices.size === 0);
       }
     }
 
@@ -331,26 +368,38 @@
 
     // Rationale Box
     if (currentAnswer && currentAnswer.checked) {
-      renderRationale(q, currentAnswer.isCorrect);
+      renderRationale(q, currentAnswer.isCorrect, currentAnswer.resultData);
     } else {
       if (rationaleContainer) rationaleContainer.style.display = 'none';
     }
   }
 
-  function selectOption(index) {
-    state.selectedOption = index;
+  function toggleOption(index, isSata) {
+    if (isSata) {
+      if (state.selectedIndices.has(index)) {
+        state.selectedIndices.delete(index);
+      } else {
+        state.selectedIndices.add(index);
+      }
+    } else {
+      state.selectedIndices.clear();
+      state.selectedIndices.add(index);
+    }
+
     const items = optionsList.querySelectorAll('.qbank-option-item');
     items.forEach((item, idx) => {
-      item.classList.toggle('selected', idx === index);
+      item.classList.toggle('selected', state.selectedIndices.has(idx));
     });
+
     if (submitAnswerBtn) {
-      submitAnswerBtn.disabled = false;
+      submitAnswerBtn.disabled = (state.selectedIndices.size === 0);
     }
   }
 
   async function checkAnswer() {
-    if (state.selectedOption === null) return;
+    if (state.selectedIndices.size === 0) return;
     const q = state.questions[state.currentIndex];
+    const picks = Array.from(state.selectedIndices);
 
     try {
       submitAnswerBtn.disabled = true;
@@ -361,15 +410,18 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           questionId: q.id,
-          selectedIndex: state.selectedOption
+          selectedIndices: picks,
+          selectedIndex: picks[0]
         })
       });
       const data = await res.json();
       if (data.success) {
         state.answersRecord[q.id] = {
-          selectedIndex: state.selectedOption,
+          selectedIndices: picks,
+          selectedIndex: picks[0],
           isCorrect: data.isCorrect,
-          checked: true
+          checked: true,
+          resultData: data
         };
         renderCurrentQuestion();
         updateScoreStats();
@@ -383,7 +435,7 @@
     }
   }
 
-  function renderRationale(q, isCorrect) {
+  function renderRationale(q, isCorrect, resultData) {
     if (!rationaleContainer) return;
 
     let distractors = [];
@@ -393,18 +445,29 @@
       distractors = [];
     }
 
+    const isSata = Boolean(q.isMultipleResponse || q.isSata || q.questionType === 'multiple' || (q.correctIndices && q.correctIndices.length > 1));
+    const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const targetIndices = q.correctIndices || (q.correctIndex !== undefined ? [q.correctIndex] : [0]);
+    const correctLettersStr = (resultData && resultData.correctLetters && resultData.correctLetters.length)
+      ? resultData.correctLetters.join(', ')
+      : targetIndices.map(i => letters[i] || (i + 1)).join(', ');
+
     rationaleContainer.className = `qbank-rationale-box ${isCorrect ? 'correct' : 'incorrect'}`;
     rationaleContainer.style.display = 'block';
+
+    const titleText = isCorrect
+      ? (isSata ? 'Correct! All correct options identified.' : 'Correct! Well Done.')
+      : (isSata ? 'Incorrect or Incomplete Selection.' : 'Incorrect Choice.');
 
     rationaleContainer.innerHTML = `
       <div class="qbank-rationale-header">
         <span style="font-size:1.75rem">${isCorrect ? '🎉' : '❌'}</span>
         <div>
           <h3 class="qbank-rationale-title ${isCorrect ? 'correct' : 'incorrect'}">
-            ${isCorrect ? 'Correct! Well Done.' : 'Incorrect Choice.'}
+            ${titleText}
           </h3>
-          <span style="font-size:0.85rem;color:var(--qb-text-muted)">
-            Correct Answer: Option ${['A','B','C','D','E'][q.correctIndex] || q.correctIndex + 1}
+          <span style="font-size:0.88rem;color:var(--qb-text-muted);font-weight:700">
+            ${isSata ? 'Correct Options: ' : 'Correct Answer: Option '} ${escapeHtml(correctLettersStr)}
           </span>
         </div>
       </div>

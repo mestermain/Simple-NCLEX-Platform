@@ -252,6 +252,31 @@
   color: #c2410c;
 }
 
+.qbank-tag.sata {
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #d8b4fe;
+}
+
+.qbank-sata-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.15rem;
+  background: #faf5ff;
+  border-left: 4px solid #9333ea;
+  border-radius: 8px;
+  color: #581c87;
+  font-size: 0.92rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.qbank-sata-banner-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
 .qbank-progress-indicator {
   font-size: 0.9rem;
   font-weight: 600;
@@ -340,6 +365,69 @@
 .qbank-option-item.incorrect .qbank-option-letter {
   background: var(--qb-danger);
   color: #ffffff;
+}
+
+.qbank-option-item.sata .qbank-option-letter {
+  border-radius: 6px;
+}
+
+.qbank-option-item.correct-picked {
+  border-color: var(--qb-success) !important;
+  background: #ecfdf5 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2) !important;
+}
+
+.qbank-option-item.correct-picked .qbank-option-letter {
+  background: var(--qb-success) !important;
+  color: #ffffff !important;
+}
+
+.qbank-option-item.incorrect-picked {
+  border-color: var(--qb-danger) !important;
+  background: #fef2f2 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+}
+
+.qbank-option-item.incorrect-picked .qbank-option-letter {
+  background: var(--qb-danger) !important;
+  color: #ffffff !important;
+}
+
+.qbank-option-item.correct-missed {
+  border: 2px dashed #10b981 !important;
+  background: #f0fdf4 !important;
+}
+
+.qbank-option-item.correct-missed .qbank-option-letter {
+  background: #059669 !important;
+  color: #ffffff !important;
+}
+
+.qbank-option-status-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.qbank-option-status-pill.correct-picked {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.qbank-option-status-pill.incorrect-picked {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.qbank-option-status-pill.correct-missed {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px dashed #d97706;
 }
 
 .qbank-option-text {

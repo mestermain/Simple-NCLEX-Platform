@@ -148,6 +148,7 @@
             <span class="qbank-tag category" id="questionCategoryTag">Pharmacology</span>
             <span class="qbank-tag difficulty" id="questionDifficultyTag">High Yield</span>
             <span class="qbank-tag exam" id="questionExamTag">NCLEX-RN</span>
+            <span class="qbank-tag sata" id="questionTypeTag" style="display:none">Select All That Apply</span>
             <span class="qbank-tag demo-indicator" id="questionDemoTag">Free Demo Item</span>
           </div>
           <div class="qbank-progress-indicator" id="questionProgress">
@@ -158,6 +159,14 @@
         <!-- Question Scenario Stem -->
         <div class="qbank-statement" id="questionStem">
           Loading clinical question…
+        </div>
+
+        <!-- SATA Prompt Banner (shown when question has multiple correct answers) -->
+        <div class="qbank-sata-banner" id="questionSataBanner" style="display:none">
+          <div class="qbank-sata-banner-icon">☑️</div>
+          <div>
+            <strong>Select All That Apply:</strong> Multiple options are correct. Choose all applicable answers before submitting.
+          </div>
         </div>
 
         <!-- Multiple Choice Options -->

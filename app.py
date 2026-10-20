@@ -661,6 +661,59 @@ def get_default_qbank_questions(now=None):
             0,
             13,
             now
+        ),
+        (
+            'Pharmacology & Parenteral Therapies',
+            'High Yield',
+            'NCLEX-RN',
+            'Physiological Adaptation — Pharmacological Therapies',
+            'A client with heart failure is newly prescribed oral lisinopril 10 mg daily. Which clinical manifestations and adverse effects should the nurse instruct the client to monitor and report immediately to the healthcare provider? Select all that apply.',
+            json.dumps([
+                'Swelling of the lips, tongue, or pharynx (angioedema)',
+                'Persistent, dry, hacking nocturnal cough',
+                'Sudden severe podagra (first metatarsophalangeal joint pain)',
+                'Dizziness or lightheadedness when transitioning from lying to standing',
+                'Muscle weakness, paresthesia, or palpitations (hyperkalemia)',
+                'Yellow-green halos around light fixtures'
+            ]),
+            0,
+            'ACE inhibitors (such as lisinopril, enalapril) block the conversion of angiotensin I to angiotensin II, decreasing aldosterone secretion and inhibiting bradykinin degradation. Key clinical teaching points: 1) Angioedema (swelling of lips, tongue, or airway) is a life-threatening emergency caused by bradykinin accumulation that can occur at any time during therapy; client must seek emergent care and discontinue the drug permanently. 2) A persistent dry cough occurs in 10-20% of clients due to localized bradykinin accumulation in the respiratory tract. 3) Orthostatic hypotension is frequent upon initiation ("first-dose phenomenon"). 4) Hyperkalemia occurs because decreased aldosterone causes renal potassium retention; clients must avoid salt substitutes and potassium supplements.',
+            json.dumps([
+                'Option C (Gout): Gouty arthritis is not an adverse effect of ACE inhibitors (it is associated with thiazide or loop diuretics that compete with uric acid excretion).',
+                'Option F (Yellow-green halos): Yellow-green halos and blurred vision are classic pathognomonic signs of digitalis (digoxin) toxicity, not ACE inhibitor therapy.'
+            ]),
+            'NCLEX ACE Inhibitor Rule: "A-C-E-I": A = Angioedema (life-threatening airway compromise, hold drug permanently!), C = Cough (dry/hacking due to bradykinin), E = Elevated potassium (hyperkalemia, avoid salt substitutes!), I = Hypotension (first-dose syncope precaution).',
+            1,
+            14,
+            now,
+            'multiple',
+            json.dumps([0, 1, 3, 4])
+        ),
+        (
+            'Safe & Effective Care Environment',
+            'High Yield',
+            'NCLEX-RN',
+            'Safe and Effective Care Environment — Safety and Infection Control',
+            'A hospitalized client is admitted with active pulmonary tuberculosis (TB) confirmed by acid-fast bacillus (AFB) sputum smear. Which infection prevention and control interventions are mandatory for the registered nurse to implement? Select all that apply.',
+            json.dumps([
+                'Place the client in an airborne infection isolation room (AIIR) with negative airflow pressure.',
+                'Wear a fit-tested N95 particulate respirator mask prior to entering the client room.',
+                'Have the client wear a standard surgical mask whenever transport outside the room is medically necessary.',
+                'Place the client on standard droplet precautions with a surgical mask for healthcare providers.',
+                'Ensure the isolation room maintains a minimum of 6 to 12 air exchanges per hour.',
+                'Keep the door to the negative pressure isolation room closed at all times.'
+            ]),
+            0,
+            'Mycobacterium tuberculosis is transmitted via airborne droplet nuclei (<5 micrometers) that remain suspended in room air for extended periods. Mandatory airborne precautions include: 1) Negative-pressure airborne infection isolation room (AIIR) with air exhausted directly to the outside or recirculated through high-efficiency particulate air (HEPA) filtration. 2) Minimum of 6 to 12 air exchanges per hour to rapidly dilute infectious particles. 3) Room door must remain tightly closed at all times to maintain negative pressure gradient. 4) Fit-tested N95 (or higher) particulate respirator mask donned prior to room entry. 5) When transport outside the room is medically essential, the client must wear a standard surgical mask to trap respiratory secretions at the source.',
+            json.dumps([
+                'Option D: Droplet precautions with a simple surgical mask are inadequate for tuberculosis. Droplet precautions are for larger droplets (>5 microns, e.g. influenza, pertussis) that travel only 3-6 feet. TB droplet nuclei stay airborne indefinitely and require an N95 respirator mask.'
+            ]),
+            'NCLEX Airborne Precautions Mnemonic: "Airborne MTV": M = Measles (Rubeola), T = Tuberculosis, V = Varicella (Chickenpox / Disseminated Herpes Zoster). Required: Negative-pressure room (6–12 air changes/hr), door strictly CLOSED, N95 respirator mask for staff, surgical mask on client during transport.',
+            1,
+            15,
+            now,
+            'multiple',
+            json.dumps([0, 1, 2, 4, 5])
         )
     ]
 
@@ -690,8 +743,12 @@ def init_db(app=None):
                     clinical_pearl TEXT DEFAULT '',
                     is_demo INTEGER DEFAULT 0,
                     sort_order INTEGER DEFAULT 0,
+                    question_type TEXT DEFAULT 'single',
+                    correct_indices_json TEXT DEFAULT '[]',
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 );
+                ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS question_type TEXT DEFAULT 'single';
+                ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS correct_indices_json TEXT DEFAULT '[]';
                 CREATE TABLE IF NOT EXISTS qbank_plans (
                     id SERIAL PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -728,13 +785,23 @@ def init_db(app=None):
                 for p in get_default_qbank_plans(now):
                     cur.execute("INSERT INTO qbank_plans (name, description, duration_days, price, original_price, badge, features_json, is_active, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", p)
                 conn.commit()
-            # Seed questions if empty
+            # Seed questions if empty, or backfill default SATA questions if none exist
             cur.execute("SELECT COUNT(*) FROM qbank_questions")
             if cur.fetchone()[0] == 0:
                 now = datetime.now(timezone.utc).isoformat()
                 for q in get_default_qbank_questions(now):
-                    cur.execute("INSERT INTO qbank_questions (category, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", q)
+                    if len(q) == 13:
+                        q = q + ('single', json.dumps([q[6]]))
+                    cur.execute("INSERT INTO qbank_questions (category, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, created_at, question_type, correct_indices_json) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", q)
                 conn.commit()
+            else:
+                cur.execute("SELECT COUNT(*) FROM qbank_questions WHERE question_type = 'multiple'")
+                if cur.fetchone()[0] == 0:
+                    now = datetime.now(timezone.utc).isoformat()
+                    for q in get_default_qbank_questions(now):
+                        if len(q) > 13 and q[13] == 'multiple':
+                            cur.execute("INSERT INTO qbank_questions (category, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, created_at, question_type, correct_indices_json) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", q)
+                    conn.commit()
             cur.close()
             conn.close()
         except Exception as e:
@@ -846,6 +913,8 @@ def init_db(app=None):
             clinical_pearl TEXT DEFAULT '',
             is_demo INTEGER DEFAULT 0,
             sort_order INTEGER DEFAULT 0,
+            question_type TEXT DEFAULT 'single',
+            correct_indices_json TEXT DEFAULT '[]',
             created_at TEXT NOT NULL
         );
     """)
@@ -893,6 +962,10 @@ def init_db(app=None):
     _ensure_column(cursor, "enrollments", "whatsapp_number", "TEXT DEFAULT ''")
     _ensure_column(cursor, "enrollments", "payment_screenshot", "TEXT DEFAULT ''")
     _ensure_column(cursor, "users", "plain_password", "TEXT DEFAULT ''")
+    _ensure_column(cursor, "qbank_questions", "question_type", "TEXT DEFAULT 'single'")
+    _ensure_column(cursor, "qbank_questions", "correct_indices_json", "TEXT DEFAULT '[]'")
+    cursor.execute("UPDATE qbank_questions SET question_type = 'single' WHERE question_type IS NULL OR question_type = ''")
+    cursor.execute("UPDATE qbank_questions SET correct_indices_json = '[' || correct_index || ']' WHERE correct_indices_json IS NULL OR correct_indices_json = '' OR correct_indices_json = '[]'")
     cursor.execute("UPDATE users SET plain_password = 'Admin123!' WHERE role = 'admin' AND (plain_password IS NULL OR plain_password = '')")
     cursor.execute("UPDATE users SET plain_password = 'Password123' WHERE id = 10 AND (plain_password IS NULL OR plain_password = '')")
     cursor.execute("UPDATE users SET plain_password = 'Password123!' WHERE id = 9 AND (plain_password IS NULL OR plain_password = '')")
@@ -972,17 +1045,33 @@ def init_db(app=None):
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, get_default_qbank_plans(now))
 
-    # Seed default Q-Bank questions if table is empty
+    # Seed default Q-Bank questions if table is empty, or backfill default SATA questions if none exist
     cursor.execute("SELECT COUNT(*) FROM qbank_questions")
     if cursor.fetchone()[0] == 0:
         now = datetime.now(timezone.utc).isoformat()
-        cursor.executemany("""
-            INSERT INTO qbank_questions (
-                category, difficulty, exam_type, client_need, statement,
-                options_json, correct_index, correct_rationale, distractors_json,
-                clinical_pearl, is_demo, sort_order, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, get_default_qbank_questions(now))
+        for q in get_default_qbank_questions(now):
+            if len(q) == 13:
+                q = q + ('single', json.dumps([q[6]]))
+            cursor.execute("""
+                INSERT INTO qbank_questions (
+                    category, difficulty, exam_type, client_need, statement,
+                    options_json, correct_index, correct_rationale, distractors_json,
+                    clinical_pearl, is_demo, sort_order, created_at, question_type, correct_indices_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, q)
+    else:
+        cursor.execute("SELECT COUNT(*) FROM qbank_questions WHERE question_type = 'multiple'")
+        if cursor.fetchone()[0] == 0:
+            now = datetime.now(timezone.utc).isoformat()
+            for q in get_default_qbank_questions(now):
+                if len(q) > 13 and q[13] == 'multiple':
+                    cursor.execute("""
+                        INSERT INTO qbank_questions (
+                            category, difficulty, exam_type, client_need, statement,
+                            options_json, correct_index, correct_rationale, distractors_json,
+                            clinical_pearl, is_demo, sort_order, created_at, question_type, correct_indices_json
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, q)
 
     conn.commit()
     conn.close()
@@ -1791,6 +1880,25 @@ class QBankQuestion:
         except Exception:
             self.options = []
         self.correct_index = int(data.get('correct_index', 0))
+
+        raw_indices = data.get('correct_indices_json')
+        self.correct_indices = []
+        if raw_indices:
+            try:
+                parsed = json.loads(raw_indices) if isinstance(raw_indices, str) else raw_indices
+                if isinstance(parsed, list) and len(parsed) > 0:
+                    self.correct_indices = [int(x) for x in parsed]
+            except Exception:
+                self.correct_indices = []
+        if not self.correct_indices:
+            self.correct_indices = [self.correct_index]
+
+        raw_type = data.get('question_type')
+        if raw_type:
+            self.question_type = raw_type
+        else:
+            self.question_type = 'multiple' if len(self.correct_indices) > 1 else 'single'
+
         self.correct_rationale = data.get('correct_rationale') or ''
         try:
             self.distractors = json.loads(data['distractors_json']) if isinstance(data['distractors_json'], str) else data['distractors_json']
@@ -1802,6 +1910,7 @@ class QBankQuestion:
         self.created_at = data.get('created_at', '')
 
     def to_dict(self, include_answers=True):
+        is_sata = bool(self.question_type == 'multiple' or len(self.correct_indices) > 1)
         d = {
             'id': self.id,
             'category': self.category,
@@ -1813,9 +1922,15 @@ class QBankQuestion:
             'isDemo': self.is_demo,
             'sortOrder': self.sort_order,
             'createdAt': self.created_at,
+            'questionType': self.question_type,
+            'isMultipleResponse': is_sata,
+            'isSata': is_sata,
         }
         if include_answers:
             d['correctIndex'] = self.correct_index
+            d['correctIndices'] = self.correct_indices
+            letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+            d['correctLetters'] = [letters[i] for i in self.correct_indices if i < len(letters)]
             d['correctRationale'] = self.correct_rationale
             d['distractors'] = self.distractors
             d['clinicalPearl'] = self.clinical_pearl
@@ -1864,7 +1979,7 @@ class QBankQuestion:
         return row[0] if row else 0
 
     @classmethod
-    def create(cls, category, difficulty, statement, options, correct_index, correct_rationale, distractors=None, clinical_pearl='', client_need='', exam_type='NCLEX-RN', is_demo=0, sort_order=0):
+    def create(cls, category, difficulty, statement, options, correct_index=0, correct_rationale='', distractors=None, clinical_pearl='', client_need='', exam_type='NCLEX-RN', is_demo=0, sort_order=0, question_type='single', correct_indices=None):
         db = get_db()
         now = datetime.now(timezone.utc).isoformat()
         options_json = json.dumps(options) if isinstance(options, list) else str(options)
@@ -1879,13 +1994,24 @@ class QBankQuestion:
         else:
             distractors_json = '[]'
 
+        if correct_indices and isinstance(correct_indices, list):
+            clean_indices = [int(x) for x in correct_indices]
+            if len(clean_indices) > 1:
+                question_type = 'multiple'
+            correct_index = clean_indices[0] if clean_indices else int(correct_index)
+            correct_indices_json = json.dumps(clean_indices)
+        else:
+            correct_index = int(correct_index)
+            correct_indices_json = json.dumps([correct_index])
+
         cur = db.cursor()
         cur.execute("""
             INSERT INTO qbank_questions (
                 category, difficulty, exam_type, client_need, statement, options_json,
-                correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (category, difficulty, exam_type, client_need, statement, options_json, int(correct_index), correct_rationale, distractors_json, clinical_pearl, 1 if is_demo else 0, int(sort_order), now))
+                correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, created_at,
+                question_type, correct_indices_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (category, difficulty, exam_type, client_need, statement, options_json, int(correct_index), correct_rationale, distractors_json, clinical_pearl, 1 if is_demo else 0, int(sort_order), now, question_type, correct_indices_json))
         db.commit()
         return cls.find_by_id(cur.lastrowid)
 
@@ -1905,7 +2031,18 @@ class QBankQuestion:
             options_json = json.dumps(opts) if isinstance(opts, list) else str(opts)
         else:
             options_json = json.dumps(q.options)
-        correct_index = int(kwargs.get('correct_index', q.correct_index))
+
+        question_type = kwargs.get('question_type', q.question_type)
+        if 'correct_indices' in kwargs and kwargs['correct_indices'] is not None:
+            clean_indices = [int(x) for x in kwargs['correct_indices']]
+            if len(clean_indices) > 1:
+                question_type = 'multiple'
+            correct_indices_json = json.dumps(clean_indices)
+            correct_index = clean_indices[0] if clean_indices else q.correct_index
+        else:
+            correct_index = int(kwargs.get('correct_index', q.correct_index))
+            correct_indices_json = json.dumps(q.correct_indices)
+
         correct_rationale = kwargs.get('correct_rationale', q.correct_rationale)
         if 'distractors' in kwargs:
             dist = kwargs['distractors']
@@ -1929,9 +2066,9 @@ class QBankQuestion:
             UPDATE qbank_questions
             SET category = ?, difficulty = ?, exam_type = ?, client_need = ?, statement = ?,
                 options_json = ?, correct_index = ?, correct_rationale = ?, distractors_json = ?,
-                clinical_pearl = ?, is_demo = ?, sort_order = ?
+                clinical_pearl = ?, is_demo = ?, sort_order = ?, question_type = ?, correct_indices_json = ?
             WHERE id = ?
-        """, (category, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, question_id))
+        """, (category, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, question_type, correct_indices_json, question_id))
         db.commit()
         return cls.find_by_id(question_id)
 
@@ -1946,13 +2083,16 @@ class QBankQuestion:
         db = get_db()
         db.execute("DELETE FROM qbank_questions")
         now = datetime.now(timezone.utc).isoformat()
-        db.cursor().executemany("""
-            INSERT INTO qbank_questions (
-                category, difficulty, exam_type, client_need, statement,
-                options_json, correct_index, correct_rationale, distractors_json,
-                clinical_pearl, is_demo, sort_order, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, get_default_qbank_questions(now))
+        for q in get_default_qbank_questions(now):
+            if len(q) == 13:
+                q = q + ('single', json.dumps([q[6]]))
+            db.execute("""
+                INSERT INTO qbank_questions (
+                    category, difficulty, exam_type, client_need, statement,
+                    options_json, correct_index, correct_rationale, distractors_json,
+                    clinical_pearl, is_demo, sort_order, created_at, question_type, correct_indices_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, q)
         db.commit()
         return cls.all()
 
@@ -3198,21 +3338,47 @@ def get_qbank_questions():
 def check_qbank_answer():
     data = request.get_json(silent=True) or {}
     question_id = data.get('questionId') or data.get('question_id')
+    selected_indices = data.get('selectedIndices') or data.get('selected_indices')
     selected_index = data.get('selectedIndex') if 'selectedIndex' in data else data.get('selected_index')
 
-    if question_id is None or selected_index is None:
-        return jsonify({'success': False, 'message': 'questionId and selectedIndex are required.'}), 422
+    if question_id is None or (selected_indices is None and selected_index is None):
+        return jsonify({'success': False, 'message': 'questionId and selectedIndex or selectedIndices are required.'}), 422
 
     q = QBankQuestion.find_by_id(int(question_id))
     if not q:
         return jsonify({'success': False, 'message': 'Question not found.'}), 404
 
-    is_correct = (int(selected_index) == int(q.correct_index))
+    if selected_indices is not None and isinstance(selected_indices, list):
+        user_picks = sorted(set(int(x) for x in selected_indices if str(x).lstrip('-').isdigit() or isinstance(x, int)))
+    elif selected_index is not None:
+        user_picks = [int(selected_index)]
+    else:
+        user_picks = []
+
+    target_picks = sorted(set(q.correct_indices))
+    is_correct = (user_picks == target_picks)
+
+    letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+    correct_letters = [letters[i] for i in target_picks if i < len(letters)]
+    user_letters = [letters[i] for i in user_picks if i < len(letters)]
+
+    matched = [idx for idx in user_picks if idx in target_picks]
+    missed = [idx for idx in target_picks if idx not in user_picks]
+    extra = [idx for idx in user_picks if idx not in target_picks]
 
     return jsonify({
         'success': True,
         'isCorrect': is_correct,
+        'questionType': q.question_type,
+        'isMultipleResponse': bool(q.question_type == 'multiple' or len(target_picks) > 1),
         'correctIndex': q.correct_index,
+        'correctIndices': target_picks,
+        'correctLetters': correct_letters,
+        'userIndices': user_picks,
+        'userLetters': user_letters,
+        'matched': matched,
+        'missed': missed,
+        'extra': extra,
         'correctRationale': q.correct_rationale,
         'distractors': q.distractors,
         'clinicalPearl': q.clinical_pearl
@@ -4186,6 +4352,8 @@ def admin_create_qbank_question():
     data = request.get_json(silent=True) or {}
     statement = data.get('statement', '').strip()
     options = data.get('options', [])
+    question_type = data.get('question_type') or data.get('questionType') or 'single'
+    correct_indices = data.get('correct_indices') or data.get('correctIndices')
     correct_index = data.get('correct_index') if 'correct_index' in data else data.get('correctIndex')
     correct_rationale = data.get('correct_rationale') or data.get('correctRationale', '').strip()
     category = data.get('category', 'Pharmacology & Parenteral Therapies')
@@ -4201,8 +4369,21 @@ def admin_create_qbank_question():
         return jsonify({'success': False, 'message': 'Question statement is required.'}), 422
     if not isinstance(options, list) or len(options) < 2:
         return jsonify({'success': False, 'message': 'At least 2 answer choices are required.'}), 422
+
+    if correct_indices and isinstance(correct_indices, list):
+        clean_indices = [int(x) for x in correct_indices if str(x).isdigit() or isinstance(x, int)]
+        if len(clean_indices) > 1:
+            question_type = 'multiple'
+        if correct_index is None and clean_indices:
+            correct_index = clean_indices[0]
+        correct_indices = clean_indices
+    elif correct_index is not None:
+        correct_indices = [int(correct_index)]
+    else:
+        return jsonify({'success': False, 'message': 'Valid correct choice is required.'}), 422
+
     if correct_index is None or int(correct_index) < 0 or int(correct_index) >= len(options):
-        return jsonify({'success': False, 'message': 'Valid correct_index is required.'}), 422
+        return jsonify({'success': False, 'message': 'Valid correct choice is required.'}), 422
     if not correct_rationale:
         return jsonify({'success': False, 'message': 'Correct answer rationale is required.'}), 422
 
@@ -4218,7 +4399,9 @@ def admin_create_qbank_question():
         client_need=client_need,
         exam_type=exam_type,
         is_demo=is_demo,
-        sort_order=sort_order
+        sort_order=sort_order,
+        question_type=question_type,
+        correct_indices=correct_indices
     )
 
     admin_user = g.current_user
@@ -4254,11 +4437,25 @@ def admin_update_qbank_question(question_id):
         return jsonify({'success': False, 'message': 'Question not found.'}), 404
 
     data = request.get_json(silent=True) or {}
+    question_type = data.get('question_type') or data.get('questionType') or q.question_type
+    correct_indices = data.get('correct_indices') or data.get('correctIndices')
+    if correct_indices is not None and isinstance(correct_indices, list):
+        clean_indices = [int(x) for x in correct_indices if str(x).isdigit() or isinstance(x, int)]
+        if len(clean_indices) > 1:
+            question_type = 'multiple'
+        correct_indices = clean_indices
+        correct_index = clean_indices[0] if clean_indices else q.correct_index
+    else:
+        correct_indices = q.correct_indices
+        correct_index = data.get('correct_index', data.get('correctIndex', q.correct_index))
+
     updated = QBankQuestion.update(
         question_id,
         statement=data.get('statement', q.statement),
         options=data.get('options', q.options),
-        correct_index=data.get('correct_index', data.get('correctIndex', q.correct_index)),
+        correct_index=correct_index,
+        correct_indices=correct_indices,
+        question_type=question_type,
         correct_rationale=data.get('correct_rationale', data.get('correctRationale', q.correct_rationale)),
         category=data.get('category', q.category),
         difficulty=data.get('difficulty', q.difficulty),

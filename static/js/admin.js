@@ -1884,7 +1884,7 @@
       return;
     }
 
-    const letters = ['A', 'B', 'C', 'D'];
+    const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     listContainer.innerHTML = questions.map((q) => {
       let opts = [];
       try {
@@ -1893,11 +1893,16 @@
         opts = [];
       }
 
+      const isSata = Boolean(q.isMultipleResponse || q.isSata || q.questionType === 'multiple' || (q.correctIndices && q.correctIndices.length > 1));
+      const targetCorrect = q.correctIndices || (q.correctIndex !== undefined ? [q.correctIndex] : [0]);
+      const correctLetters = targetCorrect.map(idx => letters[idx] || (idx + 1)).join(', ');
+
       return `
         <div class="admin-mcq-card" style="border:1px solid var(--admin-border);border-radius:10px;padding:1.5rem;background:#ffffff;margin-bottom:1.5rem;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:0.85rem;flex-wrap:wrap">
             <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
               <span class="admin-badge admin-badge-info" style="font-weight:700">#${q.id}</span>
+              ${isSata ? `<span class="admin-badge" style="background:#f3e8ff;color:#7e22ce;font-weight:700;border:1px solid #d8b4fe">☑️ SATA (Multi-Answer: ${correctLetters})</span>` : `<span class="admin-badge" style="background:#e0f2fe;color:#0369a1;font-weight:600">Single Choice (${correctLetters})</span>`}
               <span class="admin-badge admin-badge-primary">${escapeHtml(q.category || 'General')}</span>
               <span class="admin-badge admin-badge-warning">${escapeHtml(q.difficulty || 'High Yield')}</span>
               <span class="admin-badge" style="background:#ede9fe;color:#5b21b6;font-weight:600">${escapeHtml(q.examType || 'NCLEX-RN')}</span>
@@ -1920,10 +1925,10 @@
           <!-- Options Grid -->
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:0.6rem;margin-bottom:1rem">
             ${opts.map((opt, optIdx) => {
-              const isCorrect = (optIdx === q.correctIndex);
+              const isCorrect = targetCorrect.includes(optIdx);
               return `
                 <div style="padding:0.65rem 0.85rem;border-radius:6px;font-size:0.88rem;display:flex;align-items:center;gap:0.6rem;${isCorrect ? 'background:#ecfdf5;border:1.5px solid #10b981;color:#065f46;font-weight:700' : 'background:#f8fafc;border:1px solid #e2e8f0;color:#334155'}">
-                  <span style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;${isCorrect ? 'background:#10b981;color:#fff' : 'background:#cbd5e1;color:#1e293b'}">
+                  <span style="width:22px;height:22px;border-radius:${isSata ? '4px' : '50%'};display:flex;align-items:center;justify-content:center;font-size:0.75rem;${isCorrect ? 'background:#10b981;color:#fff' : 'background:#cbd5e1;color:#1e293b'}">
                     ${letters[optIdx] || optIdx + 1}
                   </span>
                   <span>${escapeHtml(opt)} ${isCorrect ? '✓ (Correct)' : ''}</span>
@@ -1973,6 +1978,22 @@
     }
   };
 
+  function updateQBankCorrectSummary() {
+    const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+    const checked = Array.from(document.querySelectorAll('.qbank-correct-choice:checked')).map(el => parseInt(el.value, 10));
+    const summaryEl = document.getElementById('qbankCorrectSummary');
+    if (!summaryEl) return;
+
+    if (!checked.length) {
+      summaryEl.textContent = 'No option selected as correct!';
+      summaryEl.style.color = 'var(--admin-danger)';
+    } else {
+      const lettersStr = checked.map(i => `Option ${letters[i] || i + 1}`).join(', ');
+      summaryEl.textContent = `Selected Correct: ${lettersStr}`;
+      summaryEl.style.color = 'var(--admin-primary)';
+    }
+  }
+
   async function openQBankQuestionModal(questionId = null) {
     const modal = document.getElementById('qbankQuestionModal');
     if (!modal) return;
@@ -1981,6 +2002,13 @@
     form.reset();
 
     document.getElementById('qbankQuestionId').value = questionId || '';
+
+    // Reset option choices
+    document.querySelectorAll('.qbank-correct-choice').forEach(cb => {
+      cb.checked = (cb.value === '0');
+    });
+    document.getElementById('qbankQuestionType').value = 'single';
+    updateQBankCorrectSummary();
 
     if (questionId) {
       title.textContent = `Edit Q-Bank Question #${questionId}`;
@@ -2002,9 +2030,9 @@
       }
     } else {
       title.textContent = 'Add New Q-Bank Question';
-      document.querySelector('input[name="qbankCorrectOption"][value="0"]').checked = true;
       document.getElementById('qbankIsDemo').checked = false;
       document.getElementById('qbankSortOrder').value = 0;
+      updateQBankCorrectSummary();
     }
 
     openModal('qbankQuestionModal');
@@ -2017,6 +2045,9 @@
     document.getElementById('qbankExamType').value = q.examType || 'NCLEX-RN';
     document.getElementById('qbankClientNeed').value = q.clientNeed || '';
 
+    const isSata = Boolean(q.isMultipleResponse || q.isSata || q.questionType === 'multiple' || (q.correctIndices && q.correctIndices.length > 1));
+    document.getElementById('qbankQuestionType').value = isSata ? 'multiple' : 'single';
+
     let opts = [];
     try {
       opts = Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]');
@@ -2027,9 +2058,18 @@
     document.getElementById('qbankOpt1').value = opts[1] || '';
     document.getElementById('qbankOpt2').value = opts[2] || '';
     document.getElementById('qbankOpt3').value = opts[3] || '';
+    const opt4 = document.getElementById('qbankOpt4');
+    if (opt4) opt4.value = opts[4] || '';
+    const opt5 = document.getElementById('qbankOpt5');
+    if (opt5) opt5.value = opts[5] || '';
 
-    const correctRadio = document.querySelector(`input[name="qbankCorrectOption"][value="${q.correctIndex || 0}"]`);
-    if (correctRadio) correctRadio.checked = true;
+    const targetIndices = q.correctIndices || (q.correctIndex !== undefined ? [q.correctIndex] : [0]);
+    document.querySelectorAll('.qbank-correct-choice').forEach(cb => {
+      const idx = parseInt(cb.value, 10);
+      cb.checked = targetIndices.includes(idx);
+    });
+
+    updateQBankCorrectSummary();
 
     document.getElementById('qbankCorrectRationale').value = q.correctRationale || '';
 
@@ -2052,16 +2092,22 @@
     const category = document.getElementById('qbankCategory').value;
     const difficulty = document.getElementById('qbankDifficulty').value;
     const examType = document.getElementById('qbankExamType').value;
+    const questionType = document.getElementById('qbankQuestionType').value;
     const clientNeed = document.getElementById('qbankClientNeed').value.trim();
 
-    const opt0 = document.getElementById('qbankOpt0').value.trim();
-    const opt1 = document.getElementById('qbankOpt1').value.trim();
-    const opt2 = document.getElementById('qbankOpt2').value.trim();
-    const opt3 = document.getElementById('qbankOpt3').value.trim();
-    const options = [opt0, opt1, opt2, opt3].filter(o => o.length > 0);
+    const rawOpts = [
+      document.getElementById('qbankOpt0').value.trim(),
+      document.getElementById('qbankOpt1').value.trim(),
+      document.getElementById('qbankOpt2').value.trim(),
+      document.getElementById('qbankOpt3').value.trim(),
+      document.getElementById('qbankOpt4')?.value.trim() || '',
+      document.getElementById('qbankOpt5')?.value.trim() || ''
+    ];
+    const options = rawOpts.filter(o => o.length > 0);
 
-    const correctRadio = document.querySelector('input[name="qbankCorrectOption"]:checked');
-    const correctIndex = correctRadio ? parseInt(correctRadio.value, 10) : 0;
+    const checkedChoices = Array.from(document.querySelectorAll('.qbank-correct-choice:checked'))
+      .map(el => parseInt(el.value, 10))
+      .filter(idx => idx < options.length);
 
     const correctRationale = document.getElementById('qbankCorrectRationale').value.trim();
     const distractorsRaw = document.getElementById('qbankDistractors').value.trim();
@@ -2078,6 +2124,14 @@
       showToast('Please provide at least 2 answer choices.', 'error');
       return;
     }
+    if (checkedChoices.length === 0) {
+      showToast('Please select at least one correct option choice.', 'error');
+      return;
+    }
+    if (questionType === 'multiple' && checkedChoices.length < 1) {
+      showToast('Please select all correct answers for this SATA question.', 'error');
+      return;
+    }
     if (!correctRationale) {
       showToast('Please provide the clinical rationale for the correct answer.', 'error');
       return;
@@ -2088,9 +2142,11 @@
       category,
       difficulty,
       examType,
+      questionType,
       clientNeed,
       options,
-      correctIndex,
+      correctIndex: checkedChoices[0],
+      correctIndices: checkedChoices,
       correctRationale,
       distractors,
       clinicalPearl,
@@ -2161,6 +2217,35 @@
 
     const saveBtn = document.getElementById('saveQBankQuestionBtn');
     if (saveBtn) saveBtn.addEventListener('click', () => handleSaveQBankQuestion());
+
+    // Toggle logic for correct choices in modal
+    document.querySelectorAll('.qbank-correct-choice').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const qType = document.getElementById('qbankQuestionType')?.value || 'single';
+        if (qType === 'single' && cb.checked) {
+          document.querySelectorAll('.qbank-correct-choice').forEach(other => {
+            if (other !== cb) other.checked = false;
+          });
+        }
+        updateQBankCorrectSummary();
+      });
+    });
+
+    // Question type dropdown change
+    const qTypeSelect = document.getElementById('qbankQuestionType');
+    if (qTypeSelect) {
+      qTypeSelect.addEventListener('change', () => {
+        if (qTypeSelect.value === 'single') {
+          const checked = document.querySelectorAll('.qbank-correct-choice:checked');
+          if (checked.length > 1) {
+            checked.forEach((el, idx) => {
+              if (idx > 0) el.checked = false;
+            });
+          }
+        }
+        updateQBankCorrectSummary();
+      });
+    }
 
     // Search and filter triggers
     const searchInput = document.getElementById('qbankAdminSearch');

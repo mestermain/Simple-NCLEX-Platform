@@ -377,8 +377,131 @@ class SimpleNCLEXPlatformTestCase(unittest.TestCase):
         self.assertEqual(sub['status'], 'approved')
         self.assertEqual(sub['durationDays'], 90)
 
+    def test_qbank_sata_questions_seed_and_evaluation(self):
+        """
+        Verify that SATA (Select All That Apply) questions support multi-choice submission
+        and accurately evaluate full match, partial match, and extraneous distractor selections.
+        """
+        # 1. Fetch questions and locate a SATA question
+        res = self.client.get('/api/qbank/questions')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        questions = data['questions']
+        sata_questions = [q for q in questions if q.get('questionType') == 'multiple' or q.get('isMultipleResponse')]
+        self.assertGreaterEqual(len(sata_questions), 1, "At least one SATA question should be available in Q-Bank")
+        q = sata_questions[0]
+        correct_indices = q['correctIndices']
+        self.assertGreaterEqual(len(correct_indices), 2, "SATA questions should have at least 2 correct options")
+
+        # 2. Fully correct submission
+        res = self.client.post('/api/qbank/check-answer', json={
+            'questionId': q['id'],
+            'selectedIndices': correct_indices
+        })
+        self.assertEqual(res.status_code, 200)
+        ans_data = res.get_json()
+        self.assertTrue(ans_data['success'])
+        self.assertTrue(ans_data['isCorrect'])
+        self.assertEqual(ans_data['matched'], correct_indices)
+        self.assertEqual(ans_data['missed'], [])
+        self.assertEqual(ans_data['extra'], [])
+
+        # 3. Partial correct submission (misses at least one correct option)
+        partial_indices = correct_indices[:-1]
+        res = self.client.post('/api/qbank/check-answer', json={
+            'questionId': q['id'],
+            'selectedIndices': partial_indices
+        })
+        self.assertEqual(res.status_code, 200)
+        ans_data = res.get_json()
+        self.assertTrue(ans_data['success'])
+        self.assertFalse(ans_data['isCorrect'])
+        self.assertEqual(ans_data['missed'], [correct_indices[-1]])
+
+        # 4. Extraneous distractor submission (includes incorrect option)
+        all_option_indices = list(range(len(q['options'])))
+        distractor_candidates = [i for i in all_option_indices if i not in correct_indices]
+        if distractor_candidates:
+            distractor = distractor_candidates[0]
+            distractor_indices = sorted(correct_indices + [distractor])
+            res = self.client.post('/api/qbank/check-answer', json={
+                'questionId': q['id'],
+                'selectedIndices': distractor_indices
+            })
+            self.assertEqual(res.status_code, 200)
+            ans_data = res.get_json()
+            self.assertTrue(ans_data['success'])
+            self.assertFalse(ans_data['isCorrect'])
+            self.assertIn(distractor, ans_data['extra'])
+
+    def test_qbank_sata_admin_crud(self):
+        """
+        Verify Admin can create, read, update, and delete a SATA question with multiple correct indices.
+        """
+        admin_login = self.client.post('/api/auth/login', json={
+            'email': 'admin@simplenclex.com',
+            'password': 'Admin123!'
+        })
+        headers = {'Authorization': f"Bearer {admin_login.get_json()['token']}"}
+
+        # 1. Create SATA Question
+        sata_payload = {
+            'statement': 'Which laboratory results require immediate notification of the healthcare provider for a client receiving digoxin? (Select all that apply.)',
+            'category': 'Pharmacological & Parenteral Therapies',
+            'difficulty': 'High Yield',
+            'examType': 'NCLEX-RN',
+            'clientNeed': 'Pharmacological Therapies',
+            'questionType': 'multiple',
+            'options': [
+                'Serum potassium: 2.8 mEq/L (Hypokalemia)',
+                'Serum digoxin level: 1.0 ng/mL (Normal therapeutic range)',
+                'Serum magnesium: 1.1 mEq/L (Hypomagnesemia)',
+                'Serum calcium: 9.5 mg/dL (Normal)',
+                'Serum digoxin level: 2.6 ng/mL (Toxic range)',
+                'Serum sodium: 139 mEq/L (Normal)'
+            ],
+            'correctIndices': [0, 2, 4],
+            'correctRationale': 'Hypokalemia, hypomagnesemia, and digoxin levels > 2.0 ng/mL all precipitate or indicate life-threatening digoxin toxicity.',
+            'clinicalPearl': 'Hypokalemia increases myocardial sensitivity to digoxin, precipitating dysrhythmias even at borderline drug levels.',
+            'isDemo': 1,
+            'sortOrder': 90
+        }
+
+        create_res = self.client.post('/api/admin/qbank/questions', headers=headers, json=sata_payload)
+        self.assertEqual(create_res.status_code, 201)
+        created_q = create_res.get_json()['question']
+        q_id = created_q['id']
+        self.assertEqual(created_q['questionType'], 'multiple')
+        self.assertTrue(created_q['isMultipleResponse'])
+        self.assertEqual(created_q['correctIndices'], [0, 2, 4])
+        self.assertEqual(created_q['correctLetters'], ['A', 'C', 'E'])
+
+        # 2. Verify answer checking against the created SATA question
+        ans_res = self.client.post('/api/qbank/check-answer', json={
+            'questionId': q_id,
+            'selectedIndices': [0, 2, 4]
+        })
+        self.assertEqual(ans_res.status_code, 200)
+        self.assertTrue(ans_res.get_json()['isCorrect'])
+
+        # 3. Update SATA question (change correct indices and difficulty)
+        update_res = self.client.put(f'/api/admin/qbank/questions/{q_id}', headers=headers, json={
+            'difficulty': 'Expert',
+            'correctIndices': [0, 4]
+        })
+        self.assertEqual(update_res.status_code, 200)
+        updated_q = update_res.get_json()['question']
+        self.assertEqual(updated_q['difficulty'], 'Expert')
+        self.assertEqual(updated_q['correctIndices'], [0, 4])
+        self.assertEqual(updated_q['correctLetters'], ['A', 'E'])
+
+        # 4. Clean up / delete created test question
+        del_res = self.client.delete(f'/api/admin/qbank/questions/{q_id}', headers=headers)
+        self.assertEqual(del_res.status_code, 200)
+
 
 if __name__ == '__main__':
     unittest.main()
+
 
 

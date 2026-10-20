@@ -1140,6 +1140,14 @@
 
           <div class="form-row">
             <div class="form-group">
+              <label>Question Type *</label>
+              <select id="qbankQuestionType" required>
+                <option value="single">Single Best Answer (1 Choice)</option>
+                <option value="multiple">Multiple Response / Select All That Apply (SATA)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
               <label>Difficulty Level *</label>
               <select id="qbankDifficulty" required>
                 <option value="High Yield">High Yield (Exam Priority)</option>
@@ -1148,11 +1156,11 @@
                 <option value="Easy">Easy Baseline</option>
               </select>
             </div>
+          </div>
 
-            <div class="form-group">
-              <label>Client Need Framework</label>
-              <input type="text" id="qbankClientNeed" placeholder="e.g. Physiological Adaptation — Hemodynamic Regulation"/>
-            </div>
+          <div class="form-group">
+            <label>Client Need Framework</label>
+            <input type="text" id="qbankClientNeed" placeholder="e.g. Physiological Adaptation — Hemodynamic Regulation"/>
           </div>
 
           <!-- Question Stem Statement -->
@@ -1161,43 +1169,62 @@
             <textarea id="qbankStatement" rows="4" required placeholder="Detailed clinical patient scenario, vital signs, lab values, and clinical question..."></textarea>
           </div>
 
-          <!-- Options & Correct Choice Radio -->
+          <!-- Options & Correct Choice Selection -->
           <div class="form-group">
-            <label>Answer Choices & Correct Option Selection *</label>
-            <p style="font-size:0.8rem;color:var(--admin-text-muted);margin-bottom:0.75rem">
-              Select the radio button next to the option that is the correct clinical answer.
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+              <label style="margin-bottom:0">Answer Choices & Correct Answer Selection *</label>
+              <span id="qbankCorrectSummary" style="font-size:0.85rem;font-weight:700;color:var(--admin-primary)">Selected Correct: Option A</span>
+            </div>
+            <p id="qbankChoiceHelper" style="font-size:0.8rem;color:var(--admin-text-muted);margin-bottom:0.75rem">
+              For Single Choice, choose the 1 correct answer. For SATA (Multiple Response), check all options that are correct.
             </p>
 
             <div class="mcq-option-row">
               <label class="mcq-option-radio-wrap">
-                <input type="radio" name="qbankCorrectOption" value="0" checked/>
-                <span>Option A (Correct)</span>
+                <input type="checkbox" class="qbank-correct-choice" data-index="0" value="0" checked/>
+                <span class="qbank-choice-label">Option A</span>
               </label>
-              <input type="text" id="qbankOpt0" required placeholder="Option A text"/>
+              <input type="text" id="qbankOpt0" required placeholder="Option A text *"/>
             </div>
 
             <div class="mcq-option-row">
               <label class="mcq-option-radio-wrap">
-                <input type="radio" name="qbankCorrectOption" value="1"/>
-                <span>Option B (Correct)</span>
+                <input type="checkbox" class="qbank-correct-choice" data-index="1" value="1"/>
+                <span class="qbank-choice-label">Option B</span>
               </label>
-              <input type="text" id="qbankOpt1" required placeholder="Option B text"/>
+              <input type="text" id="qbankOpt1" required placeholder="Option B text *"/>
             </div>
 
             <div class="mcq-option-row">
               <label class="mcq-option-radio-wrap">
-                <input type="radio" name="qbankCorrectOption" value="2"/>
-                <span>Option C (Correct)</span>
+                <input type="checkbox" class="qbank-correct-choice" data-index="2" value="2"/>
+                <span class="qbank-choice-label">Option C</span>
               </label>
-              <input type="text" id="qbankOpt2" required placeholder="Option C text"/>
+              <input type="text" id="qbankOpt2" required placeholder="Option C text *"/>
             </div>
 
             <div class="mcq-option-row">
               <label class="mcq-option-radio-wrap">
-                <input type="radio" name="qbankCorrectOption" value="3"/>
-                <span>Option D (Correct)</span>
+                <input type="checkbox" class="qbank-correct-choice" data-index="3" value="3"/>
+                <span class="qbank-choice-label">Option D</span>
               </label>
-              <input type="text" id="qbankOpt3" required placeholder="Option D text"/>
+              <input type="text" id="qbankOpt3" required placeholder="Option D text *"/>
+            </div>
+
+            <div class="mcq-option-row">
+              <label class="mcq-option-radio-wrap">
+                <input type="checkbox" class="qbank-correct-choice" data-index="4" value="4"/>
+                <span class="qbank-choice-label">Option E</span>
+              </label>
+              <input type="text" id="qbankOpt4" placeholder="Option E text (Optional / SATA)"/>
+            </div>
+
+            <div class="mcq-option-row">
+              <label class="mcq-option-radio-wrap">
+                <input type="checkbox" class="qbank-correct-choice" data-index="5" value="5"/>
+                <span class="qbank-choice-label">Option F</span>
+              </label>
+              <input type="text" id="qbankOpt5" placeholder="Option F text (Optional / SATA)"/>
             </div>
           </div>
 
