@@ -405,9 +405,13 @@
       submitAnswerBtn.disabled = true;
       submitAnswerBtn.textContent = 'Evaluating...';
 
+      const reqHeaders = { 'Content-Type': 'application/json' };
+      const userToken = localStorage.getItem('nclex_token') || localStorage.getItem('token') || localStorage.getItem('access_token');
+      if (userToken) reqHeaders['Authorization'] = `Bearer ${userToken}`;
+
       const res = await fetch(`${API_QBANK}/check-answer`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: reqHeaders,
         body: JSON.stringify({
           questionId: q.id,
           selectedIndices: picks,

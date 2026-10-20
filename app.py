@@ -776,6 +776,29 @@ def init_db(app=None):
                     expires_at TIMESTAMPTZ,
                     notes TEXT
                 );
+                CREATE TABLE IF NOT EXISTS student_notifications (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    title TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    type TEXT DEFAULT 'general',
+                    is_read INTEGER DEFAULT 0,
+                    link TEXT DEFAULT '',
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                CREATE TABLE IF NOT EXISTS student_qbank_attempts (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    question_id INTEGER NOT NULL REFERENCES qbank_questions(id) ON DELETE CASCADE,
+                    question_type TEXT DEFAULT 'single',
+                    category TEXT DEFAULT '',
+                    difficulty TEXT DEFAULT '',
+                    exam_type TEXT DEFAULT 'NCLEX-RN',
+                    selected_indices_json TEXT DEFAULT '[]',
+                    is_correct INTEGER NOT NULL DEFAULT 0,
+                    attempted_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT '';
             """)
             conn.commit()
             # Seed plans if empty
@@ -952,8 +975,37 @@ def init_db(app=None):
         );
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS student_notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            type TEXT DEFAULT 'general',
+            is_read INTEGER DEFAULT 0,
+            link TEXT DEFAULT '',
+            created_at TEXT NOT NULL
+        );
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS student_qbank_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            question_id INTEGER NOT NULL REFERENCES qbank_questions(id) ON DELETE CASCADE,
+            question_type TEXT DEFAULT 'single',
+            category TEXT DEFAULT '',
+            difficulty TEXT DEFAULT '',
+            exam_type TEXT DEFAULT 'NCLEX-RN',
+            selected_indices_json TEXT DEFAULT '[]',
+            is_correct INTEGER NOT NULL DEFAULT 0,
+            attempted_at TEXT NOT NULL
+        );
+    """)
+
     # Safe migrations for existing databases
     _ensure_column(cursor, "users", "role", "TEXT NOT NULL DEFAULT 'student'")
+    _ensure_column(cursor, "users", "phone", "TEXT DEFAULT ''")
     _ensure_column(cursor, "courses", "image_url", "TEXT DEFAULT ''")
     _ensure_column(cursor, "courses", "curriculum_data", "TEXT DEFAULT ''")
     _ensure_column(cursor, "enrollments", "status", "TEXT NOT NULL DEFAULT 'pending'")
@@ -1086,6 +1138,7 @@ class User:
         self.password_hash = data['password_hash']
         self.plain_password = data.get('plain_password') or ''
         self.exam_type = data.get('exam_type')
+        self.phone = data.get('phone') or ''
         self.created_at = data.get('created_at', '')
         self.is_active = bool(data.get('is_active', 1))
         self.role = data.get('role') or 'student'
@@ -1098,6 +1151,7 @@ class User:
             'name': f"{self.first_name} {self.last_name}".strip(),
             'email': self.email,
             'examType': self.exam_type,
+            'phone': self.phone,
             'createdAt': self.created_at,
             'isActive': self.is_active,
             'role': self.role,
@@ -1122,19 +1176,37 @@ class User:
         return cls(dict(row)) if row else None
 
     @classmethod
-    def create(cls, first_name, last_name, email, password_hash, exam_type, role='student', plain_password=''):
+    def create(cls, first_name, last_name, email, password_hash, exam_type, role='student', plain_password='', phone=''):
         db = get_db()
         now = datetime.now(timezone.utc).isoformat()
         cur = db.cursor()
         cur.execute(
             """
-            INSERT INTO users (first_name, last_name, email, password_hash, exam_type, created_at, is_active, role, plain_password)
-            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+            INSERT INTO users (first_name, last_name, email, password_hash, exam_type, created_at, is_active, role, plain_password, phone)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
             """,
-            (first_name, last_name, email, password_hash, exam_type, now, role, plain_password)
+            (first_name, last_name, email, password_hash, exam_type, now, role, plain_password, phone)
         )
         db.commit()
         return cls.find_by_id(cur.lastrowid)
+
+    @classmethod
+    def update_profile(cls, user_id, first_name=None, last_name=None, exam_type=None, phone=None):
+        db = get_db()
+        user = cls.find_by_id(user_id)
+        if not user:
+            return None
+        fn = first_name.strip() if first_name is not None and str(first_name).strip() else user.first_name
+        ln = last_name.strip() if last_name is not None and str(last_name).strip() else user.last_name
+        et = exam_type.strip() if exam_type is not None else user.exam_type
+        ph = phone.strip() if phone is not None else getattr(user, 'phone', '')
+        db.execute("""
+            UPDATE users
+            SET first_name = ?, last_name = ?, exam_type = ?, phone = ?
+            WHERE id = ?
+        """, (fn, ln, et, ph, user_id))
+        db.commit()
+        return cls.find_by_id(user_id)
 
     @classmethod
     def all(cls, query=None):
@@ -1142,7 +1214,11 @@ class User:
         sql = """
             SELECT u.*,
                    (SELECT COUNT(*) FROM enrollments e WHERE e.user_id = u.id) as total_enrollments,
-                   (SELECT COUNT(*) FROM enrollments e WHERE e.user_id = u.id AND e.status = 'approved') as approved_enrollments
+                   (SELECT COUNT(*) FROM enrollments e WHERE e.user_id = u.id AND e.status = 'approved') as approved_enrollments,
+                   (SELECT status FROM qbank_subscriptions qs WHERE qs.user_id = u.id ORDER BY qs.id DESC LIMIT 1) as qbank_sub_status,
+                   (SELECT plan_name FROM qbank_subscriptions qs WHERE qs.user_id = u.id ORDER BY qs.id DESC LIMIT 1) as qbank_plan_name,
+                   (SELECT duration_days FROM qbank_subscriptions qs WHERE qs.user_id = u.id ORDER BY qs.id DESC LIMIT 1) as qbank_duration_days,
+                   (SELECT expires_at FROM qbank_subscriptions qs WHERE qs.user_id = u.id ORDER BY qs.id DESC LIMIT 1) as qbank_expires_at
             FROM users u
             WHERE 1=1
         """
@@ -1160,6 +1236,10 @@ class User:
             user_dict = user_obj.to_dict(include_password=True)
             user_dict['totalEnrollments'] = d.get('total_enrollments', 0)
             user_dict['approvedEnrollments'] = d.get('approved_enrollments', 0)
+            user_dict['qbankSubStatus'] = d.get('qbank_sub_status') or 'none'
+            user_dict['qbankPlanName'] = d.get('qbank_plan_name') or ''
+            user_dict['qbankDurationDays'] = d.get('qbank_duration_days') or 0
+            user_dict['qbankExpiresAt'] = d.get('qbank_expires_at') or ''
             users.append(user_dict)
         return users
 
@@ -1196,7 +1276,7 @@ class User:
         db = get_db()
         fields = []
         values = []
-        allowed = {'first_name', 'last_name', 'email', 'exam_type', 'role', 'is_active', 'password_hash', 'plain_password'}
+        allowed = {'first_name', 'last_name', 'email', 'exam_type', 'role', 'is_active', 'password_hash', 'plain_password', 'phone'}
         for k, v in kwargs.items():
             if k in allowed:
                 fields.append(f"{k} = ?")
@@ -2254,6 +2334,8 @@ class QBankSubscription:
         cur = db.execute("SELECT * FROM qbank_subscriptions WHERE user_id = ? ORDER BY id DESC", (user_id,))
         return [cls(dict(r)) for r in cur.fetchall()]
 
+    find_by_user = find_by_user_id
+
     @classmethod
     def user_has_active(cls, user_id):
         db = get_db()
@@ -2274,6 +2356,22 @@ class QBankSubscription:
             except Exception:
                 return True
         return False
+
+    @classmethod
+    def get_active_for_user(cls, user_id):
+        subs = cls.find_by_user(user_id)
+        now_dt = datetime.now(timezone.utc)
+        for s in subs:
+            if s.status == 'approved':
+                if not s.expires_at:
+                    return s
+                try:
+                    exp_dt = datetime.fromisoformat(s.expires_at.replace('Z', '+00:00'))
+                    if exp_dt > now_dt:
+                        return s
+                except Exception:
+                    return s
+        return None
 
     @classmethod
     def get_user_status(cls, user_id):
@@ -2371,6 +2469,241 @@ class QBankSubscription:
         db.execute("DELETE FROM qbank_subscriptions WHERE id = ?", (sub_id,))
         db.commit()
 
+    @classmethod
+    def update(cls, sub_id, **kwargs):
+        db = get_db()
+        sub = cls.find_by_id(sub_id)
+        if not sub:
+            return None
+        status = kwargs.get('status', sub.status)
+        plan_name = kwargs.get('plan_name', sub.plan_name)
+        duration_days = int(kwargs.get('duration_days', sub.duration_days))
+        expires_at = kwargs.get('expires_at', sub.expires_at)
+        notes = kwargs.get('notes', sub.notes)
+        db.execute("""
+            UPDATE qbank_subscriptions
+            SET status = ?, plan_name = ?, duration_days = ?, expires_at = ?, notes = ?
+            WHERE id = ?
+        """, (status, plan_name, duration_days, expires_at, notes, sub_id))
+        db.commit()
+        return cls.find_by_id(sub_id)
+
+    @classmethod
+    def extend(cls, sub_id, add_days=30, notes=None):
+        db = get_db()
+        sub = cls.find_by_id(sub_id)
+        if not sub:
+            return None
+        now_dt = datetime.now(timezone.utc)
+        current_exp = None
+        if sub.expires_at:
+            try:
+                current_exp = datetime.fromisoformat(sub.expires_at.replace('Z', '+00:00'))
+            except Exception:
+                pass
+        base_dt = current_exp if (current_exp and current_exp > now_dt) else now_dt
+        new_exp_dt = base_dt + timedelta(days=int(add_days))
+        new_duration = sub.duration_days + int(add_days)
+        new_notes = f"{sub.notes} | Extended +{add_days}d".strip(' |') if not notes else notes
+        db.execute("""
+            UPDATE qbank_subscriptions
+            SET status = 'approved', expires_at = ?, duration_days = ?, notes = ?
+            WHERE id = ?
+        """, (new_exp_dt.isoformat(), new_duration, new_notes, sub_id))
+        db.commit()
+        return cls.find_by_id(sub_id)
+
+
+class StudentNotification:
+    def __init__(self, data):
+        self.id = data['id']
+        self.user_id = data['user_id']
+        self.title = data['title']
+        self.message = data['message']
+        self.type = data.get('type') or 'general'
+        self.is_read = bool(data.get('is_read', 0))
+        self.link = data.get('link') or ''
+        self.created_at = data.get('created_at', '')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'userId': self.user_id,
+            'title': self.title,
+            'message': self.message,
+            'type': self.type,
+            'isRead': self.is_read,
+            'link': self.link,
+            'createdAt': self.created_at
+        }
+
+    @classmethod
+    def create(cls, user_id, title, message, type='general', link=''):
+        db = get_db()
+        now = datetime.now(timezone.utc).isoformat()
+        cur = db.cursor()
+        cur.execute("""
+            INSERT INTO student_notifications (user_id, title, message, type, is_read, link, created_at)
+            VALUES (?, ?, ?, ?, 0, ?, ?)
+        """, (int(user_id), title, message, type, link, now))
+        db.commit()
+        return cls.find_by_id(cur.lastrowid)
+
+    @classmethod
+    def find_by_id(cls, notif_id):
+        db = get_db()
+        cur = db.execute("SELECT * FROM student_notifications WHERE id = ?", (notif_id,))
+        row = cur.fetchone()
+        return cls(dict(row)) if row else None
+
+    @classmethod
+    def get_for_user(cls, user_id, limit=40):
+        db = get_db()
+        cur = db.execute("""
+            SELECT * FROM student_notifications
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+        """, (int(user_id), int(limit)))
+        return [cls(dict(r)) for r in cur.fetchall()]
+
+    @classmethod
+    def get_unread_count(cls, user_id):
+        db = get_db()
+        cur = db.execute("SELECT COUNT(*) FROM student_notifications WHERE user_id = ? AND is_read = 0", (int(user_id),))
+        row = cur.fetchone()
+        return row[0] if row else 0
+
+    @classmethod
+    def mark_as_read(cls, notif_id, user_id=None):
+        db = get_db()
+        if user_id:
+            db.execute("UPDATE student_notifications SET is_read = 1 WHERE id = ? AND user_id = ?", (notif_id, user_id))
+        else:
+            db.execute("UPDATE student_notifications SET is_read = 1 WHERE id = ?", (notif_id,))
+        db.commit()
+
+    @classmethod
+    def mark_all_as_read(cls, user_id):
+        db = get_db()
+        db.execute("UPDATE student_notifications SET is_read = 1 WHERE user_id = ?", (int(user_id),))
+        db.commit()
+
+
+class StudentQBankAttempt:
+    def __init__(self, data):
+        self.id = data['id']
+        self.user_id = data['user_id']
+        self.question_id = data['question_id']
+        self.question_type = data.get('question_type') or 'single'
+        self.category = data.get('category') or ''
+        self.difficulty = data.get('difficulty') or ''
+        self.exam_type = data.get('exam_type') or 'NCLEX-RN'
+        self.selected_indices_json = data.get('selected_indices_json') or '[]'
+        self.is_correct = bool(data.get('is_correct', 0))
+        self.attempted_at = data.get('attempted_at', '')
+
+    @classmethod
+    def record(cls, user_id, question_id, is_correct, selected_indices=None, question_type='single', category='', difficulty='', exam_type='NCLEX-RN'):
+        db = get_db()
+        now = datetime.now(timezone.utc).isoformat()
+        sel_json = json.dumps(selected_indices) if isinstance(selected_indices, list) else str(selected_indices or '[]')
+        cur = db.cursor()
+        cur.execute("""
+            INSERT INTO student_qbank_attempts (
+                user_id, question_id, question_type, category, difficulty, exam_type, selected_indices_json, is_correct, attempted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (int(user_id), int(question_id), question_type, category, difficulty, exam_type, sel_json, 1 if is_correct else 0, now))
+        db.commit()
+        return cur.lastrowid
+
+    @classmethod
+    def get_user_stats(cls, user_id):
+        db = get_db()
+        cur = db.execute("""
+            SELECT
+                COUNT(*) as total_attempts,
+                COUNT(CASE WHEN is_correct = 1 THEN 1 END) as total_correct,
+                COUNT(CASE WHEN question_type = 'single' THEN 1 END) as single_attempts,
+                COUNT(CASE WHEN question_type = 'single' AND is_correct = 1 THEN 1 END) as single_correct,
+                COUNT(CASE WHEN question_type = 'multiple' THEN 1 END) as multiple_attempts,
+                COUNT(CASE WHEN question_type = 'multiple' AND is_correct = 1 THEN 1 END) as multiple_correct
+            FROM student_qbank_attempts
+            WHERE user_id = ?
+        """, (int(user_id),))
+        row = cur.fetchone()
+        counts = dict(row) if row else {}
+        total_att = counts.get('total_attempts', 0)
+        total_corr = counts.get('total_correct', 0)
+        overall_accuracy = round((total_corr / total_att * 100), 1) if total_att > 0 else 0.0
+
+        cur = db.execute("""
+            SELECT COUNT(DISTINCT question_id) FROM student_qbank_attempts WHERE user_id = ?
+        """, (int(user_id),))
+        unique_questions = cur.fetchone()[0] or 0
+
+        cur = db.execute("""
+            SELECT
+                category,
+                COUNT(*) as attempted,
+                COUNT(CASE WHEN is_correct = 1 THEN 1 END) as correct
+            FROM student_qbank_attempts
+            WHERE user_id = ? AND category != ''
+            GROUP BY category
+            ORDER BY attempted DESC
+        """, (int(user_id),))
+        category_breakdown = []
+        for r in cur.fetchall():
+            att = r['attempted']
+            corr = r['correct']
+            rate = round((corr / att * 100), 1) if att > 0 else 0.0
+            category_breakdown.append({
+                'category': r['category'],
+                'attempted': att,
+                'correct': corr,
+                'accuracyRate': rate
+            })
+
+        cur = db.execute("""
+            SELECT a.*, q.statement, q.options_json, q.correct_indices_json, q.clinical_pearl
+            FROM student_qbank_attempts a
+            LEFT JOIN qbank_questions q ON a.question_id = q.id
+            WHERE a.user_id = ?
+            ORDER BY a.id DESC
+            LIMIT 15
+        """, (int(user_id),))
+        recent_attempts = []
+        for r in cur.fetchall():
+            d = dict(r)
+            recent_attempts.append({
+                'id': d['id'],
+                'questionId': d['question_id'],
+                'questionType': d['question_type'],
+                'statement': d.get('statement') or 'Clinical Practice Question',
+                'category': d['category'],
+                'difficulty': d['difficulty'],
+                'isCorrect': bool(d['is_correct']),
+                'attemptedAt': d['attempted_at']
+            })
+
+        return {
+            'totalAttempted': total_att,
+            'totalCorrect': total_corr,
+            'correctCount': total_corr,
+            'incorrectCount': max(0, total_att - total_corr),
+            'uniqueQuestions': unique_questions,
+            'uniqueQuestionsAnswered': unique_questions,
+            'accuracyRate': overall_accuracy,
+            'singleAttempts': counts.get('single_attempts', 0),
+            'singleCorrect': counts.get('single_correct', 0),
+            'multipleAttempts': counts.get('multiple_attempts', 0),
+            'multipleCorrect': counts.get('multiple_correct', 0),
+            'categoryBreakdown': category_breakdown,
+            'categoryBreakdownMap': {r['category']: r for r in category_breakdown},
+            'recentAttempts': recent_attempts
+        }
+
+
 
 # ==============================================================================
 # 3. JWT AUTHENTICATION UTILITIES & DECORATORS
@@ -2439,6 +2772,8 @@ def jwt_required(optional=False):
                 verify_jwt_in_request(optional=optional)
             except ValueError as e:
                 return jsonify({'success': False, 'message': str(e)}), 401
+            user_id = getattr(g, 'user_id', None)
+            g.current_user = User.find_by_id(user_id) if user_id else None
             return fn(*args, **kwargs)
         return wrapper
     return decorator
@@ -3335,6 +3670,7 @@ def get_qbank_questions():
 
 # ── 5. CHECK ANSWER & GET RATIONALE (Tutor Mode) ──────────────────────────────
 @qbank_bp.route('/check-answer', methods=['POST'])
+@jwt_required(optional=True)
 def check_qbank_answer():
     data = request.get_json(silent=True) or {}
     question_id = data.get('questionId') or data.get('question_id')
@@ -3365,6 +3701,24 @@ def check_qbank_answer():
     matched = [idx for idx in user_picks if idx in target_picks]
     missed = [idx for idx in target_picks if idx not in user_picks]
     extra = [idx for idx in user_picks if idx not in target_picks]
+
+    # If student is authenticated, log their question attempt & update clinical score
+    user_id = get_jwt_identity()
+    if user_id:
+        try:
+            StudentQBankAttempt.record(
+                user_id=user_id,
+                question_id=q.id,
+                is_correct=1 if is_correct else 0,
+                selected_indices=user_picks,
+                question_type=q.question_type,
+                category=q.category,
+                difficulty=q.difficulty,
+                exam_type=q.exam_type
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Error recording student question attempt: {e}")
 
     return jsonify({
         'success': True,
@@ -3539,6 +3893,13 @@ def approve_registration(reg_id):
             admin_user.id,
             admin_user.email
         )
+        StudentNotification.create(
+            enrollment.user_id,
+            'Course Enrollment Verified! 📚',
+            f'Your registration for "{course_title}" has been approved! You now have full access to class curriculum and live sessions.',
+            type='course',
+            link='/courses'
+        )
 
     return jsonify({
         'success': True,
@@ -3578,6 +3939,13 @@ def reject_registration(reg_id):
             f'Admin {admin_name} rejected registration #{reg_id} for {student_name} in "{course_title}". Reason: {notes}',
             admin_user.id,
             admin_user.email
+        )
+        StudentNotification.create(
+            enrollment.user_id,
+            'Course Registration Update ⚠️',
+            f'Your registration for "{course_title}" requires attention: {notes}',
+            type='course',
+            link='/courses'
         )
 
     return jsonify({
@@ -4887,6 +5255,15 @@ def admin_approve_qbank_subscription(sub_id):
         admin_user.email
     )
 
+    if user:
+        StudentNotification.create(
+            user.id,
+            "Q-Bank Subscription Approved! 🎉",
+            f'Your subscription for "{sub.plan_name}" has been approved! You now have full access for {sub.duration_days} days.',
+            type="subscription_approved",
+            link="/qbank"
+        )
+
     return jsonify({
         'success': True,
         'message': f'Q-Bank subscription for {student_name} has been APPROVED! Access valid for {sub.duration_days} days.',
@@ -4919,6 +5296,15 @@ def admin_reject_qbank_subscription(sub_id):
         admin_user.email
     )
 
+    if user:
+        StudentNotification.create(
+            user.id,
+            "Q-Bank Subscription Update",
+            f'Your request for "{sub.plan_name}" was not approved. Reason: {notes}.',
+            type="subscription_rejected",
+            link="/qbank#plans"
+        )
+
     return jsonify({
         'success': True,
         'message': 'Q-Bank subscription has been REJECTED.',
@@ -4944,6 +5330,108 @@ def admin_delete_qbank_subscription(sub_id):
     )
 
     return jsonify({'success': True, 'message': 'Subscription record deleted successfully.'}), 200
+
+
+@admin_bp.route('/qbank/subscriptions/<int:sub_id>', methods=['PUT'])
+@admin_required()
+def admin_update_qbank_subscription(sub_id):
+    sub = QBankSubscription.find_by_id(sub_id)
+    if not sub:
+        return jsonify({'success': False, 'message': 'Subscription not found.'}), 404
+
+    data = request.get_json(silent=True) or {}
+    status = data.get('status')
+    plan_name = data.get('planName') or data.get('plan_name')
+    duration_days = data.get('durationDays') or data.get('duration_days')
+    expires_at = data.get('expiresAt') or data.get('expires_at')
+    notes = data.get('notes')
+    notify_student = data.get('notifyStudent', False)
+    custom_message = data.get('notificationMessage', '')
+
+    update_kwargs = {}
+    if status is not None:
+        update_kwargs['status'] = status
+    if plan_name is not None:
+        update_kwargs['plan_name'] = plan_name
+    if duration_days is not None:
+        update_kwargs['duration_days'] = int(duration_days)
+    if expires_at is not None:
+        update_kwargs['expires_at'] = expires_at
+    if notes is not None:
+        update_kwargs['notes'] = notes
+
+    updated = QBankSubscription.update(sub_id, **update_kwargs)
+
+    user = User.find_by_id(sub.user_id)
+    student_name = f"{user.first_name} {user.last_name}".strip() if user else 'Student'
+    admin_user = g.current_user
+    admin_name = f"{admin_user.first_name} {admin_user.last_name}".strip()
+
+    ActivityLog.log(
+        'Q-Bank Subscription Updated',
+        f'Admin {admin_name} updated Q-Bank subscription #{sub_id} for {student_name} (Status: {updated.status if updated else ""}, Plan: {updated.plan_name if updated else ""})',
+        admin_user.id,
+        admin_user.email
+    )
+
+    if notify_student and user and updated:
+        msg = custom_message or f"Your Q-Bank subscription status is now: {updated.status.capitalize()} (Plan: {updated.plan_name})."
+        StudentNotification.create(
+            user.id,
+            "Subscription Status Update",
+            msg,
+            type="subscription",
+            link="/qbank"
+        )
+
+    return jsonify({
+        'success': True,
+        'message': f'Subscription for {student_name} has been updated.',
+        'subscription': updated.to_dict() if updated else None
+    }), 200
+
+
+@admin_bp.route('/qbank/subscriptions/<int:sub_id>/extend', methods=['POST'])
+@admin_required()
+def admin_extend_qbank_subscription(sub_id):
+    sub = QBankSubscription.find_by_id(sub_id)
+    if not sub:
+        return jsonify({'success': False, 'message': 'Subscription not found.'}), 404
+
+    data = request.get_json(silent=True) or {}
+    add_days = int(data.get('addDays') or data.get('add_days') or 30)
+    notes = data.get('notes')
+    notify_student = data.get('notifyStudent', True)
+
+    updated = QBankSubscription.extend(sub_id, add_days=add_days, notes=notes)
+
+    user = User.find_by_id(sub.user_id)
+    student_name = f"{user.first_name} {user.last_name}".strip() if user else 'Student'
+    admin_user = g.current_user
+    admin_name = f"{admin_user.first_name} {admin_user.last_name}".strip()
+
+    ActivityLog.log(
+        'Q-Bank Subscription Extended',
+        f'Admin {admin_name} extended Q-Bank subscription #{sub_id} for {student_name} by +{add_days} days',
+        admin_user.id,
+        admin_user.email
+    )
+
+    if notify_student and user and updated:
+        exp_display = updated.expires_at[:10] if updated.expires_at else 'Active'
+        StudentNotification.create(
+            user.id,
+            "Subscription Extended! ⏳",
+            f"Your Q-Bank access has been extended by +{add_days} days! Valid until {exp_display}.",
+            type="subscription",
+            link="/qbank"
+        )
+
+    return jsonify({
+        'success': True,
+        'message': f'Subscription extended by {add_days} days for {student_name}.',
+        'subscription': updated.to_dict() if updated else None
+    }), 200
 
 
 @admin_bp.route('/qbank/subscriptions/manual', methods=['POST'])
@@ -4994,11 +5482,234 @@ def admin_manual_qbank_subscription():
         admin_user.email
     )
 
+    StudentNotification.create(
+        user.id,
+        "Q-Bank Access Granted! 🚀",
+        f'Administrator has granted you {days} days of full Q-Bank access ({plan_name}). Start practicing now!',
+        type="subscription_approved",
+        link="/qbank"
+    )
+
     return jsonify({
         'success': True,
         'message': f'Q-Bank access successfully granted to {user.first_name} {user.last_name} for {days} days!',
         'subscription': approved_sub.to_dict() if approved_sub else None
     }), 201
+
+
+@admin_bp.route('/students/notify', methods=['POST'])
+@admin_required()
+def admin_send_student_notification():
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('userId') or data.get('user_id')
+    title = (data.get('title') or '').strip()
+    message = (data.get('message') or '').strip()
+    notif_type = data.get('type') or 'general'
+    link = data.get('link') or ''
+
+    if not title or not message:
+        return jsonify({'success': False, 'message': 'Title and message are required.'}), 422
+
+    admin_user = g.current_user
+    admin_name = f"{admin_user.first_name} {admin_user.last_name}".strip()
+
+    if str(user_id).strip().lower() == 'all':
+        users = User.all()
+        count = 0
+        for u in users:
+            if u.get('role') != 'admin':
+                StudentNotification.create(u['id'], title, message, type=notif_type, link=link)
+                count += 1
+        ActivityLog.log(
+            'Broadcast Notification Sent',
+            f'Admin {admin_name} broadcast notification "{title}" to {count} students',
+            admin_user.id,
+            admin_user.email
+        )
+        return jsonify({'success': True, 'message': f'Notification broadcast to {count} students.'}), 200
+    else:
+        if not user_id:
+            return jsonify({'success': False, 'message': 'Target student (userId) is required.'}), 422
+        user = User.find_by_id(int(user_id))
+        if not user:
+            return jsonify({'success': False, 'message': 'Student not found.'}), 404
+        notif = StudentNotification.create(user.id, title, message, type=notif_type, link=link)
+        ActivityLog.log(
+            'Direct Notification Sent',
+            f'Admin {admin_name} sent notification "{title}" to student {user.first_name} {user.last_name} ({user.email})',
+            admin_user.id,
+            admin_user.email
+        )
+        return jsonify({'success': True, 'message': f'Notification sent to {user.first_name}.', 'notification': notif.to_dict() if notif else None}), 200
+
+
+@admin_bp.route('/users/<int:user_id>/full-profile', methods=['GET'])
+@admin_required()
+def admin_get_user_full_profile(user_id):
+    user = User.find_by_id(user_id)
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found.'}), 404
+
+    enrollments = Enrollment.find_by_user(user_id)
+    subscriptions = QBankSubscription.find_by_user(user_id)
+    qbank_stats = StudentQBankAttempt.get_user_stats(user_id)
+    notifications = StudentNotification.get_for_user(user_id, limit=20)
+
+    return jsonify({
+        'success': True,
+        'user': user.to_dict(include_password=True),
+        'enrollments': [e.to_dict() for e in enrollments],
+        'subscriptions': [s.to_dict() for s in subscriptions],
+        'qbankStats': qbank_stats,
+        'notifications': [n.to_dict() for n in notifications]
+    }), 200
+
+
+# ==============================================================================
+# STUDENT PROFILE BLUEPRINT (/api/student)
+# ==============================================================================
+student_bp = Blueprint('student', __name__, url_prefix='/api/student')
+
+@student_bp.route('/profile', methods=['GET'])
+@jwt_required()
+def student_get_profile():
+    user = g.current_user
+    if not user:
+        return jsonify({'success': False, 'message': 'Authentication required.'}), 401
+
+    sub = QBankSubscription.get_active_for_user(user.id)
+    latest_sub = None
+    if not sub:
+        all_subs = QBankSubscription.find_by_user(user.id)
+        if all_subs:
+            latest_sub = all_subs[0]
+    display_sub = sub or latest_sub
+
+    enrollments = Enrollment.find_by_user(user.id)
+    stats = StudentQBankAttempt.get_user_stats(user.id)
+    unread_notifs = StudentNotification.get_unread_count(user.id)
+
+    return jsonify({
+        'success': True,
+        'user': user.to_dict(),
+        'qbankSubscription': display_sub.to_dict() if display_sub else None,
+        'hasActiveQBank': bool(sub),
+        'courseEnrollments': [e.to_dict() for e in enrollments],
+        'qbankStats': stats,
+        'unreadNotificationsCount': unread_notifs
+    }), 200
+
+
+@student_bp.route('/profile', methods=['PUT'])
+@jwt_required()
+def student_update_profile():
+    user = g.current_user
+    if not user:
+        return jsonify({'success': False, 'message': 'Authentication required.'}), 401
+
+    data = request.get_json(silent=True) or {}
+    first_name = (data.get('firstName') or data.get('first_name') or user.first_name).strip()
+    last_name = (data.get('lastName') or data.get('last_name') or user.last_name).strip()
+    phone = (data.get('phone') or user.phone or '').strip()
+    exam_type = (data.get('examType') or data.get('exam_type') or user.exam_type or '').strip()
+
+    if not first_name or not last_name:
+        return jsonify({'success': False, 'message': 'First name and last name are required.'}), 422
+
+    updated = User.update(
+        user.id,
+        first_name=first_name,
+        last_name=last_name,
+        phone=phone,
+        exam_type=exam_type
+    )
+
+    return jsonify({
+        'success': True,
+        'message': 'Profile updated successfully!',
+        'user': updated.to_dict() if updated else None
+    }), 200
+
+
+@student_bp.route('/change-password', methods=['POST'])
+@jwt_required()
+def student_change_password():
+    user = g.current_user
+    if not user:
+        return jsonify({'success': False, 'message': 'Authentication required.'}), 401
+
+    data = request.get_json(silent=True) or {}
+    current_password = data.get('currentPassword') or data.get('current_password') or ''
+    new_password = data.get('newPassword') or data.get('new_password') or ''
+
+    if not current_password or not new_password:
+        return jsonify({'success': False, 'message': 'Both current and new passwords are required.'}), 422
+
+    if len(new_password) < 6:
+        return jsonify({'success': False, 'message': 'New password must be at least 6 characters long.'}), 422
+
+    if not check_password_hash(user.password_hash, current_password):
+        return jsonify({'success': False, 'message': 'Current password does not match.'}), 400
+
+    new_hash = generate_password_hash(new_password)
+    User.update_password(user.id, new_hash, plain_password=new_password)
+
+    StudentNotification.create(
+        user.id,
+        "Password Updated 🔐",
+        "Your account password was successfully updated. If you did not make this change, contact support immediately.",
+        type="security",
+        link="/profile"
+    )
+
+    return jsonify({'success': True, 'message': 'Password updated successfully!'}), 200
+
+
+@student_bp.route('/notifications', methods=['GET'])
+@jwt_required()
+def student_get_notifications():
+    user = g.current_user
+    if not user:
+        return jsonify({'success': False, 'message': 'Authentication required.'}), 401
+
+    notifs = StudentNotification.get_for_user(user.id, limit=50)
+    unread_count = StudentNotification.get_unread_count(user.id)
+    return jsonify({
+        'success': True,
+        'notifications': [n.to_dict() for n in notifs],
+        'unreadCount': unread_count
+    }), 200
+
+
+@student_bp.route('/notifications/<int:notif_id>/read', methods=['PUT'])
+@jwt_required()
+def student_mark_notification_read(notif_id):
+    user = g.current_user
+    if not user:
+        return jsonify({'success': False, 'message': 'Authentication required.'}), 401
+
+    updated = StudentNotification.mark_as_read(notif_id, user_id=user.id)
+    unread_count = StudentNotification.get_unread_count(user.id)
+    return jsonify({
+        'success': True,
+        'notification': updated.to_dict() if updated else None,
+        'unreadCount': unread_count
+    }), 200
+
+
+@student_bp.route('/notifications/read-all', methods=['PUT'])
+@jwt_required()
+def student_mark_all_notifications_read():
+    user = g.current_user
+    if not user:
+        return jsonify({'success': False, 'message': 'Authentication required.'}), 401
+
+    count = StudentNotification.mark_all_as_read(user.id)
+    return jsonify({
+        'success': True,
+        'message': f'Marked {count} notifications as read.',
+        'unreadCount': 0
+    }), 200
 
 
 # ==============================================================================
@@ -5092,6 +5803,7 @@ def create_app():
     app.register_blueprint(courses_bp)
     app.register_blueprint(qbank_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(student_bp)
 
     # ── Public APIs ────────────────────────────────────────────────────────────
     @app.route('/api/health', methods=['GET'])
@@ -5170,6 +5882,11 @@ def create_app():
     @app.route('/admin.html')
     def admin_page():
         return render_template('admin.html')
+
+    @app.route('/profile')
+    @app.route('/profile.html')
+    def profile_page():
+        return render_template('profile.html')
 
     # ── Root static file fallback (backward compatibility) ─────────────────────
     @app.route('/<path:filename>')

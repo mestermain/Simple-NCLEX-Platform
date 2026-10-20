@@ -197,3 +197,34 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 SELECT setval(pg_get_serial_sequence('qbank_plans', 'id'), COALESCE(MAX(id), 1)) FROM qbank_plans;
 
+-- 10. Student Notifications Table
+CREATE TABLE IF NOT EXISTS student_notifications (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    type TEXT DEFAULT 'general',
+    is_read INTEGER DEFAULT 0,
+    link TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 11. Student Q-Bank Practice Attempts & Scores Table
+CREATE TABLE IF NOT EXISTS student_qbank_attempts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    question_id INTEGER NOT NULL REFERENCES qbank_questions(id) ON DELETE CASCADE,
+    question_type TEXT DEFAULT 'single',
+    category TEXT DEFAULT '',
+    difficulty TEXT DEFAULT '',
+    exam_type TEXT DEFAULT 'NCLEX-RN',
+    selected_indices_json TEXT DEFAULT '[]',
+    is_correct INTEGER NOT NULL DEFAULT 0,
+    attempted_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Safe migrations
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT '';
+ALTER TABLE qbank_subscriptions ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '';
+
+

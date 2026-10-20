@@ -21,8 +21,8 @@
 
   // ── AUTH STATE / NAVBAR INTEGRATION ───────────────────────────────────────
   function getSession() {
-    const token = localStorage.getItem('nclex_token');
-    const userJson = localStorage.getItem('nclex_user');
+    const token = localStorage.getItem('nclex_token') || localStorage.getItem('token') || localStorage.getItem('access_token');
+    const userJson = localStorage.getItem('nclex_user') || localStorage.getItem('user');
     let user = null;
     if (userJson) {
       try {
@@ -52,7 +52,11 @@
     if (token && user) {
       const isAdmin = user.role === 'admin';
       const desktopHtml = `
-        ${isAdmin ? `<a href="admin.html" class="fame-auth-btn" style="background:#0284c7;color:#fff;padding:0.4rem 0.95rem;font-size:0.85rem;display:inline-flex;align-items:center;gap:0.4rem;font-weight:700;border-radius:8px;box-shadow:0 2px 8px rgba(2,132,199,0.35);">⚡ Admin Panel</a>` : ''}
+        ${isAdmin ? `<a href="admin.html" class="fame-auth-btn" style="background:#0284c7;color:#fff;padding:0.4rem 0.95rem;font-size:0.85rem;display:inline-flex;align-items:center;gap:0.4rem;font-weight:700;border-radius:8px;box-shadow:0 2px 8px rgba(2,132,199,0.35);">⚡ Admin</a>` : ''}
+        <a href="profile.html" class="fame-auth-btn fame-nav-profile-btn" style="background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;padding:0.4rem 0.85rem;font-size:0.85rem;display:inline-flex;align-items:center;gap:0.35rem;font-weight:600;border-radius:8px;position:relative;text-decoration:none;">
+          <span>👤 Profile & Scores</span>
+          <span class="nav-notif-badge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:0.7rem;font-weight:700;padding:2px 6px;border-radius:999px;box-shadow:0 2px 5px rgba(239,68,68,0.4);">0</span>
+        </a>
         <div class="nav-user-pill" title="${user.email}">
           <span>${isAdmin ? '👑' : '🩺'}</span>
           <span>Hi, ${user.firstName || 'User'}</span>
@@ -62,6 +66,10 @@
 
       const mobileHtml = `
         ${isAdmin ? `<a href="admin.html" class="fame-auth-btn" style="background:#0284c7;color:#fff;font-weight:700;border-radius:8px;box-shadow:0 2px 8px rgba(2,132,199,0.35);">⚡ Admin Panel</a>` : ''}
+        <a href="profile.html" class="fame-auth-btn fame-nav-profile-btn" style="background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;display:inline-flex;align-items:center;gap:0.35rem;font-weight:600;border-radius:8px;position:relative;text-decoration:none;">
+          <span>👤 My Profile & Scores</span>
+          <span class="nav-notif-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;font-size:0.7rem;font-weight:700;padding:2px 6px;border-radius:999px;box-shadow:0 2px 5px rgba(239,68,68,0.4);">0</span>
+        </a>
         <div class="nav-user-pill" title="${user.email}">
           <span>${isAdmin ? '👑' : '🩺'}</span>
           <span>Hi, ${user.firstName || 'User'}</span>
@@ -71,6 +79,20 @@
 
       if (desktopActions) desktopActions.innerHTML = desktopHtml;
       if (mobileAuthLi) mobileAuthLi.innerHTML = mobileHtml;
+
+      fetch('/api/student/profile', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.unreadNotificationsCount > 0) {
+          document.querySelectorAll('.nav-notif-badge').forEach(badge => {
+            badge.textContent = d.unreadNotificationsCount;
+            badge.style.display = 'inline-block';
+          });
+        }
+      })
+      .catch(() => {});
 
       document.querySelectorAll('.logout-trigger').forEach(btn => {
         btn.addEventListener('click', () => {

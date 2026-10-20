@@ -31,6 +31,8 @@ class SimpleNCLEXPlatformTestCase(unittest.TestCase):
             '/register.html',
             '/admin',
             '/admin.html',
+            '/profile',
+            '/profile.html',
         ]
         for page in pages:
             with self.subTest(page=page):
@@ -45,12 +47,14 @@ class SimpleNCLEXPlatformTestCase(unittest.TestCase):
             '/static/css/about.css',
             '/static/css/courses.css',
             '/static/css/qbank.css',
+            '/static/css/profile.css',
             '/static/css/auth.css',
             '/static/css/admin.css',
             '/static/js/main.js',
             '/static/js/courses.js',
             '/static/js/course-detail.js',
             '/static/js/qbank.js',
+            '/static/js/profile.js',
             '/static/js/auth.js',
             '/static/js/admin.js',
             '/static/images/logo.png',
@@ -615,6 +619,143 @@ class SimpleNCLEXPlatformTestCase(unittest.TestCase):
         inv_data = invalid_res.get_json()
         self.assertEqual(inv_data['validCount'], 0)
         self.assertGreaterEqual(inv_data['errorCount'], 1)
+
+    def test_student_profile_scores_notifications_and_subscription_management(self):
+        """Test student profile, practice score tracking, in-app notifications, and admin subscription management."""
+        import uuid
+        test_email = f"student_{uuid.uuid4().hex[:8]}@example.com"
+        test_pass = "StudentPass123!"
+
+        # 1. Register student
+        reg_res = self.client.post('/api/auth/register', json={
+            'firstName': 'Sara',
+            'lastName': 'Ahmed',
+            'email': test_email,
+            'password': test_pass,
+            'examType': 'NCLEX-RN'
+        })
+        self.assertEqual(reg_res.status_code, 201)
+        student_token = reg_res.get_json()['token']
+        student_headers = {'Authorization': f'Bearer {student_token}'}
+
+        # 2. Unauthenticated access should return 401
+        unauth_res = self.client.get('/api/student/profile')
+        self.assertEqual(unauth_res.status_code, 401)
+
+        # 3. Authenticated profile access
+        prof_res = self.client.get('/api/student/profile', headers=student_headers)
+        self.assertEqual(prof_res.status_code, 200)
+        prof_data = prof_res.get_json()
+        self.assertTrue(prof_data['success'])
+        self.assertEqual(prof_data['user']['email'], test_email)
+        self.assertIn('qbankStats', prof_data)
+        self.assertEqual(prof_data['qbankStats']['totalAttempted'], 0)
+
+        # 4. Update profile details (first name, last name, phone, exam track)
+        up_res = self.client.put('/api/student/profile', headers=student_headers, json={
+            'firstName': 'Dr. Sara',
+            'lastName': 'Khan',
+            'phone': '+923001234567',
+            'examType': 'SNLE'
+        })
+        self.assertEqual(up_res.status_code, 200)
+        up_data = up_res.get_json()
+        self.assertEqual(up_data['user']['firstName'], 'Dr. Sara')
+        self.assertEqual(up_data['user']['lastName'], 'Khan')
+        self.assertEqual(up_data['user']['phone'], '+923001234567')
+
+        # 5. Practice tracking: Answer a demo question and verify score recording
+        demo_res = self.client.get('/api/qbank/questions')
+        self.assertEqual(demo_res.status_code, 200)
+        questions = demo_res.get_json()['questions']
+        self.assertGreaterEqual(len(questions), 1)
+        target_q = questions[0]
+
+        # Submit answer with student token
+        ans_res = self.client.post('/api/qbank/check-answer', headers=student_headers, json={
+            'questionId': target_q['id'],
+            'selectedIndices': target_q['correctIndices']
+        })
+        self.assertEqual(ans_res.status_code, 200)
+        self.assertTrue(ans_res.get_json()['isCorrect'])
+
+        # Verify updated practice scores in student profile
+        score_prof = self.client.get('/api/student/profile', headers=student_headers).get_json()
+        stats = score_prof['qbankStats']
+        self.assertGreaterEqual(stats['totalAttempted'], 1)
+        self.assertGreaterEqual(stats['correctCount'], 1)
+        self.assertEqual(stats['accuracyRate'], 100)
+        self.assertIn(target_q['category'], stats['categoryBreakdownMap'])
+
+        # 6. Admin logs in to manage student subscription & notifications
+        admin_login = self.client.post('/api/auth/login', json={
+            'email': 'admin@simplenclex.com',
+            'password': 'Admin123!'
+        })
+        self.assertEqual(admin_login.status_code, 200)
+        admin_token = admin_login.get_json()['token']
+        admin_headers = {'Authorization': f'Bearer {admin_token}'}
+
+        # Admin grants manual Q-Bank subscription
+        grant_res = self.client.post('/api/admin/qbank/subscriptions/manual', headers=admin_headers, json={
+            'email': test_email,
+            'durationDays': 45,
+            'notes': 'Granted special trial access'
+        })
+        self.assertEqual(grant_res.status_code, 201)
+        sub_id = grant_res.get_json()['subscription']['id']
+
+        # Admin extends subscription by +30 days
+        ext_res = self.client.post(f'/api/admin/qbank/subscriptions/{sub_id}/extend', headers=admin_headers, json={
+            'addDays': 30,
+            'notifyStudent': True
+        })
+        self.assertEqual(ext_res.status_code, 200)
+        ext_data = ext_res.get_json()
+        self.assertTrue(ext_data['success'])
+        self.assertEqual(ext_data['subscription']['durationDays'], 75)
+
+        # Admin sends custom notification to student
+        notify_res = self.client.post('/api/admin/students/notify', headers=admin_headers, json={
+            'userId': prof_data['user']['id'],
+            'title': 'Grand Review Class Tomorrow! 📢',
+            'message': 'Live session on Pharmacology and Dosage Calculations starts at 8:00 PM.',
+            'type': 'course',
+            'link': '/courses'
+        })
+        self.assertEqual(notify_res.status_code, 200)
+
+        # 7. Student checks notifications inbox
+        notifs_res = self.client.get('/api/student/notifications', headers=student_headers)
+        self.assertEqual(notifs_res.status_code, 200)
+        notifs_data = notifs_res.get_json()
+        self.assertGreaterEqual(len(notifs_data['notifications']), 2) # Access granted + Grand review
+        self.assertGreaterEqual(notifs_data['unreadCount'], 1)
+
+        # Mark single notification as read
+        first_notif = notifs_data['notifications'][0]
+        read_res = self.client.put(f'/api/student/notifications/{first_notif["id"]}/read', headers=student_headers)
+        self.assertEqual(read_res.status_code, 200)
+        self.assertTrue(read_res.get_json()['success'])
+
+        # Mark all notifications read
+        read_all_res = self.client.put('/api/student/notifications/read-all', headers=student_headers)
+        self.assertEqual(read_all_res.status_code, 200)
+        self.assertEqual(read_all_res.get_json()['unreadCount'], 0)
+
+        # 8. Student password change
+        new_pass = "NewSecurePass2026!"
+        pass_res = self.client.post('/api/student/change-password', headers=student_headers, json={
+            'currentPassword': test_pass,
+            'newPassword': new_pass
+        })
+        self.assertEqual(pass_res.status_code, 200)
+
+        # Verify old password no longer works and new password works
+        old_login = self.client.post('/api/auth/login', json={'email': test_email, 'password': test_pass})
+        self.assertEqual(old_login.status_code, 401)
+        new_login = self.client.post('/api/auth/login', json={'email': test_email, 'password': new_pass})
+        self.assertEqual(new_login.status_code, 200)
 
 
 if __name__ == '__main__':

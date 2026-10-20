@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Profile & Practice Scores — Simple NCLEX Platform</title>
+  <meta name="description" content="View your NCLEX/SNLE practice scores, question bank performance metrics, active subscriptions, course enrollment status, and notifications."/>
+  <link rel="icon" type="image/png" href="/static/images/favicon.png"/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <link rel="stylesheet" href="/static/css/courses.css"/>
+  <link rel="stylesheet" href="/static/css/profile.css"/>
+</head>
+<body>
+
+  <!-- ── MAIN NAVBAR ── -->
+  <header class="fame-navbar" id="navbar">
+    <div class="container fame-navbar-inner">
+      <a href="index.html" class="fame-logo">
+        <img src="/static/images/logo.png" alt="Simple NCLEX Platform Logo" class="fame-logo-img"/>
+        <div class="fame-logo-text">
+          <span class="fame-name">Simple NCLEX Platform</span>
+          <span class="fame-tag">Master Nursing Excellence</span>
+        </div>
+      </a>
+
+      <nav>
+        <ul class="fame-nav-menu" id="navMenu">
+          <li class="fame-nav-item"><a href="index.html" class="fame-nav-link">Home</a></li>
+          <li class="fame-nav-item"><a href="courses.html" class="fame-nav-link">Courses</a></li>
+          <li class="fame-nav-item"><a href="qbank.html" class="fame-nav-link">Q-Bank</a></li>
+          <li class="fame-nav-item"><a href="about.html" class="fame-nav-link">About Us</a></li>
+        </ul>
+      </nav>
+
+      <div class="fame-nav-actions nav-actions">
+        <a href="login.html" class="fame-auth-btn fame-auth-btn--login">Login</a>
+        <a href="register.html" class="fame-auth-btn fame-auth-btn--register">Register</a>
+      </div>
+
+      <button class="fame-hamburger" id="hamburger" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── PROFILE BANNER ── -->
+  <section class="profile-header-section">
+    <div class="container">
+      <div class="profile-banner-card">
+        <div class="profile-user-summary">
+          <div class="profile-avatar" id="profileAvatarInitials">ST</div>
+          <div class="profile-user-info">
+            <div class="profile-name-row">
+              <h1 id="profileFullName">Loading Student...</h1>
+              <span class="profile-badge-role" id="profileRoleBadge">Student</span>
+            </div>
+            <div class="profile-meta-row">
+              <span id="profileEmail">student@example.com</span>
+              <span class="profile-meta-dot">•</span>
+              <span id="profilePhone">No phone set</span>
+              <span class="profile-meta-dot">•</span>
+              <span class="profile-exam-tag" id="profileExamTag">NCLEX-RN</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-quick-status">
+          <div class="quick-status-item">
+            <span class="quick-status-label">Q-Bank Access</span>
+            <span class="quick-status-val" id="profileQBankQuickBadge">Checking...</span>
+          </div>
+          <div class="quick-status-item">
+            <span class="quick-status-label">Courses Enrolled</span>
+            <span class="quick-status-val" id="profileCoursesCount">0 Enrolled</span>
+          </div>
+          <div class="quick-status-item">
+            <span class="quick-status-label">Practice Accuracy</span>
+            <span class="quick-status-val accuracy-accent" id="profileAccuracyQuick">0%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PROFILE MAIN CONTENT WITH TABS ── -->
+  <main class="profile-main-section">
+    <div class="container">
+
+      <!-- Navigation Tabs -->
+      <div class="profile-tabs-nav" role="tablist">
+        <button class="profile-tab-btn active" data-tab="tab-scores">
+          <span>🎯 Practice & Scores</span>
+        </button>
+        <button class="profile-tab-btn" data-tab="tab-status">
+          <span>📋 All Status & Subscriptions</span>
+        </button>
+        <button class="profile-tab-btn" data-tab="tab-notifications">
+          <span>🔔 Notifications</span>
+          <span class="tab-badge" id="tabNotifBadge" style="display:none;">0</span>
+        </button>
+        <button class="profile-tab-btn" data-tab="tab-settings">
+          <span>⚙️ Account Settings</span>
+        </button>
+      </div>
+
+      <!-- ── TAB 1: SCORES & CLINICAL PERFORMANCE ── -->
+      <section class="profile-tab-content active" id="tab-scores">
+        <!-- Score Highlights Grid -->
+        <div class="score-metrics-grid">
+          <div class="metric-card metric-card--primary">
+            <div class="metric-icon">📊</div>
+            <div class="metric-data">
+              <span class="metric-number" id="statAccuracy">0%</span>
+              <span class="metric-title">Overall Accuracy</span>
+            </div>
+            <div class="metric-subtitle" id="statAccuracySub">Based on all practice items</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-icon">📝</div>
+            <div class="metric-data">
+              <span class="metric-number" id="statAttempted">0</span>
+              <span class="metric-title">Questions Practiced</span>
+            </div>
+            <div class="metric-subtitle" id="statUniqueQuestions">0 unique items</div>
+          </div>
+
+          <div class="metric-card metric-card--success">
+            <div class="metric-icon">✅</div>
+            <div class="metric-data">
+              <span class="metric-number" id="statCorrect">0</span>
+              <span class="metric-title">Correct Answers</span>
+            </div>
+            <div class="metric-subtitle" id="statCorrectSub">Clinical judgment verified</div>
+          </div>
+
+          <div class="metric-card metric-card--warning">
+            <div class="metric-icon">⚠️</div>
+            <div class="metric-data">
+              <span class="metric-number" id="statIncorrect">0</span>
+              <span class="metric-title">Incorrect / Needs Review</span>
+            </div>
+            <div class="metric-subtitle">Review ATI/Saunders pearls</div>
+          </div>
+        </div>
+
+        <!-- Category Breakdown & Practice Prompt -->
+        <div class="scores-layout-row">
+          <div class="card category-mastery-card">
+            <div class="card-header">
+              <h2>🩺 Category Mastery Breakdown</h2>
+              <span class="card-desc">Your clinical competence across NCSBN Client Needs categories</span>
+            </div>
+            <div class="category-bars-list" id="categoryBarsList">
+              <p class="loading-text">Analyzing your category scores...</p>
+            </div>
+          </div>
+
+          <div class="card practice-action-card">
+            <div class="card-header">
+              <h2>🚀 Continue Practice</h2>
+              <span class="card-desc">Sharpen your clinical reasoning with 2,500+ NCLEX items</span>
+            </div>
+            <div class="practice-action-body">
+              <p>Practice Next-Gen Case Studies and multiple-response questions anytime. Every submitted answer is evaluated instantly with Saunders & ATI rationales.</p>
+              <div class="practice-tips">
+                <div class="practice-tip-item">
+                  <span class="tip-check">✓</span>
+                  <span>Detailed physiological rationales for every option</span>
+                </div>
+                <div class="practice-tip-item">
+                  <span class="tip-check">✓</span>
+                  <span>Distractor analysis explains common trap answers</span>
+                </div>
+                <div class="practice-tip-item">
+                  <span class="tip-check">✓</span>
+                  <span>High-yield clinical pearls for board recall</span>
+                </div>
+              </div>
+              <a href="qbank.html" class="btn btn-primary btn-block practice-btn-cta">
+                Launch Q-Bank Practice →
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Attempts Log -->
+        <div class="card recent-activity-card">
+          <div class="card-header flex-between">
+            <div>
+              <h2>⏱️ Recent Practice Question Log</h2>
+              <span class="card-desc">Review your latest submitted answers and clinical rationales</span>
+            </div>
+            <button class="btn btn-sm btn-outline" id="refreshScoresBtn">🔄 Refresh Scores</button>
+          </div>
+          <div class="table-responsive">
+            <table class="profile-table" id="recentAttemptsTable">
+              <thead>
+                <tr>
+                  <th>Date & Time</th>
+                  <th>Category</th>
+                  <th>Question Statement</th>
+                  <th>Status</th>
+                  <th>Clinical Pearl</th>
+                </tr>
+              </thead>
+              <tbody id="recentAttemptsBody">
+                <tr>
+                  <td colspan="5" class="text-center py-4 text-muted">No practice attempts recorded yet. Start practicing in the Q-Bank!</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── TAB 2: ALL STATUS & SUBSCRIPTIONS ── -->
+      <section class="profile-tab-content" id="tab-status">
+        <!-- Q-Bank Subscription Status Card -->
+        <div class="card status-card">
+          <div class="card-header flex-between">
+            <div>
+              <h2>🔐 Q-Bank Subscription Status</h2>
+              <span class="card-desc">Separate access pass for 2,500+ NCLEX and SNLE practice questions</span>
+            </div>
+            <span class="sub-status-pill pending" id="qbankStatusPill">No Subscription</span>
+          </div>
+
+          <div class="status-card-body" id="qbankStatusDetails">
+            <div class="sub-detail-grid">
+              <div class="sub-detail-item">
+                <span class="detail-label">Active Plan</span>
+                <span class="detail-val" id="qbankPlanName">None</span>
+              </div>
+              <div class="sub-detail-item">
+                <span class="detail-label">Access Validity</span>
+                <span class="detail-val" id="qbankDuration">0 Days</span>
+              </div>
+              <div class="sub-detail-item">
+                <span class="detail-label">Time Remaining</span>
+                <span class="detail-val countdown-text" id="qbankCountdown">Inactive</span>
+              </div>
+              <div class="sub-detail-item">
+                <span class="detail-label">Expiration Date</span>
+                <span class="detail-val" id="qbankExpiresAt">Not Active</span>
+              </div>
+            </div>
+
+            <div class="sub-notes-box" id="qbankNotesBox" style="display:none;">
+              <strong>Administrator Note:</strong>
+              <p id="qbankNotesText"></p>
+            </div>
+
+            <div class="sub-actions-row">
+              <a href="qbank.html#plans" class="btn btn-primary" id="qbankActionBtn">Subscribe / Upgrade Q-Bank Pass</a>
+              <a href="https://wa.me/923081077983?text=Assalam-o-Alaikum%2C%20I%20have%20a%20question%20regarding%20my%20Q-Bank%20Subscription." target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+                💬 Contact Admin on WhatsApp
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Course Enrollments Status Card -->
+        <div class="card status-card mt-4">
+          <div class="card-header flex-between">
+            <div>
+              <h2>📚 Course Enrollments & Class Admissions</h2>
+              <span class="card-desc">Live lectures, full clinical curriculum, and study materials</span>
+            </div>
+            <a href="courses.html" class="btn btn-sm btn-outline">Browse All Courses</a>
+          </div>
+
+          <div class="status-card-body">
+            <div class="table-responsive">
+              <table class="profile-table">
+                <thead>
+                  <tr>
+                    <th>Course</th>
+                    <th>Category</th>
+                    <th>Enrollment Status</th>
+                    <th>Enrolled Date</th>
+                    <th>Admin Notes</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="courseEnrollmentsBody">
+                  <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">No course enrollments found. Explore our NCLEX & SNLE preparation courses!</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── TAB 3: NOTIFICATIONS ── -->
+      <section class="profile-tab-content" id="tab-notifications">
+        <div class="card notifications-card">
+          <div class="card-header flex-between">
+            <div>
+              <h2>🔔 Notifications Inbox</h2>
+              <span class="card-desc">Updates on course approvals, Q-Bank subscription status, and class notices</span>
+            </div>
+            <div class="notif-header-actions">
+              <button class="btn btn-sm btn-outline" id="markAllReadBtn">✓ Mark All as Read</button>
+            </div>
+          </div>
+
+          <div class="notifications-list" id="notificationsList">
+            <p class="loading-text">Loading notifications...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── TAB 4: ACCOUNT SETTINGS ── -->
+      <section class="profile-tab-content" id="tab-settings">
+        <div class="settings-grid">
+          <!-- Personal Info Card -->
+          <div class="card">
+            <div class="card-header">
+              <h2>👤 Personal Information</h2>
+              <span class="card-desc">Update your contact details and exam preference</span>
+            </div>
+            <form id="profileInfoForm" class="settings-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="inputFirstName">First Name</label>
+                  <input type="text" id="inputFirstName" class="form-control" required/>
+                </div>
+                <div class="form-group">
+                  <label for="inputLastName">Last Name</label>
+                  <input type="text" id="inputLastName" class="form-control" required/>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="inputEmail">Email Address (Read Only)</label>
+                <input type="email" id="inputEmail" class="form-control" readonly disabled style="background:#f1f5f9;color:#64748b;cursor:not-allowed;"/>
+                <small class="form-hint">Email address is tied to your account credentials and cannot be changed.</small>
+              </div>
+
+              <div class="form-group">
+                <label for="inputPhone">WhatsApp / Mobile Number</label>
+                <input type="text" id="inputPhone" class="form-control" placeholder="+92 300 1234567 or +966 ..."/>
+                <small class="form-hint">Used for administrative verification and course updates.</small>
+              </div>
+
+              <div class="form-group">
+                <label for="selectExamType">Target Exam Track</label>
+                <select id="selectExamType" class="form-control">
+                  <option value="NCLEX-RN">NCLEX-RN (US / Canada Licensing)</option>
+                  <option value="SNLE">SNLE (Saudi Nursing Licensing Exam - SCFHS)</option>
+                  <option value="Prometric">Gulf Prometric (DHA, MOH, Qatar, Oman)</option>
+                  <option value="General Nursing">General Clinical Nursing</option>
+                </select>
+              </div>
+
+              <button type="submit" class="btn btn-primary" id="saveProfileBtn">Save Profile Changes</button>
+            </form>
+          </div>
+
+          <!-- Password Security Card -->
+          <div class="card">
+            <div class="card-header">
+              <h2>🔐 Password & Security</h2>
+              <span class="card-desc">Update your account login password</span>
+            </div>
+            <form id="changePasswordForm" class="settings-form">
+              <div class="form-group">
+                <label for="inputCurrentPass">Current Password</label>
+                <input type="password" id="inputCurrentPass" class="form-control" required placeholder="••••••••"/>
+              </div>
+
+              <div class="form-group">
+                <label for="inputNewPass">New Password (min 6 characters)</label>
+                <input type="password" id="inputNewPass" class="form-control" required minlength="6" placeholder="••••••••"/>
+              </div>
+
+              <div class="form-group">
+                <label for="inputConfirmPass">Confirm New Password</label>
+                <input type="password" id="inputConfirmPass" class="form-control" required minlength="6" placeholder="••••••••"/>
+              </div>
+
+              <button type="submit" class="btn btn-outline" id="savePasswordBtn">Update Password</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ── TOAST NOTIFICATION CONTAINER ── -->
+  <div id="toast" class="toast"></div>
+
+  <!-- ── SCRIPTS ── -->
+  <script src="/static/js/main.js"></script>
+  <script src="/static/js/profile.js"></script>
+</body>
+</html>

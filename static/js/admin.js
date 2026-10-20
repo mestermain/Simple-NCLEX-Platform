@@ -2602,7 +2602,10 @@
     }
   }
 
+  let cachedQBankSubs = [];
+
   function renderQBankSubscriptionsTable(subs) {
+    cachedQBankSubs = subs || [];
     const tbody = document.getElementById('qbankSubscriptionsTableBody');
     if (!tbody) return;
 
@@ -2623,6 +2626,8 @@
         statusBadge = `<span class="admin-badge admin-badge-success">Approved</span>`;
       } else if (sub.status === 'pending') {
         statusBadge = `<span class="admin-badge admin-badge-warning">Pending Review</span>`;
+      } else if (sub.status === 'expired') {
+        statusBadge = `<span class="admin-badge" style="background:#f1f5f9;color:#64748b;">Expired</span>`;
       } else {
         statusBadge = `<span class="admin-badge admin-badge-danger">Rejected</span>`;
       }
@@ -2652,7 +2657,16 @@
           <td>${statusBadge}</td>
           <td style="font-size:0.85rem">${validUntil}</td>
           <td>
-            <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
+            <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap">
+              <button class="admin-btn admin-btn-xs admin-btn-primary" onclick="window.openManageSubscriptionModal(${sub.id})" title="Manage plan, days, status or custom expiration">
+                ⚙️ Manage
+              </button>
+              <button class="admin-btn admin-btn-xs admin-btn-secondary" onclick="window.adminQuickExtendSub(${sub.id}, 30, '${escapeHtml(sub.studentName || '')}')" title="Quick extend +30 days">
+                ⏳ +30d
+              </button>
+              <button class="admin-btn admin-btn-xs admin-btn-secondary" onclick="window.openSendNotificationModal(${sub.userId}, '${escapeHtml(sub.studentName || '')}')" title="Send in-app notification to student">
+                🔔 Notify
+              </button>
               ${sub.status === 'pending' ? `
                 <button class="admin-btn admin-btn-xs admin-btn-success" onclick="window.adminApproveQBankSub(${sub.id}, '${escapeHtml(sub.whatsappNumber || '')}', '${escapeHtml(sub.studentName || '')}', '${escapeHtml(sub.planName || '')}')">
                   ✅ Approve
@@ -2661,9 +2675,6 @@
                   ❌ Reject
                 </button>
               ` : sub.status === 'approved' ? `
-                <button class="admin-btn admin-btn-xs admin-btn-secondary" onclick="window.adminApproveQBankSub(${sub.id}, '${escapeHtml(sub.whatsappNumber || '')}', '${escapeHtml(sub.studentName || '')}', '${escapeHtml(sub.planName || '')}')" title="Re-approve & extend">
-                  🔄 Re-Approve
-                </button>
                 <button class="admin-btn admin-btn-xs admin-btn-danger" onclick="window.adminRejectQBankSub(${sub.id}, '${escapeHtml(sub.studentName || '')}', '${escapeHtml(sub.planName || '')}')">
                   Revoke
                 </button>
@@ -2763,7 +2774,206 @@
     }
   };
 
-  async function openManualQBankGrantModal() {
+  // ── MANAGE SUBSCRIPTION MODAL ──
+  window.openManageSubscriptionModal = function(subId) {
+    const sub = cachedQBankSubs.find(s => s.id === subId);
+    if (!sub) {
+      showToast('Subscription record not found in cache.', 'error');
+      return;
+    }
+
+    document.getElementById('manageSubId').value = sub.id;
+    document.getElementById('manageSubStudentName').textContent = sub.studentName || 'Student';
+    document.getElementById('manageSubStudentEmail').textContent = sub.studentEmail || '';
+
+    const currentBadge = document.getElementById('manageSubCurrentStatus');
+    if (currentBadge) {
+      currentBadge.className = `admin-badge admin-badge-${sub.status === 'approved' ? 'success' : sub.status === 'pending' ? 'warning' : 'danger'}`;
+      currentBadge.textContent = (sub.status || 'unknown').toUpperCase();
+    }
+
+    document.getElementById('manageSubStatus').value = sub.status || 'approved';
+    document.getElementById('manageSubPlanName').value = sub.planName || '';
+    document.getElementById('manageSubDurationDays').value = sub.durationDays || 30;
+
+    const expInput = document.getElementById('manageSubExpiresAt');
+    if (expInput) {
+      expInput.value = sub.expiresAt ? sub.expiresAt.substring(0, 10) : '';
+    }
+
+    document.getElementById('manageSubNotes').value = sub.notes || '';
+    document.getElementById('manageSubNotifyStudent').checked = true;
+    document.getElementById('manageSubCustomMsg').value = '';
+
+    openModal('manageSubscriptionModal');
+  };
+
+  // Quick extension buttons in manage modal
+  document.querySelectorAll('.sub-quick-extend').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const addDays = parseInt(btn.dataset.days, 10) || 30;
+      const daysInput = document.getElementById('manageSubDurationDays');
+      const expInput = document.getElementById('manageSubExpiresAt');
+
+      const currentDays = parseInt(daysInput.value, 10) || 0;
+      daysInput.value = currentDays + addDays;
+
+      let baseDate = new Date();
+      if (expInput.value) {
+        const parsed = new Date(expInput.value);
+        if (parsed > baseDate) baseDate = parsed;
+      }
+      baseDate.setDate(baseDate.getDate() + addDays);
+      expInput.value = baseDate.toISOString().substring(0, 10);
+
+      showToast(`Added +${addDays} days to duration & expiration date!`, 'info');
+    });
+  });
+
+  // Save subscription changes
+  const saveSubBtn = document.getElementById('saveSubscriptionChangesBtn');
+  if (saveSubBtn) {
+    saveSubBtn.addEventListener('click', async () => {
+      const subId = document.getElementById('manageSubId').value;
+      if (!subId) return;
+
+      const status = document.getElementById('manageSubStatus').value;
+      const planName = document.getElementById('manageSubPlanName').value.trim();
+      const durationDays = parseInt(document.getElementById('manageSubDurationDays').value, 10) || 30;
+      const expiresAt = document.getElementById('manageSubExpiresAt').value;
+      const notes = document.getElementById('manageSubNotes').value.trim();
+      const notifyStudent = document.getElementById('manageSubNotifyStudent').checked;
+      const notificationMessage = document.getElementById('manageSubCustomMsg').value.trim();
+
+      saveSubBtn.disabled = true;
+      saveSubBtn.textContent = 'Saving…';
+
+      try {
+        const res = await fetch(`${API_ADMIN}/qbank/subscriptions/${subId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            status,
+            planName,
+            durationDays,
+            expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+            notes,
+            notifyStudent,
+            notificationMessage
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Update failed');
+
+        showToast(data.message || 'Subscription updated successfully!', 'success');
+        closeModal('manageSubscriptionModal');
+        loadQBankSubscriptions();
+        loadStats();
+      } catch (err) {
+        console.error('Error updating subscription:', err);
+        showToast(err.message || 'Failed to update subscription', 'error');
+      } finally {
+        saveSubBtn.disabled = false;
+        saveSubBtn.textContent = '💾 Save Subscription Changes';
+      }
+    });
+  }
+
+  // Quick 30-day extension from table
+  window.adminQuickExtendSub = async function(subId, addDays = 30, studentName = '') {
+    if (!confirm(`Extend Q-Bank access for ${studentName || 'student'} by +${addDays} days?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_ADMIN}/qbank/subscriptions/${subId}/extend`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ addDays, notifyStudent: true })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Extension failed');
+
+      showToast(data.message || `Extended by ${addDays} days!`, 'success');
+      loadQBankSubscriptions();
+      loadStats();
+    } catch (err) {
+      console.error('Error extending subscription:', err);
+      showToast(err.message || 'Error extending subscription', 'error');
+    }
+  };
+
+  // ── NOTIFICATIONS MODAL ──
+  window.openSendNotificationModal = function(userId, studentName = '') {
+    document.getElementById('notifTargetUserId').value = userId;
+    document.getElementById('notifTargetDisplay').value = `${studentName || 'Student'} (ID: ${userId})`;
+    document.getElementById('notifTitleInput').value = '';
+    document.getElementById('notifMessageInput').value = '';
+    document.getElementById('notifLinkInput').value = '/qbank';
+    document.getElementById('notifTypeSelect').value = 'subscription';
+    openModal('sendNotificationModal');
+  };
+
+  const broadcastBtn = document.getElementById('broadcastNotificationBtn');
+  if (broadcastBtn) {
+    broadcastBtn.addEventListener('click', () => {
+      document.getElementById('notifTargetUserId').value = 'all';
+      document.getElementById('notifTargetDisplay').value = 'All Registered Students (Broadcast)';
+      document.getElementById('notifTitleInput').value = '';
+      document.getElementById('notifMessageInput').value = '';
+      document.getElementById('notifLinkInput').value = '/courses';
+      document.getElementById('notifTypeSelect').value = 'general';
+      openModal('sendNotificationModal');
+    });
+  }
+
+  const sendNotifBtn = document.getElementById('sendNotificationSubmitBtn');
+  if (sendNotifBtn) {
+    sendNotifBtn.addEventListener('click', async () => {
+      const userId = document.getElementById('notifTargetUserId').value;
+      const title = document.getElementById('notifTitleInput').value.trim();
+      const message = document.getElementById('notifMessageInput').value.trim();
+      const notifType = document.getElementById('notifTypeSelect').value;
+      const link = document.getElementById('notifLinkInput').value.trim();
+
+      if (!title || !message) {
+        showToast('Notification title and message are required.', 'error');
+        return;
+      }
+
+      sendNotifBtn.disabled = true;
+      sendNotifBtn.textContent = 'Sending…';
+
+      try {
+        const res = await fetch(`${API_ADMIN}/students/notify`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ userId, title, message, type: notifType, link })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Failed to send notification');
+
+        showToast(data.message || 'Notification dispatched!', 'success');
+        closeModal('sendNotificationModal');
+      } catch (err) {
+        console.error('Error sending notification:', err);
+        showToast(err.message || 'Error sending notification', 'error');
+      } finally {
+        sendNotifBtn.disabled = false;
+        sendNotifBtn.textContent = '🚀 Send Notification';
+      }
+    });
+  }
     const modal = document.getElementById('qbankManualSubModal');
     if (!modal) return;
     document.getElementById('qbankManualSubForm').reset();

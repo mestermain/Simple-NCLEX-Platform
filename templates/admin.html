@@ -687,7 +687,10 @@
                   Review student Q-Bank subscription requests. Approving a subscription automatically unlocks question bank access and provides an instant one-click WhatsApp notification.
                 </p>
               </div>
-              <div style="display:flex;gap:0.75rem;align-items:center">
+              <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+                <button type="button" class="admin-btn admin-btn-secondary" id="broadcastNotificationBtn">
+                  <span>📢 Broadcast Notification</span>
+                </button>
                 <button type="button" class="admin-btn admin-btn-primary" id="manualQBankGrantBtn">
                   <span>➕ Manual Grant Q-Bank Access</span>
                 </button>
@@ -1494,6 +1497,143 @@
       </div>
       <div class="admin-modal-footer">
         <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="screenshotLightboxModal">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🎟️ Modal: Manage / Edit Student Q-Bank Subscription -->
+  <div class="admin-modal-backdrop" id="manageSubscriptionModal">
+    <div class="admin-modal" style="max-width:650px">
+      <div class="admin-modal-header">
+        <h3 id="manageSubModalTitle"><span>🎟️</span> Manage Student Q-Bank Subscription</h3>
+        <button class="admin-modal-close" data-close-modal="manageSubscriptionModal">✕</button>
+      </div>
+      <div class="admin-modal-body">
+        <form id="manageSubForm">
+          <input type="hidden" id="manageSubId" value=""/>
+
+          <div style="background:#f8fafc;padding:0.85rem 1.15rem;border-radius:8px;border:1px solid var(--admin-border);margin-bottom:1.25rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
+              <div>
+                <strong id="manageSubStudentName" style="font-size:1.05rem;color:var(--admin-text-main);display:block">Student Name</strong>
+                <span id="manageSubStudentEmail" style="font-size:0.85rem;color:var(--admin-text-muted)">student@example.com</span>
+              </div>
+              <span id="manageSubCurrentStatus" class="admin-badge admin-badge-success">Active</span>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Subscription Status *</label>
+              <select id="manageSubStatus" class="form-control" required>
+                <option value="approved">Approved &amp; Active</option>
+                <option value="pending">Pending Verification</option>
+                <option value="rejected">Rejected / Denied</option>
+                <option value="expired">Expired</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Plan Name</label>
+              <input type="text" id="manageSubPlanName" class="form-control" placeholder="e.g. 30-Day Complete Pass"/>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Duration (Total Days)</label>
+              <input type="number" id="manageSubDurationDays" class="form-control" min="1" max="1000"/>
+            </div>
+            <div class="form-group">
+              <label>Direct Expiration Date (YYYY-MM-DD)</label>
+              <input type="date" id="manageSubExpiresAt" class="form-control"/>
+            </div>
+          </div>
+
+          <!-- Quick Extension Action Buttons -->
+          <div class="form-group" style="background:#f0fdf4;padding:0.75rem 1rem;border-radius:8px;border:1px solid #bbf7d0">
+            <label style="color:#166534;font-weight:700;margin-bottom:0.4rem;display:block">⚡ Quick Access Extensions</label>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+              <button type="button" class="admin-btn admin-btn-xs admin-btn-secondary sub-quick-extend" data-days="15">+15 Days</button>
+              <button type="button" class="admin-btn admin-btn-xs admin-btn-primary sub-quick-extend" data-days="30">+30 Days</button>
+              <button type="button" class="admin-btn admin-btn-xs admin-btn-secondary sub-quick-extend" data-days="60">+60 Days</button>
+              <button type="button" class="admin-btn admin-btn-xs admin-btn-secondary sub-quick-extend" data-days="90">+90 Days</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Admin Review / Extension Notes</label>
+            <textarea id="manageSubNotes" class="form-control" rows="2" placeholder="e.g. Payment verified, access extended for revision."></textarea>
+          </div>
+
+          <!-- Notification to student -->
+          <div style="background:#eff6ff;padding:0.75rem 1rem;border-radius:8px;border:1px solid #bfdbfe">
+            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;color:#1e40af">
+              <input type="checkbox" id="manageSubNotifyStudent" checked/>
+              <span>Send in-app notification to student about this update</span>
+            </label>
+            <div id="manageSubCustomMsgWrap" style="margin-top:0.5rem">
+              <input type="text" id="manageSubCustomMsg" class="form-control" placeholder="Optional custom notification message for the student..."/>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="manageSubscriptionModal">Cancel</button>
+        <button type="button" class="admin-btn admin-btn-primary" id="saveSubscriptionChangesBtn">
+          <span>💾 Save Subscription Changes</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📢 Modal: Send In-App Notification to Student(s) -->
+  <div class="admin-modal-backdrop" id="sendNotificationModal">
+    <div class="admin-modal" style="max-width:580px">
+      <div class="admin-modal-header">
+        <h3 id="sendNotifModalTitle"><span>📢</span> Send Notification to Student</h3>
+        <button class="admin-modal-close" data-close-modal="sendNotificationModal">✕</button>
+      </div>
+      <div class="admin-modal-body">
+        <form id="sendNotificationForm">
+          <input type="hidden" id="notifTargetUserId" value=""/>
+
+          <div class="form-group">
+            <label>Target Recipient *</label>
+            <input type="text" id="notifTargetDisplay" class="form-control" readonly style="background:#f8fafc;font-weight:600"/>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Notification Type</label>
+              <select id="notifTypeSelect" class="form-control">
+                <option value="subscription">Subscription &amp; Pass 🔐</option>
+                <option value="course">Course &amp; Class 📚</option>
+                <option value="general">General Announcement 📢</option>
+                <option value="security">Security Alert 🛡️</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Action Link (Optional)</label>
+              <input type="text" id="notifLinkInput" class="form-control" placeholder="/qbank or /courses"/>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Title *</label>
+            <input type="text" id="notifTitleInput" class="form-control" required placeholder="e.g. Q-Bank Extension Approved!"/>
+          </div>
+
+          <div class="form-group">
+            <label>Message *</label>
+            <textarea id="notifMessageInput" class="form-control" rows="3" required placeholder="Write your message to the student..."></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="sendNotificationModal">Cancel</button>
+        <button type="button" class="admin-btn admin-btn-primary" id="sendNotificationSubmitBtn">
+          <span>🚀 Send Notification</span>
+        </button>
       </div>
     </div>
   </div>
