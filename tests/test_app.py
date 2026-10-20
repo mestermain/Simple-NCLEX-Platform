@@ -23,6 +23,8 @@ class SimpleNCLEXPlatformTestCase(unittest.TestCase):
             '/courses.html',
             '/course-detail',
             '/course-detail.html',
+            '/qbank',
+            '/qbank.html',
             '/login',
             '/login.html',
             '/register',
@@ -42,11 +44,13 @@ class SimpleNCLEXPlatformTestCase(unittest.TestCase):
             '/static/css/home.css',
             '/static/css/about.css',
             '/static/css/courses.css',
+            '/static/css/qbank.css',
             '/static/css/auth.css',
             '/static/css/admin.css',
             '/static/js/main.js',
             '/static/js/courses.js',
             '/static/js/course-detail.js',
+            '/static/js/qbank.js',
             '/static/js/auth.js',
             '/static/js/admin.js',
             '/static/images/logo.png',
@@ -194,7 +198,187 @@ class SimpleNCLEXPlatformTestCase(unittest.TestCase):
         self.assertIn('curriculumModulesContainer', html)
         self.assertIn('course-detail.js', html)
 
+    def test_qbank_plans_and_questions_api(self):
+        """Test public Q-Bank plans and questions APIs."""
+        # 1. Fetch plans
+        res = self.client.get('/api/qbank/plans')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data['success'])
+        self.assertGreaterEqual(len(data['plans']), 3)
+
+        # 2. Fetch questions as guest (unauthenticated)
+        res = self.client.get('/api/qbank/questions')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data['success'])
+        self.assertFalse(data['isSubscribed'])
+        self.assertTrue(data['demoMode'])
+        self.assertGreaterEqual(len(data['questions']), 1)
+        # All returned questions must be demo items
+        for q in data['questions']:
+            self.assertEqual(q['isDemo'], 1)
+
+    def test_qbank_tutor_mode_check_answer(self):
+        """Test tutor mode answer checking endpoint."""
+        # Get first question
+        res = self.client.get('/api/qbank/questions')
+        q = res.get_json()['questions'][0]
+
+        # Submit correct answer
+        res = self.client.post('/api/qbank/check-answer', json={
+            'questionId': q['id'],
+            'selectedIndex': q['correctIndex']
+        })
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data['success'])
+        self.assertTrue(data['isCorrect'])
+        self.assertTrue(data['correctRationale'])
+
+        # Submit wrong answer
+        wrong_idx = (q['correctIndex'] + 1) % len(q['options'])
+        res = self.client.post('/api/qbank/check-answer', json={
+            'questionId': q['id'],
+            'selectedIndex': wrong_idx
+        })
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data['success'])
+        self.assertFalse(data['isCorrect'])
+
+    def test_qbank_subscription_and_course_separation(self):
+        """
+        Verify that Q-Bank subscription is completely independent from course enrollment.
+        Course access does not grant Q-Bank access, and Q-Bank subscribers do not need course enrollment.
+        """
+        import uuid
+        uid = uuid.uuid4().hex[:6]
+        student_email = f"qbank_student_{uid}@example.com"
+
+        # Register fresh student
+        reg_res = self.client.post('/api/auth/register', json={
+            'firstName': 'QBank',
+            'lastName': 'Student',
+            'email': student_email,
+            'password': 'Password123!',
+            'examType': 'NCLEX-RN'
+        })
+        self.assertEqual(reg_res.status_code, 201)
+        token = reg_res.get_json()['token']
+        headers = {'Authorization': f'Bearer {token}'}
+
+        # Check initial Q-Bank status: unapproved / none
+        status_res = self.client.get('/api/qbank/status', headers=headers)
+        self.assertEqual(status_res.status_code, 200)
+        self.assertFalse(status_res.get_json()['hasAccess'])
+
+        # Subscribe to Q-Bank
+        sub_res = self.client.post('/api/qbank/subscribe', headers=headers, json={
+            'planId': 1,
+            'whatsappNumber': '+923001234567',
+            'notes': 'Test payment proof'
+        })
+        self.assertEqual(sub_res.status_code, 201)
+        sub_data = sub_res.get_json()['subscription']
+        sub_id = sub_data['id']
+
+        # Status is pending
+        status_res = self.client.get('/api/qbank/status', headers=headers)
+        self.assertEqual(status_res.get_json()['status'], 'pending')
+        self.assertFalse(status_res.get_json()['hasAccess'])
+
+        # User enrolls in a course (e.g. course 10)
+        course_res = self.client.post('/api/courses/10/enroll', headers=headers, json={
+            'whatsappNumber': '+923001234567',
+            'paymentScreenshot': '/uploads/payments/sample.jpg',
+            'transactionId': 'TX123'
+        })
+        self.assertIn(course_res.status_code, [200, 201])
+
+        # Login as admin to approve Q-Bank subscription ONLY
+        admin_login = self.client.post('/api/auth/login', json={
+            'email': 'admin@simplenclex.com',
+            'password': 'Admin123!'
+        })
+        admin_headers = {'Authorization': f"Bearer {admin_login.get_json()['token']}"}
+
+        approve_res = self.client.put(f'/api/admin/qbank/subscriptions/{sub_id}/approve', headers=admin_headers)
+        self.assertEqual(approve_res.status_code, 200)
+
+        # Student checks Q-Bank status: now has full access!
+        status_res = self.client.get('/api/qbank/status', headers=headers)
+        self.assertTrue(status_res.get_json()['hasAccess'])
+        self.assertEqual(status_res.get_json()['status'], 'approved')
+
+        # BUT student course enrollment is STILL PENDING (they are decoupled!)
+        my_courses_res = self.client.get('/api/courses/my-courses', headers=headers)
+        enrollments = my_courses_res.get_json()['enrollments']
+        self.assertEqual(len(enrollments), 1)
+        self.assertEqual(enrollments[0]['status'], 'pending')
+
+    def test_qbank_admin_crud_and_manual_grant(self):
+        """Test admin CRUD on questions and manual subscription grant."""
+        admin_login = self.client.post('/api/auth/login', json={
+            'email': 'admin@simplenclex.com',
+            'password': 'Admin123!'
+        })
+        headers = {'Authorization': f"Bearer {admin_login.get_json()['token']}"}
+
+        # 1. Create Question
+        new_q = {
+            'statement': 'Which symptom indicates neuroleptic malignant syndrome (NMS)?',
+            'category': 'Psychosocial Integrity & Mental Health',
+            'difficulty': 'High Yield',
+            'examType': 'NCLEX-RN',
+            'clientNeed': 'Pharmacological Therapies',
+            'options': [
+                'Hypothermia and bradycardia',
+                'Hyperthermia, severe muscle rigidity, and autonomic instability',
+                'Fine hand tremors and polydipsia',
+                'Hypotension and pin-point pupils'
+            ],
+            'correctIndex': 1,
+            'correctRationale': 'NMS is a life-threatening idiosyncratic reaction to dopamine antagonists characterized by hyperthermia and lead-pipe rigidity.',
+            'distractors': [
+                'Option A: NMS causes extreme fever, not hypothermia.',
+                'Option C: Tremor and polydipsia are lithium toxicity symptoms.',
+                'Option D: Opioid overdose signs.'
+            ],
+            'clinicalPearl': 'Dantrolene (muscle relaxant) and bromocriptine (dopamine agonist) treat NMS.',
+            'isDemo': 0,
+            'sortOrder': 99
+        }
+        create_res = self.client.post('/api/admin/qbank/questions', headers=headers, json=new_q)
+        self.assertEqual(create_res.status_code, 201)
+        q_id = create_res.get_json()['question']['id']
+
+        # 2. Update Question
+        update_res = self.client.put(f'/api/admin/qbank/questions/{q_id}', headers=headers, json={
+            'difficulty': 'Hard',
+            'clinicalPearl': 'Updated NMS pearl.'
+        })
+        self.assertEqual(update_res.status_code, 200)
+        self.assertEqual(update_res.get_json()['question']['difficulty'], 'Hard')
+
+        # 3. Delete Question
+        del_res = self.client.delete(f'/api/admin/qbank/questions/{q_id}', headers=headers)
+        self.assertEqual(del_res.status_code, 200)
+
+        # 4. Manual grant Q-Bank access
+        grant_res = self.client.post('/api/admin/qbank/subscriptions/manual', headers=headers, json={
+            'email': 'admin@simplenclex.com',
+            'planId': 2,
+            'durationDays': 90,
+            'notes': 'Admin test manual grant'
+        })
+        self.assertEqual(grant_res.status_code, 201)
+        sub = grant_res.get_json()['subscription']
+        self.assertEqual(sub['status'], 'approved')
+        self.assertEqual(sub['durationDays'], 90)
+
 
 if __name__ == '__main__':
     unittest.main()
+
 

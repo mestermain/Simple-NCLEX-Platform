@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NCLEX & SNLE Question Bank (2,500+ Questions) — Simple NCLEX Platform</title>
+  <meta name="description" content="Interactive NCLEX-RN, Next-Gen NGN, and SNLE Question Bank. Practice high-yield clinical questions with detailed Saunders & ATI rationales, distractor analyses, and clinical pearls."/>
+  <link rel="icon" type="image/png" href="/static/images/favicon.png"/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <link rel="stylesheet" href="/static/css/courses.css"/>
+  <link rel="stylesheet" href="/static/css/qbank.css"/>
+</head>
+<body>
+
+  <!-- ── MAIN NAVBAR ── -->
+  <header class="fame-navbar" id="navbar">
+    <div class="container fame-navbar-inner">
+      <a href="index.html" class="fame-logo">
+        <img src="/static/images/logo.png" alt="Simple NCLEX Platform Logo" class="fame-logo-img"/>
+        <div class="fame-logo-text">
+          <span class="fame-name">Simple NCLEX Platform</span>
+          <span class="fame-tag">Master Nursing Excellence</span>
+        </div>
+      </a>
+
+      <nav>
+        <ul class="fame-nav-menu" id="navMenu">
+          <li class="fame-nav-item"><a href="index.html" class="fame-nav-link">Home</a></li>
+          <li class="fame-nav-item"><a href="courses.html" class="fame-nav-link">Courses</a></li>
+          <li class="fame-nav-item"><a href="qbank.html" class="fame-nav-link active">Q-Bank</a></li>
+          <li class="fame-nav-item"><a href="about.html" class="fame-nav-link">About Us</a></li>
+        </ul>
+      </nav>
+
+      <div class="fame-nav-actions nav-actions">
+        <a href="login.html" class="fame-auth-btn fame-auth-btn--login">Login</a>
+        <a href="register.html" class="fame-auth-btn fame-auth-btn--register">Register</a>
+      </div>
+
+      <button class="fame-hamburger" id="hamburger" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── HERO & STATUS BAR ── -->
+  <section class="qbank-hero">
+    <div class="container text-center">
+      <span class="qbank-eyebrow">🎯 2,500+ Practice Items & Next-Gen Cases</span>
+      <h1 class="fame-title" style="color:#ffffff;max-width:850px;margin:0 auto 1rem">
+        Master NCLEX & SNLE with <span style="color:#38bdf8">Interactive Clinical Rationales</span>
+      </h1>
+      <p class="fame-desc" style="color:#cbd5e1;max-width:720px;margin:0 auto">
+        Sharpen your clinical judgment using Saunders & ATI frameworks. Every item includes full physiological explanations, distractor analysis, and high-yield NCLEX pearls.
+      </p>
+
+      <!-- Dynamic Access Status Bar -->
+      <div class="qbank-status-bar" id="statusBar">
+        <div class="qbank-status-info">
+          <span class="qbank-status-badge demo" id="qbankStatusBadge">
+            <span>🔒</span> Free Demo Mode
+          </span>
+          <span style="font-size:0.95rem;color:#f1f5f9;text-align:left" id="qbankStatusText">
+            Loading your access permissions…
+          </span>
+        </div>
+        <button class="qbank-btn qbank-btn-primary" id="qbankStatusActionBtn">
+          Unlock Full Q-Bank →
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MAIN PRACTICE WORKSPACE ── -->
+  <main class="qbank-container">
+    <div class="qbank-interface-wrap">
+      <!-- Left Sidebar: Filters & Performance -->
+      <aside class="qbank-sidebar">
+        <h3><span>⚙️</span> Practice Filters</h3>
+
+        <div class="qbank-filter-group">
+          <label for="filterCategory">Clinical Category</label>
+          <select id="filterCategory" class="qbank-select">
+            <option value="all">All Categories</option>
+            <option value="Pharmacology & Parenteral Therapies">Pharmacology & Parenteral</option>
+            <option value="Physiological Adaptation (Med-Surg)">Med-Surg & Adaptation</option>
+            <option value="Reduction of Risk Potential">Reduction of Risk</option>
+            <option value="Management of Care & Delegation">Management of Care</option>
+            <option value="Maternal & Newborn Nursing">Maternal & Newborn (OB)</option>
+            <option value="Pediatric Nursing">Pediatric Nursing</option>
+            <option value="Psychosocial Integrity & Mental Health">Mental Health</option>
+            <option value="Safe & Effective Care Environment">Infection & Safety</option>
+          </select>
+        </div>
+
+        <div class="qbank-filter-group">
+          <label for="filterDifficulty">Difficulty Level</label>
+          <select id="filterDifficulty" class="qbank-select">
+            <option value="all">All Levels</option>
+            <option value="High Yield">High Yield (Exam Priority)</option>
+            <option value="Hard">Hard / Challenging</option>
+            <option value="Moderate">Moderate</option>
+            <option value="Easy">Easy Baseline</option>
+          </select>
+        </div>
+
+        <div class="qbank-filter-group">
+          <label for="filterExamType">Exam Target Track</label>
+          <select id="filterExamType" class="qbank-select">
+            <option value="all">All Exam Tracks</option>
+            <option value="NCLEX-RN">NCLEX-RN (US / Canada)</option>
+            <option value="Next-Gen (NGN)">Next-Generation NCLEX (NGN)</option>
+            <option value="SNLE">SNLE (Saudi Licensure)</option>
+            <option value="Prometric">Prometric (Gulf DHA / MOH)</option>
+          </select>
+        </div>
+
+        <!-- Session Performance Stats -->
+        <div class="qbank-stats-box">
+          <div style="font-weight:700;font-size:0.9rem;margin-bottom:0.6rem;color:var(--qb-text-main)">
+            📊 Session Performance
+          </div>
+          <div class="qbank-stat-row">
+            <span>Attempted:</span>
+            <strong id="statAttempted">0</strong>
+          </div>
+          <div class="qbank-stat-row">
+            <span>Correct:</span>
+            <strong id="statCorrect" style="color:var(--qb-success)">0</strong>
+          </div>
+          <div class="qbank-stat-row">
+            <span>Accuracy Rate:</span>
+            <strong id="statAccuracy">0%</strong>
+          </div>
+        </div>
+
+        <div style="margin-top:1.5rem">
+          <button type="button" class="qbank-btn qbank-btn-secondary" style="width:100%;font-size:0.85rem" onclick="document.getElementById('pricingSection').scrollIntoView({behavior:'smooth'})">
+            🎟️ View Subscription Plans
+          </button>
+        </div>
+      </aside>
+
+      <!-- Right Main: Question Item Card -->
+      <section class="qbank-card" id="questionCard">
+        <div class="qbank-card-header">
+          <div class="qbank-tags">
+            <span class="qbank-tag category" id="questionCategoryTag">Pharmacology</span>
+            <span class="qbank-tag difficulty" id="questionDifficultyTag">High Yield</span>
+            <span class="qbank-tag exam" id="questionExamTag">NCLEX-RN</span>
+            <span class="qbank-tag demo-indicator" id="questionDemoTag">Free Demo Item</span>
+          </div>
+          <div class="qbank-progress-indicator" id="questionProgress">
+            Question 1 of 13
+          </div>
+        </div>
+
+        <!-- Question Scenario Stem -->
+        <div class="qbank-statement" id="questionStem">
+          Loading clinical question…
+        </div>
+
+        <!-- Multiple Choice Options -->
+        <div class="qbank-options-list" id="optionsList">
+          <!-- Populated by JavaScript -->
+        </div>
+
+        <!-- Action Bar (Submit & Navigation) -->
+        <div class="qbank-actions-bar">
+          <div class="qbank-nav-buttons">
+            <button type="button" class="qbank-btn qbank-btn-secondary" id="prevQuestionBtn" disabled>
+              ← Previous
+            </button>
+            <button type="button" class="qbank-btn qbank-btn-secondary" id="nextQuestionBtn">
+              Next →
+            </button>
+          </div>
+
+          <div>
+            <button type="button" class="qbank-btn qbank-btn-primary" id="submitAnswerBtn" disabled>
+              Submit Answer
+            </button>
+          </div>
+        </div>
+
+        <!-- Rationale Container (Shown after answer submission) -->
+        <div class="qbank-rationale-box" id="rationaleContainer" style="display:none">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ── SUBSCRIPTION PLANS & UPGRADE SECTION ── -->
+  <section class="qbank-pricing-section" id="pricingSection">
+    <div class="container text-center">
+      <span class="fame-eyebrow">💎 Dedicated Q-Bank Subscriptions</span>
+      <h2 class="fame-title">Unlock Full Access to All <span style="color:var(--primary)">2,500+ Practice Items</span></h2>
+      <p class="fame-desc" style="max-width:700px;margin:0 auto">
+        Question Bank subscriptions operate independently from course enrollments. Choose the duration that matches your exam test date and start practicing immediately.
+      </p>
+
+      <div class="qbank-plans-grid" id="qbankPlansContainer">
+        <!-- Rendered dynamically by qbank.js -->
+        <div style="text-align:center;grid-column:1/-1;padding:3rem;color:var(--qb-text-muted)">
+          Loading subscription plans…
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MODAL: SUBSCRIPTION & PAYMENT PROOF UPLOAD ── -->
+  <div class="qbank-modal-backdrop" id="qbankSubscribeModal">
+    <div class="qbank-modal">
+      <div class="qbank-modal-header">
+        <h3><span>🎟️</span> Subscribe to Question Bank</h3>
+        <button class="qbank-modal-close" data-close-qbank-modal>×</button>
+      </div>
+
+      <div class="qbank-modal-body">
+        <!-- Plan Overview Summary -->
+        <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <strong id="modalPlanName" style="color:#0369a1;font-size:1.1rem;display:block">1-Month Intensive Pass</strong>
+              <span id="modalPlanDuration" style="font-size:0.85rem;color:#0284c7">30 Days Unlimited Access</span>
+            </div>
+            <div id="modalPlanPrice" style="font-size:1.4rem;font-weight:800;color:#0369a1">
+              Rs. 4,999
+            </div>
+          </div>
+        </div>
+
+        <!-- Official Bank / Easypaisa Accounts -->
+        <div class="qbank-payment-details-box">
+          <h4><span>💳</span> Official Payment Accounts</h4>
+          <div class="qbank-payment-row">
+            <span>Easypaisa Account:</span>
+            <strong id="payEasypaisaNumber">0300-1234567</strong>
+          </div>
+          <div class="qbank-payment-row">
+            <span>Account Title:</span>
+            <strong id="payEasypaisaName">Muhammad Talha Sadeeq</strong>
+          </div>
+          <div class="qbank-payment-row">
+            <span>Bank Name:</span>
+            <strong id="payBankName">Meezan Bank</strong>
+          </div>
+          <div class="qbank-payment-row">
+            <span>IBAN / Account Number:</span>
+            <strong id="payBankIban">PK00MEZN0000000000000000</strong>
+          </div>
+        </div>
+
+        <form id="qbankSubscribeForm">
+          <input type="hidden" id="subPlanId" value=""/>
+
+          <div class="qbank-form-group">
+            <label for="subWhatsapp">Your WhatsApp Number (for Instant Access Activation) *</label>
+            <input type="text" id="subWhatsapp" class="qbank-input" required placeholder="e.g. 0308-5737093 or +92 308 5737093"/>
+          </div>
+
+          <div class="qbank-form-group">
+            <label for="subScreenshot">Upload Payment Receipt Screenshot (Optional but speeds up approval)</label>
+            <input type="file" id="subScreenshot" class="qbank-input" accept="image/*,.pdf"/>
+          </div>
+
+          <div class="qbank-form-group">
+            <label for="subNotes">Transaction ID / Sender Name / Notes</label>
+            <input type="text" id="subNotes" class="qbank-input" placeholder="e.g. Easypaisa TRX # 1234567890"/>
+          </div>
+
+          <div style="font-size:0.82rem;color:var(--qb-text-muted);margin-bottom:1rem;line-height:1.5">
+            ℹ️ After submitting your proof, administrator will verify your receipt and approve your full Q-Bank access within a few minutes. You will also receive an instant confirmation on WhatsApp!
+          </div>
+
+          <div class="qbank-modal-footer">
+            <button type="button" class="qbank-btn qbank-btn-secondary" data-close-qbank-modal>Cancel</button>
+            <button type="submit" class="qbank-btn qbank-btn-primary" id="subSubmitBtn">
+              Confirm & Submit Payment
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MAIN FOOTER ── -->
+  <footer class="fame-footer">
+    <div class="container">
+      <div class="fame-footer-grid">
+        <div class="fame-footer-col">
+          <a href="index.html" class="fame-logo" style="margin-bottom:1rem">
+            <img src="/static/images/logo.png" alt="Simple NCLEX Platform Logo" class="fame-logo-img"/>
+            <div class="fame-logo-text">
+              <span class="fame-name" style="color:#ffffff">Simple NCLEX Platform</span>
+              <span class="fame-tag" style="color:rgba(255,255,255,0.7)">Master Nursing Excellence</span>
+            </div>
+          </a>
+          <p style="font-size:0.9rem;line-height:1.6;color:rgba(255,255,255,0.7)">
+            Pakistan & the Gulf's leading specialized nursing examination preparation platform. Grounded in Saunders & ATI frameworks with high-yield clinical question banks.
+          </p>
+        </div>
+
+        <div class="fame-footer-col">
+          <h4>Navigation</h4>
+          <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="courses.html">All Courses</a></li>
+            <li><a href="qbank.html">Interactive Q-Bank</a></li>
+            <li><a href="about.html">About Us</a></li>
+          </ul>
+        </div>
+
+        <div class="fame-footer-col">
+          <h4>Exam Tracks</h4>
+          <ul>
+            <li><a href="courses.html?filter=nclex-rn">NCLEX-RN Prep 2026</a></li>
+            <li><a href="courses.html?filter=snle">SNLE Saudi Licensure</a></li>
+            <li><a href="courses.html?filter=prometric">Prometric Exam (Gulf & DHA)</a></li>
+            <li><a href="login.html">Student Portal Login</a></li>
+          </ul>
+        </div>
+
+        <div class="fame-footer-col">
+          <h4>Contact Us</h4>
+          <div class="fame-contact-row">
+            <span>📞</span>
+            <p><a class="wa-link wa-text" href="https://wa.me/923085737093" target="_blank" rel="noopener">+92 308 5737093</a></p>
+          </div>
+          <div class="fame-contact-row">
+            <span>✉️</span>
+            <p><a href="mailto:talhasadeeq.email@gmail.com">talhasadeeq.email@gmail.com</a></p>
+          </div>
+          <div class="fame-contact-row">
+            <span>⏱️</span>
+            <p>24/7 Academic Support</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="fame-footer-bottom">
+        <div>© 2026 Simple NCLEX Platform. All Rights Reserved.</div>
+        <div style="display:flex;gap:1.5rem">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ── FLOATING WHATSAPP ── -->
+  <a class="fame-wa-float wa-link" href="https://wa.me/923085737093?text=Hi%2C%20I%20have%20a%20question%20about%20the%20Q-Bank%20subscription." target="_blank" rel="noopener" aria-label="Chat on WhatsApp">
+    <div class="fame-wa-icon">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path fill="#25D366" d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2z"/>
+        <path fill="#FFFFFF" d="M16.56 13.66c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.02-1.25-.75-.67-1.26-1.5-1.41-1.75-.15-.25-.02-.39.11-.51.11-.11.25-.29.37-.44.12-.14.17-.25.25-.41.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43h-.48c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1 0 1.24.9 2.44 1.03 2.61.13.17 1.78 2.72 4.31 3.81.6.26 1.07.42 1.44.54.61.19 1.16.17 1.6.1.49-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.15-1.18-.06-.1-.23-.17-.48-.29z"/>
+      </svg>
+    </div>
+    <div class="fame-wa-label">
+      <span class="l1">Online Support</span>
+      <span class="l2">+92 308 5737093</span>
+    </div>
+  </a>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/static/js/main.js"></script>
+  <script src="/static/js/qbank.js"></script>
+</body>
+</html>

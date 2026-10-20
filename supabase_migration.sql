@@ -132,3 +132,62 @@ INSERT INTO demo_mcqs (id, category, difficulty, client_need, statement, options
 INSERT INTO demo_mcqs (id, category, difficulty, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, sort_order, created_at) VALUES (3, 'SNLE (Saudi Licensure) • Cardiac Safety', 'SCFHS High Yield', 'Physiological Adaptation — Reduction of Risk Potential', 'A client with heart failure exacerbation is prescribed oral digoxin 0.25 mg daily and furosemide 40 mg daily. Before administering morning medications, which clinical finding requires the nurse to withhold digoxin and notify the healthcare provider immediately?', '["Apical pulse of 52 beats per minute and reported yellow-green halos around lights.", "Blood pressure of 134/82 mm Hg and trace bilateral ankle edema.", "Serum potassium level of 4.2 mEq/L and serum sodium of 138 mEq/L.", "Serum digoxin level of 1.2 ng/mL."]', 0, 'Digoxin is a cardiac glycoside with positive inotropic and negative chronotropic effects. The nurse must assess the apical pulse for 1 full minute prior to administration; digoxin is withheld if apical heart rate is less than 60 beats/min in an adult. Bradycardia (HR 52) combined with classic visual disturbances (yellow-green halos, blurred or flickering vision) and gastrointestinal complaints (anorexia, nausea) are pathognomonic signs of digitalis toxicity. Concurrent loop diuretic therapy (furosemide) increases the risk of hypokalemia, which directly potentiates digoxin binding and accelerates toxicity.', '["Option B: Blood pressure of 134/82 mm Hg and trace ankle edema are typical baseline findings for chronic heart failure clients and do not represent digoxin toxicity.", "Option C: Serum potassium of 4.2 mEq/L is within normal reference limits (3.5\u20135.0 mEq/L). Hypokalemia (<3.5) would be alarming.", "Option D: Therapeutic serum digoxin range is 0.8\u20132.0 ng/mL. A level of 1.2 ng/mL is optimal therapeutic."]', 'NCLEX & SNLE Safety Rule: Early signs of Digoxin toxicity are GI disturbances (anorexia, nausea, vomiting), followed by neurological/visual changes (yellow-green halos). Late signs are cardiac dysrhythmias (bradycardia, heart blocks). Check apical pulse for 60 seconds; hold if < 60 bpm. Potassium and digoxin compete for the same receptor!', 3, '2026-10-18T07:23:44.011161+00:00') ON CONFLICT DO NOTHING;
 INSERT INTO demo_mcqs (id, category, difficulty, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, sort_order, created_at) VALUES (4, 'Prometric & Gulf Licensing • Emergency Nursing', 'High Yield Recall', 'Health Promotion & Maintenance — Antepartum Care', 'A client at 34 weeks gestation presents to the emergency department with sudden, severe, continuous abdominal pain and dark red vaginal bleeding. On abdominal examination, the uterus is hypertonic and board-like upon palpation. What is the priority nursing action?', '["Perform a sterile digital vaginal examination to assess cervical dilation and effacement.", "Place the client in left lateral recumbent position, apply continuous electronic fetal monitoring, and alert surgical team.", "Administer intravenous oxytocin to stimulate regular uterine contractions.", "Reassure the client and encourage ambulation around the unit to facilitate labor descent."]', 1, 'Sudden-onset intense abdominal pain, dark red vaginal bleeding, and a rigid, hypertonic ("board-like") uterus are classic symptoms of abruptio placentae (premature detachment of the placenta). This is an obstetric life-threatening emergency causing rapid fetal hypoxia and maternal hemorrhagic shock/disseminated intravascular coagulation (DIC). Immediate interventions include: 1) Placing mother in left lateral recumbent position to relieve inferior vena cava compression and maximize placental perfusion, 2) Applying continuous external fetal and uterine monitoring, 3) Establishing large-bore IV access with crystalloids/blood, and 4) Alerting surgical and neonatal teams for immediate emergency Cesarean delivery.', '["Option A: Vaginal digital examinations are STRICTLY CONTRAINDICATED in any third-trimester bleeding until placenta previa has been ruled out by ultrasound; digital examination can puncture the placenta and cause fatal hemorrhage.", "Option C: Oxytocin is contraindicated because the uterus is already hypertonic and contracting excessively.", "Option D: Ambulation delays emergency surgical intervention and worsens hemorrhagic shock."]', 'NCLEX Comparison Pearl: Abruptio Placentae = Dark red bleeding, SEVERE constant abdominal pain, rigid board-like uterus. Placenta Previa = Bright red bleeding, PAINLESS, soft non-tender uterus. NEVER do a digital vaginal exam on third-trimester bleeding until ultrasound confirms placenta location!', 4, '2026-10-18T07:23:44.011161+00:00') ON CONFLICT DO NOTHING;
 SELECT setval(pg_get_serial_sequence('demo_mcqs', 'id'), COALESCE(MAX(id), 1)) FROM demo_mcqs;
+
+-- 7. Q-Bank Questions Table
+CREATE TABLE IF NOT EXISTS qbank_questions (
+    id SERIAL PRIMARY KEY,
+    category TEXT NOT NULL,
+    difficulty TEXT NOT NULL,
+    exam_type TEXT NOT NULL DEFAULT 'NCLEX-RN',
+    client_need TEXT DEFAULT '',
+    statement TEXT NOT NULL,
+    options_json TEXT NOT NULL,
+    correct_index INTEGER NOT NULL DEFAULT 0,
+    correct_rationale TEXT NOT NULL,
+    distractors_json TEXT NOT NULL DEFAULT '[]',
+    clinical_pearl TEXT DEFAULT '',
+    is_demo INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Q-Bank Subscription Plans Table
+CREATE TABLE IF NOT EXISTS qbank_plans (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    duration_days INTEGER NOT NULL DEFAULT 30,
+    price NUMERIC(10,2) NOT NULL DEFAULT 0,
+    original_price NUMERIC(10,2) NOT NULL DEFAULT 0,
+    badge TEXT DEFAULT '',
+    features_json TEXT NOT NULL DEFAULT '[]',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 9. Q-Bank Subscriptions Table (Independent from Course Enrollments)
+CREATE TABLE IF NOT EXISTS qbank_subscriptions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    plan_id INTEGER REFERENCES qbank_plans(id) ON DELETE SET NULL,
+    plan_name TEXT NOT NULL,
+    duration_days INTEGER NOT NULL DEFAULT 30,
+    price NUMERIC(10,2) NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    whatsapp_number TEXT DEFAULT '',
+    payment_screenshot TEXT DEFAULT '',
+    enrolled_at TIMESTAMPTZ DEFAULT NOW(),
+    reviewed_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ,
+    notes TEXT DEFAULT ''
+);
+
+-- Seed Q-Bank Plans
+INSERT INTO qbank_plans (id, name, description, duration_days, price, original_price, badge, features_json, is_active)
+VALUES
+(1, '1-Month Intensive Pass', 'Full 30-day access to all 2,500+ NCLEX & SNLE practice questions with rationales.', 30, 4999.00, 8000.00, 'Starter', '["Full 2,500+ NCLEX & SNLE Question Bank", "In-Depth Saunders & ATI Clinical Rationales", "Distractor Analysis for Every Option", "Interactive Tutor Practice Mode", "Category & Specialty Filtering"]', 1),
+(2, '3-Month High-Yield Master', 'The recommended plan for comprehensive exam readiness. Includes Next-Gen cases and simulated exams.', 90, 7999.00, 14000.00, 'Most Popular', '["Complete 90-Day All-Access Question Bank", "Next-Generation NCLEX (NGN) Case Studies", "Timed Exam Mode & Mock Test Simulator", "Specialty Performance Diagnostics", "Priority WhatsApp Study Support Group", "NCLEX High-Yield Clinical Pearl Summaries"]', 1),
+(3, '6-Month Complete Pass', 'Maximum flexibility and complete licensure guarantee for international and repeat test-takers.', 180, 11999.00, 22000.00, 'Best Value', '["Unlimited 180-Day Complete Q-Bank Access", "All NCLEX-RN, Next-Gen, SNLE & Prometric Tracks", "Personalized Weakness Remediation Quizzes", "Direct Faculty Mentorship on WhatsApp", "Free Content & Question Updates for 2026", "First-Time Pass Guarantee Commitment"]', 1)
+ON CONFLICT (id) DO NOTHING;
+SELECT setval(pg_get_serial_sequence('qbank_plans', 'id'), COALESCE(MAX(id), 1)) FROM qbank_plans;
+

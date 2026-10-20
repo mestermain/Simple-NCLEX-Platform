@@ -24,6 +24,8 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import jwt
+import urllib.parse
+
 
 
 # ==============================================================================
@@ -282,10 +284,464 @@ def get_default_demo_mcqs(now=None):
     ]
 
 
+def get_default_qbank_plans(now=None):
+    """Return default high-yield Q-Bank subscription plans."""
+    if not now:
+        now = datetime.now(timezone.utc).isoformat()
+    return [
+        (
+            '1-Month Intensive Pass',
+            'Full 30-day access to all 2,500+ NCLEX & SNLE practice questions with rationales.',
+            30,
+            4999.0,
+            8000.0,
+            'Starter',
+            json.dumps([
+                'Full 2,500+ NCLEX & SNLE Question Bank',
+                'In-Depth Saunders & ATI Clinical Rationales',
+                'Distractor Analysis for Every Option',
+                'Interactive Tutor Practice Mode',
+                'Category & Specialty Filtering'
+            ]),
+            1,
+            now
+        ),
+        (
+            '3-Month High-Yield Master',
+            'The recommended plan for comprehensive exam readiness. Includes Next-Gen cases and simulated exams.',
+            90,
+            7999.0,
+            14000.0,
+            'Most Popular',
+            json.dumps([
+                'Complete 90-Day All-Access Question Bank',
+                'Next-Generation NCLEX (NGN) Case Studies',
+                'Timed Exam Mode & Mock Test Simulator',
+                'Specialty Performance Diagnostics',
+                'Priority WhatsApp Study Support Group',
+                'NCLEX High-Yield Clinical Pearl Summaries'
+            ]),
+            1,
+            now
+        ),
+        (
+            '6-Month Complete Pass',
+            'Maximum flexibility and complete licensure guarantee for international and repeat test-takers.',
+            180,
+            11999.0,
+            22000.0,
+            'Best Value',
+            json.dumps([
+                'Unlimited 180-Day Complete Q-Bank Access',
+                'All NCLEX-RN, Next-Gen, SNLE & Prometric Tracks',
+                'Personalized Weakness Remediation Quizzes',
+                'Direct Faculty Mentorship on WhatsApp',
+                'Free Content & Question Updates for 2026',
+                'First-Time Pass Guarantee Commitment'
+            ]),
+            1,
+            now
+        )
+    ]
+
+
+def get_default_qbank_questions(now=None):
+    """Return initial comprehensive clinical practice questions for Q-Bank."""
+    if not now:
+        now = datetime.now(timezone.utc).isoformat()
+    return [
+        (
+            'Pharmacology & Parenteral Therapies',
+            'High Yield',
+            'NCLEX-RN',
+            'Physiological Adaptation — Pharmacological & Parenteral Therapies',
+            "A client with acute pulmonary embolism is receiving a continuous intravenous heparin infusion. The nurse notes active bleeding from the client's intravenous insertion site, epistaxis, and microscopic hematuria. The laboratory reports an activated partial thromboplastin time (aPTT) of 135 seconds (control baseline: 30 seconds). Which prescription should the nurse anticipate administering immediately?",
+            json.dumps([
+                'Vitamin K (Phytonadione)',
+                'Protamine Sulfate',
+                'Deferoxamine',
+                'Calcium Gluconate'
+            ]),
+            1,
+            'Heparin is a fast-acting parenteral anticoagulant that potentiates the action of antithrombin III, inactivating thrombin and factor Xa. The expected therapeutic aPTT target during continuous heparin therapy is 1.5 to 2.5 times normal control baseline (typically 45 to 75 seconds). An aPTT of 135 seconds accompanied by clinical bleeding signifies severe heparin toxicity. Protamine sulfate is the specific antidote that forms an inactive neutral salt complex, reversing anticoagulation within 5 minutes.',
+            json.dumps([
+                'Option A (Vitamin K): Antidote for warfarin (Coumadin) toxicity, not heparin. Vitamin K acts through hepatic synthesis of clotting factors, taking hours to days.',
+                'Option C (Deferoxamine): A chelating agent indicated for acute iron toxicity and chronic iron overload.',
+                'Option D (Calcium Gluconate): Cardioprotective antagonist for severe hyperkalemia or magnesium toxicity; it does not reverse heparin.'
+            ]),
+            'NCLEX High-Yield Rule: "P" goes with "P" (Protamine for PTT/Heparin); "W" goes with "K" (Warfarin for Vitamin K/PT/INR). Stop the heparin infusion FIRST, then notify the provider and administer Protamine Sulfate.',
+            1,
+            1,
+            now
+        ),
+        (
+            'Management of Care & Priority Triaging',
+            'High Yield',
+            'NCLEX-RN',
+            'Safe and Effective Care Environment — Management of Care',
+            'After receiving morning shift handoff report on a busy medical-surgical unit, which client should the registered nurse assess first?',
+            json.dumps([
+                'A client with chronic obstructive pulmonary disease (COPD) having an SpO2 of 89% on 2 L/min nasal cannula.',
+                'A client who had a subtotal thyroidectomy 6 hours ago and reports tingling around the mouth and fingertips.',
+                'A client with type 1 diabetes mellitus who has a fasting capillary blood glucose of 145 mg/dL.',
+                'A client with acute pancreatitis who reports severe epigastric pain rating 8/10 radiating to the back.'
+            ]),
+            1,
+            'Using the ABCs and acute-over-chronic prioritization principles, the client post-thyroidectomy reporting perioral paresthesia (tingling around mouth and fingers) is exhibiting the earliest symptoms of acute hypocalcemia (tetany), caused by accidental trauma or devascularization of the parathyroid glands. Hypocalcemia causes severe neuromuscular excitability that can rapidly progress to laryngospasm, acute airway obstruction, seizures, and cardiac arrest.',
+            json.dumps([
+                'Option A: An SpO2 of 88%–92% is expected for chronic hypercapnic COPD clients due to hypoxic drive; this represents a stable chronic baseline.',
+                'Option C: Fasting blood glucose of 145 mg/dL is mildly elevated post-stress, but does not present acute hypoglycemia or diabetic ketoacidosis.',
+                'Option D: Severe epigastric pain radiating to the back is the expected hallmark presentation of acute pancreatitis. While analgesia is required, airway compromise always takes priority over expected pain.'
+            ]),
+            'NCLEX Priority Framework: Post-thyroidectomy emergencies are: 1) Respiratory distress/stridor (edema/hematoma), 2) Tetany/hypocalcemia (numbness/tingling around mouth within 24–48 hours). Always keep an emergency tracheostomy tray, suction, and IV Calcium Gluconate at bedside.',
+            1,
+            2,
+            now
+        ),
+        (
+            'Reduction of Risk Potential & Cardiac',
+            'High Yield',
+            'SNLE',
+            'Physiological Adaptation — Reduction of Risk Potential',
+            'A client with heart failure exacerbation is prescribed oral digoxin 0.25 mg daily and furosemide 40 mg daily. Before administering morning medications, which clinical finding requires the nurse to withhold digoxin and notify the healthcare provider immediately?',
+            json.dumps([
+                'Apical pulse of 52 beats per minute and reported yellow-green halos around lights.',
+                'Blood pressure of 134/82 mm Hg and trace bilateral ankle edema.',
+                'Serum potassium level of 4.2 mEq/L and serum sodium of 138 mEq/L.',
+                'Serum digoxin level of 1.2 ng/mL.'
+            ]),
+            0,
+            'Digoxin is a cardiac glycoside with positive inotropic and negative chronotropic effects. The nurse must assess the apical pulse for 1 full minute prior to administration; digoxin is withheld if apical heart rate is less than 60 beats/min in an adult. Bradycardia (HR 52) combined with classic visual disturbances (yellow-green halos, blurred vision) and GI complaints (anorexia, nausea) are pathognomonic signs of digitalis toxicity.',
+            json.dumps([
+                'Option B: Blood pressure of 134/82 mm Hg and trace ankle edema are typical baseline findings for chronic heart failure clients and do not represent digoxin toxicity.',
+                'Option C: Serum potassium of 4.2 mEq/L is within normal reference limits (3.5–5.0 mEq/L). Hypokalemia (<3.5) would be alarming.',
+                'Option D: Therapeutic serum digoxin range is 0.8–2.0 ng/mL. A level of 1.2 ng/mL is optimal therapeutic.'
+            ]),
+            'NCLEX & SNLE Safety Rule: Early signs of Digoxin toxicity are GI disturbances (anorexia, nausea, vomiting), followed by neurological/visual changes (yellow-green halos). Late signs are cardiac dysrhythmias. Check apical pulse for 60 seconds; hold if < 60 bpm. Potassium and digoxin compete for the same receptor!',
+            1,
+            3,
+            now
+        ),
+        (
+            'Maternal & Newborn Care',
+            'High Yield',
+            'NCLEX-RN',
+            'Health Promotion & Maintenance — Antepartum Care',
+            'A client at 34 weeks gestation presents to the emergency department with sudden, severe, continuous abdominal pain and dark red vaginal bleeding. On abdominal examination, the uterus is hypertonic and board-like upon palpation. What is the priority nursing action?',
+            json.dumps([
+                'Perform a sterile digital vaginal examination to assess cervical dilation and effacement.',
+                'Place the client in left lateral recumbent position, apply continuous electronic fetal monitoring, and alert surgical team.',
+                'Administer intravenous oxytocin to stimulate regular uterine contractions.',
+                'Reassure the client and encourage ambulation around the unit to facilitate labor descent.'
+            ]),
+            1,
+            'Sudden-onset intense abdominal pain, dark red vaginal bleeding, and a rigid, hypertonic ("board-like") uterus are classic symptoms of abruptio placentae (premature detachment of the placenta). This is an obstetric life-threatening emergency causing rapid fetal hypoxia and maternal hemorrhagic shock. Immediate interventions include placing mother in left lateral recumbent position, continuous electronic fetal monitoring, and alerting surgical team for immediate Cesarean delivery.',
+            json.dumps([
+                'Option A: Vaginal digital examinations are STRICTLY CONTRAINDICATED in any third-trimester bleeding until placenta previa has been ruled out by ultrasound; digital exam can puncture placenta and cause fatal hemorrhage.',
+                'Option C: Oxytocin is contraindicated because uterus is already hypertonic and contracting excessively.',
+                'Option D: Ambulation delays emergency surgical intervention and worsens hemorrhagic shock.'
+            ]),
+            'NCLEX Comparison Pearl: Abruptio Placentae = Dark red bleeding, SEVERE constant abdominal pain, rigid board-like uterus. Placenta Previa = Bright red bleeding, PAINLESS, soft non-tender uterus. NEVER do a digital vaginal exam on third-trimester bleeding until ultrasound confirms placenta location!',
+            1,
+            4,
+            now
+        ),
+        (
+            'Physiological Adaptation & Med-Surg',
+            'High Yield',
+            'NCLEX-RN',
+            'Physiological Adaptation — Neurological Disorders',
+            "A client with a complete T4 spinal cord injury reports a sudden, throbbing headache, blurred vision, and nasal congestion. The nurse notes profuse diaphoresis and flushing above the clavicles, with pale, cool skin below the lesion level. Blood pressure is 214/110 mm Hg and heart rate is 50 beats/min. Which action should the nurse take FIRST?",
+            json.dumps([
+                'Administer prescribed sublingual nifedipine immediately.',
+                "Raise the head of the bed to a high-Fowler's position (90 degrees) with legs lowered.",
+                'Perform a digital rectal exam to assess for fecal impaction.',
+                'Notify the healthcare provider and prepare a cardiac monitor.'
+            ]),
+            1,
+            "This client is experiencing autonomic dysreflexia (hyperreflexia), a life-threatening medical emergency seen in spinal cord injuries at or above T6. Unopposed sympathetic discharge triggered by a noxious stimulus below the injury causes severe paroxysmal vasoconstriction, extreme hypertension, and reflex vagal bradycardia with vasodilation above the level of injury. The FIRST priority intervention is to immediately sit the client upright in high-Fowler's position (90 degrees) with feet dangling or lowered. This utilizes orthostatic pooling of venous blood to instantly lower intracranial pressure and reduce blood pressure before complications (cerebral hemorrhage, stroke, seizure) occur.",
+            json.dumps([
+                'Option A: Antihypertensive medications may be required if BP remains critically elevated, but non-pharmacologic positional elevation must be done FIRST within seconds.',
+                'Option C: Checking for full bladder or fecal impaction is essential to remove the noxious trigger, but only AFTER positioning the client upright and loosening tight clothing.',
+                'Option D: Healthcare provider notification occurs after initiating life-saving positioning and assessing immediate causative factors.'
+            ]),
+            "NCLEX Rule: Autonomic Dysreflexia First Steps: 1) Elevate HOB to 90 degrees (high-Fowler's), 2) Loosen tight clothing/constrictive devices, 3) Check urinary catheter for kinks or distension (most common cause = distended bladder), 4) Check for fecal impaction.",
+            0,
+            5,
+            now
+        ),
+        (
+            'Pediatric Nursing',
+            'High Yield',
+            'NCLEX-RN',
+            'Physiological Adaptation — Pediatric Respiratory Disorders',
+            'A 4-year-old child is brought to the pediatric urgent care clinic with sudden high fever, sore throat, muffled voice, and difficulty swallowing. The child is sitting upright, leaning forward with the chin extended (tripod position), and is drooling saliva onto the shirt. Inspiratory stridor is audible without a stethoscope. What is the essential nursing precaution?',
+            json.dumps([
+                'Directly inspect the posterior pharynx using a tongue depressor and penlight.',
+                'Obtain a throat swab culture for group A beta-hemolytic Streptococcus.',
+                'Keep the child calm, avoid any oral examination or throat instrumentation, and assemble emergency airway equipment.',
+                'Place the child supine and initiate immediate bag-valve-mask positive pressure ventilation.'
+            ]),
+            2,
+            'The clinical tetrad of Drooling, Dysphagia, Dysphonia, and Distressed inspiratory stridor with tripod posturing in a febrile child is hallmark for acute epiglottitis (usually caused by Haemophilus influenzae type B or Streptococcus pneumoniae). Acute epiglottitis causes rapid, severe edema of the supraglottic structures. Any invasive examination of the mouth or throat (such as inserting a tongue depressor, taking a throat culture swab, or agitating the child with crying/IV attempts) can trigger complete laryngospasm and immediate, fatal airway occlusion.',
+            json.dumps([
+                'Option A: Direct throat inspection with a tongue depressor is strictly contraindicated because stimulation of the posterior pharynx can precipitate immediate total airway obstruction.',
+                'Option B: Throat cultures must never be performed in epiglottitis until the airway is secured in an operating room by anesthesia.',
+                'Option D: Forcing the child into a supine position can cause the enlarged epiglottis to fall backward over the glottis, causing immediate asphyxiation.'
+            ]),
+            "NCLEX Pediatric Pearl: Epiglottitis = \"AIRWAY EMERGENCY\". Look for the 4 D's: Drooling, Dysphagia, Dysphonia, Distressed stridor. NEVER use a tongue blade, NEVER leave the child unattended, keep the child in the caregiver's lap to minimize stress, and prepare for immediate endotracheal intubation or tracheostomy.",
+            0,
+            6,
+            now
+        ),
+        (
+            'Physiological Adaptation & Med-Surg',
+            'High Yield',
+            'NCLEX-RN',
+            'Physiological Adaptation — Endocrine Emergencies',
+            'A client with type 1 diabetes mellitus is admitted to the intensive care unit in Diabetic Ketoacidosis (DKA). Assessment reveals deep, rapid respirations (Kussmaul breathing) with a fruity acetone odor, dry mucous membranes, blood pressure 88/54 mm Hg, and pulse 124 beats/min. Capillary blood glucose is 580 mg/dL, and arterial blood gas shows pH 7.18 and HCO3- 10 mEq/L. Which medical prescription should the nurse implement FIRST?',
+            json.dumps([
+                'Administer an intravenous bolus of regular insulin at 0.1 units/kg.',
+                'Infuse 0.9% Normal Saline at 1,000 mL/hr intravenously.',
+                'Infuse 5% Dextrose in water (D5W) at 150 mL/hr.',
+                'Administer an intravenous infusion of sodium bicarbonate 50 mEq.'
+            ]),
+            1,
+            'In diabetic ketoacidosis (DKA), profound osmotic diuresis induced by hyperglycemia causes severe extracellular and intracellular volume depletion (typically 5 to 10 liters fluid deficit), resulting in hypotension, tachycardia, and compromised renal perfusion. The FIRST priority in DKA resuscitation is rapid fluid replacement with isotonic saline (0.9% Normal Saline) to restore vascular circulating volume, re-establish perfusion to vital organs, and prevent hypovolemic shock. Administering insulin before adequate volume replacement causes rapid shifts of water and potassium into cells, which can trigger cardiovascular collapse and acute renal failure.',
+            json.dumps([
+                'Option A: Insulin is vital to stop lipolysis and ketogenesis, but isotonic fluid resuscitation MUST be initiated first. Insulin without fluid resuscitation precipitates profound vascular collapse and hypokalemia.',
+                'Option C: Dextrose-containing solutions (D5W or D5 0.45% NS) are added later only when blood glucose drops below 250 mg/dL to prevent hypoglycemia and cerebral edema.',
+                'Option D: Sodium bicarbonate is rarely indicated and only considered for life-threatening severe acidosis (pH < 6.9); premature bicarbonate therapy causes paradoxical intracellular acidosis and severe hypokalemia.'
+            ]),
+            'NCLEX DKA Sequence: 1) FLUIDS FIRST (0.9% Normal Saline 1 L/hr), 2) Check potassium before insulin (if K+ < 3.3, replace potassium before insulin!), 3) Regular Insulin IV infusion, 4) When blood glucose hits 250 mg/dL, add DEXTROSE (D5W) to prevent cerebral edema!',
+            0,
+            7,
+            now
+        ),
+        (
+            'Management of Care & Priority Triaging',
+            'High Yield',
+            'NCLEX-RN',
+            'Safe and Effective Care Environment — Delegation and Supervision',
+            'The registered nurse (RN) is planning assignments on an acute medical surgical unit. Which client care task is appropriate to delegate to an experienced Unlicensed Assistive Personnel (UAP)?',
+            json.dumps([
+                'Assess skin turgor and capillary refill in a client receiving IV fluids for dehydration.',
+                'Teach a client with newly diagnosed hypertension how to read food nutrition labels for sodium content.',
+                'Assist an alert, stable client who had a laparoscopic cholecystectomy 2 days ago to ambulate in the hallway.',
+                'Administer scheduled oral docusate sodium to a client with chronic constipation.'
+            ]),
+            2,
+            'Delegation to Unlicensed Assistive Personnel (UAP) is governed by the state nurse practice act and NCSBN delegation guidelines. UAP scope of practice includes assisting stable clients with basic activities of daily living (ADLs), routine ambulation, hygiene, toileting, feeding (without swallowing dysfunction), and recording routine vital signs. Assisting an alert, stable postoperative client to ambulate on post-op day 2 is within the standard competency of UAP.',
+            json.dumps([
+                'Option A: Clinical physical assessment (skin turgor, capillary refill, lung sounds) requires registered nursing judgment and cannot be delegated to UAP.',
+                'Option B: Client teaching and education require formulation and evaluation of nursing diagnoses and are strictly the responsibility of the RN.',
+                'Option D: Medication administration (even routine oral stool softeners) requires pharmacological knowledge and cannot be delegated to UAP.'
+            ]),
+            'NCLEX Delegation Golden Rule: "Do NOT delegate what you can EAT!": E = Evaluate, A = Assess, T = Teach. The RN NEVER delegates Assessment, Teaching, Evaluation, or Nursing Judgment to UAP or LPN.',
+            0,
+            8,
+            now
+        ),
+        (
+            'Pharmacology & Parenteral Therapies',
+            'High Yield',
+            'NCLEX-RN',
+            'Physiological Adaptation — Pharmacological Therapies',
+            'A client with bipolar I disorder is prescribed lithium carbonate 300 mg three times daily. During a routine follow-up visit, which instruction is most critical for the nurse to emphasize to prevent lithium toxicity?',
+            json.dumps([
+                'Restrict dietary sodium intake and drink less than 1,000 mL of fluids daily.',
+                'Maintain consistent daily sodium intake and drink 2,000 to 3,000 mL of fluids daily.',
+                'Take ibuprofen 400 mg with each dose of lithium to prevent gastrointestinal upset.',
+                'Stop taking lithium immediately if fine hand tremors occur and resume when tremors resolve.'
+            ]),
+            1,
+            'Lithium is an alkali metal salt with a very narrow therapeutic index (0.6 to 1.2 mEq/L; acute mania up to 1.5 mEq/L). The kidneys handle lithium exactly like sodium. When the body becomes sodium-depleted or dehydrated (from diaphoresis, low-sodium diets, vomiting, diarrhea, or diuretics), the renal tubules reabsorb lithium in place of sodium, causing rapid, life-threatening lithium accumulation and toxicity. Clients must maintain normal, consistent dietary sodium intake and consume 2 to 3 liters of fluid daily.',
+            json.dumps([
+                'Option A: Restricting sodium and fluid intake directly precipitates severe lithium toxicity by forcing renal reabsorption of lithium.',
+                'Option C: NSAIDs (such as ibuprofen and naproxen) significantly decrease renal blood flow and clearance of lithium, increasing serum lithium levels by up to 40%. Aspirin or acetaminophen are preferred.',
+                'Option D: Fine resting hand tremors are a common, benign initial side effect of lithium. Lithium must never be abruptly discontinued without provider consultation.'
+            ]),
+            'NCLEX Lithium Rule: Lithium therapeutic range = 0.6–1.2 mEq/L (toxicity begins at > 1.5 mEq/L). Signs of toxicity: Coarse hand tremors, ataxia, confusion, polyuria, persistent vomiting/diarrhea. Avoid: Low sodium diet, dehydration, NSAIDs, and Thiazide diuretics!',
+            0,
+            9,
+            now
+        ),
+        (
+            'Pediatric Nursing',
+            'High Yield',
+            'NCLEX-RN',
+            'Physiological Adaptation — Pediatric Cardiology',
+            'An 8-month-old infant with diagnosed Tetralogy of Fallot begins crying vigorously after blood sampling and suddenly turns deeply cyanotic, tachypneic, and lethargic. Which immediate nursing intervention should be performed FIRST?',
+            json.dumps([
+                'Place the infant in the knee-chest position immediately.',
+                'Administer an intravenous bolus of normal saline at 20 mL/kg.',
+                'Administer sublingual nitroglycerin to promote systemic vasodilation.',
+                'Place the infant in high-Fowler\'s position and apply cold compresses to the forehead.'
+            ]),
+            0,
+            'This infant is experiencing a hypercyanotic "tet" spell (paroxysmal hypoxemic episode), which occurs when crying, agitation, feeding, or defecation causes an abrupt spasm of the infundibular right ventricular outflow tract, sharply increasing right-to-left shunting of unoxygenated blood through the ventricular septal defect into the systemic circulation. The immediate first-line nursing intervention is placing the infant in the knee-to-chest position (or flexing the infant\'s legs tightly against the chest). This mechanical compression kinks the femoral arteries, instantly increasing Systemic Vascular Resistance (SVR). The increased systemic resistance overcomes pulmonary resistance, forcing blood from the right ventricle into the pulmonary artery for oxygenation.',
+            json.dumps([
+                'Option B: IV fluids and morphine may be ordered subsequently by the physician, but physical knee-chest positioning must be initiated within seconds without delay.',
+                'Option C: Nitroglycerin causes systemic vasodilation, which would catastrophically decrease SVR, worsening right-to-left shunting and deepening fatal hypoxia.',
+                'Option D: High-Fowler\'s position does not increase systemic vascular resistance and provides no physiologic relief for infundibular spasm.'
+            ]),
+            'NCLEX Congenital Heart Pearl: Tetralogy of Fallot 4 defects: "PROVe" = Pulmonary stenosis, Right ventricular hypertrophy, Overriding aorta, Ventricular septal defect. Hypercyanotic Tet Spell = Knee-Chest position FIRST, 100% blow-by oxygen, calm the infant, IV Morphine if needed.',
+            0,
+            10,
+            now
+        ),
+        (
+            'Maternal & Newborn Care',
+            'High Yield',
+            'NCLEX-RN',
+            'Health Promotion & Maintenance — High-Risk Labor and Delivery',
+            'A client with severe pre-eclampsia at 36 weeks gestation is receiving a continuous intravenous infusion of magnesium sulfate at 2 g/hr. On hourly reassessment, the nurse notes: respiratory rate of 10 breaths/min, absent deep tendon reflexes (patellar DTRs 0/4+), urine output of 15 mL over the past hour, and lethargy. Which intervention should the nurse implement FIRST?',
+            json.dumps([
+                'Increase the intravenous maintenance fluid infusion rate to flush the kidneys.',
+                'Immediately discontinue the magnesium sulfate infusion and administer Calcium Gluconate IV.',
+                'Place the client in Trendelenburg position and apply a non-rebreather oxygen mask.',
+                'Notify the healthcare provider and recheck deep tendon reflexes in 30 minutes.'
+            ]),
+            1,
+            'Magnesium sulfate is the drug of choice in severe pre-eclampsia for seizure prophylaxis (prevention of eclampsia). Therapeutic magnesium level is 4 to 7 mg/dL (or 2.0 to 3.5 mmol/L). Signs of magnesium toxicity occur progressively: 1) Loss of deep tendon reflexes (DTRs) at 8–10 mg/dL, 2) Respiratory depression (<12 breaths/min) at 10–12 mg/dL, 3) Oliguria (<30 mL/hr) due to renal hypoperfusion, and 4) Cardiac arrest at >15 mg/dL. The nurse must STOP the magnesium sulfate infusion immediately and administer the specific antidote: 10% Calcium Gluconate (1 g IV over 3–5 minutes).',
+            json.dumps([
+                'Option A: Increasing fluids will worsen pulmonary edema risk in pre-eclampsia and fails to stop toxic magnesium exposure.',
+                'Option C: Trendelenburg position increases intracranial pressure and impedes diaphragmatic excursion in a client with severe respiratory depression.',
+                'Option D: Waiting 30 minutes to recheck reflexes in a client with respiratory depression (<10/min) is negligence; cardiac arrest can occur rapidly.'
+            ]),
+            'NCLEX Pre-Eclampsia Safety Rule: Magnesium toxicity triad: 1) Absent DTRs (0/4+), 2) Respiratory rate < 12 breaths/min, 3) Urine output < 30 mL/hr. PRIORITY ACTION: STOP the infusion immediately, give CALCIUM GLUCONATE IV slowly, notify provider, give oxygen.',
+            0,
+            11,
+            now
+        ),
+        (
+            'Pharmacology & Parenteral Therapies',
+            'High Yield',
+            'NCLEX-RN',
+            'Physiological Adaptation — Pharmacological Therapies',
+            'The nurse is preparing to administer scheduled subcutaneous insulin lispro (Humalog) 6 units to a hospitalized client with type 2 diabetes mellitus at 0730. Breakfast trays are scheduled to arrive from dietary at 0830. Which action is the priority for the nurse?',
+            json.dumps([
+                'Administer the insulin lispro at 0730 as scheduled so the medication stays on time.',
+                'Hold the insulin lispro until the meal tray is present on the unit and the client is ready to eat.',
+                'Administer half the dose (3 units) now and the remaining 3 units after breakfast.',
+                'Instruct the client to drink 8 ounces of orange juice at 0730 to prevent hypoglycemia.'
+            ]),
+            1,
+            "Insulin lispro (Humalog), insulin aspart (NovoLog), and insulin glulisine (Apidra) are rapid-acting insulins. Rapid-acting insulins have an onset of action of 10 to 15 minutes, with a peak effect at 30 to 90 minutes. Because of the rapid onset, rapid-acting insulin must NEVER be administered unless the client's food tray is directly at the bedside and the client is actively preparing to eat. Administering insulin lispro 1 hour before meal delivery (0730 with breakfast at 0830) will cause severe hypoglycemia during the drug's peak before food absorption occurs.",
+            json.dumps([
+                'Option A: Administering rapid-acting insulin 60 minutes before food arrives is a critical medication safety error that will induce severe hypoglycemic shock.',
+                'Option C: Splitting or altering prescribed insulin doses without a healthcare provider\'s order violates safe medication administration rules.',
+                'Option D: Giving orange juice to prevent anticipated hypoglycemia is inappropriate; insulin timing must match meal delivery.'
+            ]),
+            'NCLEX Insulin Timing Rules: 1) Rapid-Acting (Lispro, Aspart): Onset 15 min, Peak 1 hr. Give with food tray AT BEDSIDE! 2) Regular (Short-Acting): Onset 30-60 min, Peak 2-4 hrs. Give 30 min before meal. 3) NPH (Intermediate): Onset 2-4 hrs, Peak 4-12 hrs. Watch for afternoon hypoglycemia! 4) Glargine (Long-Acting): NO PEAK, cannot be mixed!',
+            0,
+            12,
+            now
+        ),
+        (
+            'Reduction of Risk Potential & Cardiac',
+            'High Yield',
+            'NCLEX-RN',
+            'Physiological Adaptation — Reduction of Risk Potential',
+            'A client returns to the cardiac telemetry unit following a percutaneous coronary intervention (PCI) with stent placement via the right common femoral artery. One hour post-procedure, the client reports sudden severe right groin pain. On examination, the nurse notes a rapidly expanding, firm, tender hematoma at the right groin puncture site, with weak (+1) right pedal pulse and heart rate 118 bpm. Which action should the nurse take FIRST?',
+            json.dumps([
+                'Apply immediate, firm, direct manual pressure 1 inch above (proximal to) the arterial puncture site.',
+                'Elevate the right leg on two pillows to reduce venous congestion.',
+                'Perform an immediate Doppler ultrasound scan of the right lower extremity.',
+                'Administer prescribed intravenous morphine 2 mg for severe puncture pain.'
+            ]),
+            0,
+            "A rapidly expanding groin hematoma accompanied by severe pain, tachycardia (HR 118), and decreased distal peripheral pulses is an acute arterial puncture blowout or pseudoaneurysm following femoral artery catheterization. The nurse's immediate, emergent priority is to apply continuous, direct, firm manual compression approximately 1 inch proximal (above) to the visible skin puncture site (where the arteriotomy in the femoral artery is located). Direct manual pressure must be held continuously for at least 15 to 30 minutes to achieve arterial hemostasis and prevent retroperitoneal hematoma, hypovolemic shock, and limb ischemia.",
+            json.dumps([
+                'Option B: Elevating or flexing the leg is contraindicated because femoral arterial sheath puncture sites require strict flat bed rest with the affected leg kept straight for 4 to 6 hours to prevent clot dislodgement.',
+                'Option C: Diagnostic ultrasound may confirm pseudoaneurysm, but active arterial bleeding requires immediate manual compression FIRST.',
+                'Option D: Administering analgesics without stopping the arterial hemorrhage delays life-saving physical hemostasis.'
+            ]),
+            "NCLEX Post-Cath Procedure Pearls: 1) Puncture site hematoma/bleeding = Direct manual pressure 1 inch PROXIMAL to puncture site immediately. 2) Post-femoral cath: Client must remain SUPINE with affected extremity STRAIGHT for 4–6 hours. 3) Assess the 6 P's of peripheral perfusion (Pulses, Pallor, Pain, Paresthesia, Paralysis, Poikilothermia) distally.",
+            0,
+            13,
+            now
+        )
+    ]
+
+
 def init_db(app=None):
-    """Initialize database tables and apply schema migrations (skipped on Supabase/PostgreSQL)."""
+    """Initialize database tables and apply schema migrations (both SQLite and PostgreSQL)."""
     if Config.DATABASE_URL:
+        try:
+            import psycopg2
+            db_url = Config.DATABASE_URL
+            if db_url.startswith('postgres://'):
+                db_url = db_url.replace('postgres://', 'postgresql://', 1)
+            conn = psycopg2.connect(db_url, connect_timeout=8)
+            cur = conn.cursor()
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS qbank_questions (
+                    id SERIAL PRIMARY KEY,
+                    category TEXT NOT NULL,
+                    difficulty TEXT NOT NULL,
+                    exam_type TEXT DEFAULT 'NCLEX-RN',
+                    client_need TEXT DEFAULT '',
+                    statement TEXT NOT NULL,
+                    options_json TEXT NOT NULL,
+                    correct_index INTEGER NOT NULL DEFAULT 0,
+                    correct_rationale TEXT NOT NULL,
+                    distractors_json TEXT NOT NULL,
+                    clinical_pearl TEXT DEFAULT '',
+                    is_demo INTEGER DEFAULT 0,
+                    sort_order INTEGER DEFAULT 0,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                CREATE TABLE IF NOT EXISTS qbank_plans (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    duration_days INTEGER NOT NULL DEFAULT 30,
+                    price NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    original_price NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    badge TEXT DEFAULT '',
+                    features_json TEXT NOT NULL,
+                    is_active INTEGER DEFAULT 1,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                CREATE TABLE IF NOT EXISTS qbank_subscriptions (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    plan_id INTEGER REFERENCES qbank_plans(id) ON DELETE SET NULL,
+                    plan_name TEXT NOT NULL,
+                    duration_days INTEGER NOT NULL DEFAULT 30,
+                    price NUMERIC(10,2) NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    whatsapp_number TEXT DEFAULT '',
+                    payment_screenshot TEXT DEFAULT '',
+                    enrolled_at TIMESTAMPTZ DEFAULT NOW(),
+                    reviewed_at TIMESTAMPTZ,
+                    expires_at TIMESTAMPTZ,
+                    notes TEXT
+                );
+            """)
+            conn.commit()
+            # Seed plans if empty
+            cur.execute("SELECT COUNT(*) FROM qbank_plans")
+            if cur.fetchone()[0] == 0:
+                now = datetime.now(timezone.utc).isoformat()
+                for p in get_default_qbank_plans(now):
+                    cur.execute("INSERT INTO qbank_plans (name, description, duration_days, price, original_price, badge, features_json, is_active, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", p)
+                conn.commit()
+            # Seed questions if empty
+            cur.execute("SELECT COUNT(*) FROM qbank_questions")
+            if cur.fetchone()[0] == 0:
+                now = datetime.now(timezone.utc).isoformat()
+                for q in get_default_qbank_questions(now):
+                    cur.execute("INSERT INTO qbank_questions (category, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", q)
+                conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"PostgreSQL init note: {e}")
         return
+
     conn = sqlite3.connect(Config.DATABASE_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
     cursor = conn.cursor()
@@ -375,6 +831,58 @@ def init_db(app=None):
         );
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS qbank_questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT NOT NULL,
+            difficulty TEXT NOT NULL,
+            exam_type TEXT DEFAULT 'NCLEX-RN',
+            client_need TEXT DEFAULT '',
+            statement TEXT NOT NULL,
+            options_json TEXT NOT NULL,
+            correct_index INTEGER NOT NULL DEFAULT 0,
+            correct_rationale TEXT NOT NULL,
+            distractors_json TEXT NOT NULL,
+            clinical_pearl TEXT DEFAULT '',
+            is_demo INTEGER DEFAULT 0,
+            sort_order INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL
+        );
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS qbank_plans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            duration_days INTEGER NOT NULL DEFAULT 30,
+            price REAL NOT NULL,
+            original_price REAL NOT NULL,
+            badge TEXT DEFAULT '',
+            features_json TEXT NOT NULL,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL
+        );
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS qbank_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            plan_id INTEGER REFERENCES qbank_plans(id) ON DELETE SET NULL,
+            plan_name TEXT NOT NULL,
+            duration_days INTEGER NOT NULL DEFAULT 30,
+            price REAL NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'pending',
+            whatsapp_number TEXT DEFAULT '',
+            payment_screenshot TEXT DEFAULT '',
+            enrolled_at TEXT NOT NULL,
+            reviewed_at TEXT,
+            expires_at TEXT,
+            notes TEXT
+        );
+    """)
+
     # Safe migrations for existing databases
     _ensure_column(cursor, "users", "role", "TEXT NOT NULL DEFAULT 'student'")
     _ensure_column(cursor, "courses", "image_url", "TEXT DEFAULT ''")
@@ -452,6 +960,29 @@ def init_db(app=None):
                 clinical_pearl, sort_order, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, get_default_demo_mcqs(now))
+
+    # Seed default Q-Bank plans if table is empty
+    cursor.execute("SELECT COUNT(*) FROM qbank_plans")
+    if cursor.fetchone()[0] == 0:
+        now = datetime.now(timezone.utc).isoformat()
+        cursor.executemany("""
+            INSERT INTO qbank_plans (
+                name, description, duration_days, price, original_price,
+                badge, features_json, is_active, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, get_default_qbank_plans(now))
+
+    # Seed default Q-Bank questions if table is empty
+    cursor.execute("SELECT COUNT(*) FROM qbank_questions")
+    if cursor.fetchone()[0] == 0:
+        now = datetime.now(timezone.utc).isoformat()
+        cursor.executemany("""
+            INSERT INTO qbank_questions (
+                category, difficulty, exam_type, client_need, statement,
+                options_json, correct_index, correct_rationale, distractors_json,
+                clinical_pearl, is_demo, sort_order, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, get_default_qbank_questions(now))
 
     conn.commit()
     conn.close()
@@ -1247,6 +1778,460 @@ class DemoMCQ:
         return m.to_dict() if m else None
 
 
+class QBankQuestion:
+    def __init__(self, data):
+        self.id = data['id']
+        self.category = data['category']
+        self.difficulty = data.get('difficulty') or 'High Yield'
+        self.exam_type = data.get('exam_type') or 'NCLEX-RN'
+        self.client_need = data.get('client_need') or ''
+        self.statement = data['statement']
+        try:
+            self.options = json.loads(data['options_json']) if isinstance(data['options_json'], str) else data['options_json']
+        except Exception:
+            self.options = []
+        self.correct_index = int(data.get('correct_index', 0))
+        self.correct_rationale = data.get('correct_rationale') or ''
+        try:
+            self.distractors = json.loads(data['distractors_json']) if isinstance(data['distractors_json'], str) else data['distractors_json']
+        except Exception:
+            self.distractors = []
+        self.clinical_pearl = data.get('clinical_pearl') or ''
+        self.is_demo = bool(data.get('is_demo', 0))
+        self.sort_order = int(data.get('sort_order', 0))
+        self.created_at = data.get('created_at', '')
+
+    def to_dict(self, include_answers=True):
+        d = {
+            'id': self.id,
+            'category': self.category,
+            'difficulty': self.difficulty,
+            'examType': self.exam_type,
+            'clientNeed': self.client_need,
+            'statement': self.statement,
+            'options': self.options,
+            'isDemo': self.is_demo,
+            'sortOrder': self.sort_order,
+            'createdAt': self.created_at,
+        }
+        if include_answers:
+            d['correctIndex'] = self.correct_index
+            d['correctRationale'] = self.correct_rationale
+            d['distractors'] = self.distractors
+            d['clinicalPearl'] = self.clinical_pearl
+            d['description'] = {
+                'correctRationale': self.correct_rationale,
+                'distractors': self.distractors,
+                'clinicalPearl': self.clinical_pearl,
+            }
+        return d
+
+    @classmethod
+    def all(cls, category=None, difficulty=None, exam_type=None, is_demo_only=False):
+        db = get_db()
+        sql = "SELECT * FROM qbank_questions WHERE 1=1"
+        params = []
+        if is_demo_only:
+            sql += " AND is_demo = 1"
+        if category and category.lower() != 'all':
+            sql += " AND category = ?"
+            params.append(category)
+        if difficulty and difficulty.lower() != 'all':
+            sql += " AND difficulty = ?"
+            params.append(difficulty)
+        if exam_type and exam_type.lower() != 'all':
+            sql += " AND exam_type = ?"
+            params.append(exam_type)
+        sql += " ORDER BY sort_order ASC, id ASC"
+        cur = db.execute(sql, tuple(params)) if params else db.execute(sql)
+        return [cls(dict(r)) for r in cur.fetchall()]
+
+    @classmethod
+    def find_by_id(cls, question_id):
+        db = get_db()
+        cur = db.execute("SELECT * FROM qbank_questions WHERE id = ?", (question_id,))
+        row = cur.fetchone()
+        return cls(dict(row)) if row else None
+
+    @classmethod
+    def count(cls, is_demo_only=False):
+        db = get_db()
+        if is_demo_only:
+            cur = db.execute("SELECT COUNT(*) FROM qbank_questions WHERE is_demo = 1")
+        else:
+            cur = db.execute("SELECT COUNT(*) FROM qbank_questions")
+        row = cur.fetchone()
+        return row[0] if row else 0
+
+    @classmethod
+    def create(cls, category, difficulty, statement, options, correct_index, correct_rationale, distractors=None, clinical_pearl='', client_need='', exam_type='NCLEX-RN', is_demo=0, sort_order=0):
+        db = get_db()
+        now = datetime.now(timezone.utc).isoformat()
+        options_json = json.dumps(options) if isinstance(options, list) else str(options)
+        if isinstance(distractors, list):
+            distractors_json = json.dumps(distractors)
+        elif isinstance(distractors, str):
+            try:
+                p = json.loads(distractors)
+                distractors_json = json.dumps(p) if isinstance(p, list) else json.dumps([distractors])
+            except Exception:
+                distractors_json = json.dumps([d.strip() for d in distractors.split('\n') if d.strip()])
+        else:
+            distractors_json = '[]'
+
+        cur = db.cursor()
+        cur.execute("""
+            INSERT INTO qbank_questions (
+                category, difficulty, exam_type, client_need, statement, options_json,
+                correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (category, difficulty, exam_type, client_need, statement, options_json, int(correct_index), correct_rationale, distractors_json, clinical_pearl, 1 if is_demo else 0, int(sort_order), now))
+        db.commit()
+        return cls.find_by_id(cur.lastrowid)
+
+    @classmethod
+    def update(cls, question_id, **kwargs):
+        db = get_db()
+        q = cls.find_by_id(question_id)
+        if not q:
+            return None
+        category = kwargs.get('category', q.category)
+        difficulty = kwargs.get('difficulty', q.difficulty)
+        exam_type = kwargs.get('exam_type', q.exam_type)
+        client_need = kwargs.get('client_need', q.client_need)
+        statement = kwargs.get('statement', q.statement)
+        if 'options' in kwargs:
+            opts = kwargs['options']
+            options_json = json.dumps(opts) if isinstance(opts, list) else str(opts)
+        else:
+            options_json = json.dumps(q.options)
+        correct_index = int(kwargs.get('correct_index', q.correct_index))
+        correct_rationale = kwargs.get('correct_rationale', q.correct_rationale)
+        if 'distractors' in kwargs:
+            dist = kwargs['distractors']
+            if isinstance(dist, list):
+                distractors_json = json.dumps(dist)
+            elif isinstance(dist, str):
+                try:
+                    p = json.loads(dist)
+                    distractors_json = json.dumps(p) if isinstance(p, list) else json.dumps([dist])
+                except Exception:
+                    distractors_json = json.dumps([d.strip() for d in dist.split('\n') if d.strip()])
+            else:
+                distractors_json = '[]'
+        else:
+            distractors_json = json.dumps(q.distractors)
+        clinical_pearl = kwargs.get('clinical_pearl', q.clinical_pearl)
+        is_demo = 1 if kwargs.get('is_demo', q.is_demo) else 0
+        sort_order = int(kwargs.get('sort_order', q.sort_order))
+
+        db.execute("""
+            UPDATE qbank_questions
+            SET category = ?, difficulty = ?, exam_type = ?, client_need = ?, statement = ?,
+                options_json = ?, correct_index = ?, correct_rationale = ?, distractors_json = ?,
+                clinical_pearl = ?, is_demo = ?, sort_order = ?
+            WHERE id = ?
+        """, (category, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, question_id))
+        db.commit()
+        return cls.find_by_id(question_id)
+
+    @classmethod
+    def delete(cls, question_id):
+        db = get_db()
+        db.execute("DELETE FROM qbank_questions WHERE id = ?", (question_id,))
+        db.commit()
+
+    @classmethod
+    def reset_to_defaults(cls):
+        db = get_db()
+        db.execute("DELETE FROM qbank_questions")
+        now = datetime.now(timezone.utc).isoformat()
+        db.cursor().executemany("""
+            INSERT INTO qbank_questions (
+                category, difficulty, exam_type, client_need, statement,
+                options_json, correct_index, correct_rationale, distractors_json,
+                clinical_pearl, is_demo, sort_order, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, get_default_qbank_questions(now))
+        db.commit()
+        return cls.all()
+
+
+class QBankPlan:
+    def __init__(self, data):
+        self.id = data['id']
+        self.name = data['name']
+        self.description = data.get('description') or ''
+        self.duration_days = int(data.get('duration_days', 30))
+        self.price = float(data.get('price', 0))
+        self.original_price = float(data.get('original_price', 0))
+        self.badge = data.get('badge') or ''
+        try:
+            self.features = json.loads(data['features_json']) if isinstance(data['features_json'], str) else data['features_json']
+        except Exception:
+            self.features = []
+        self.is_active = bool(data.get('is_active', 1))
+        self.created_at = data.get('created_at', '')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'durationDays': self.duration_days,
+            'price': self.price,
+            'originalPrice': self.original_price,
+            'badge': self.badge,
+            'features': self.features,
+            'isActive': self.is_active,
+            'createdAt': self.created_at,
+        }
+
+    @classmethod
+    def all(cls, active_only=False):
+        db = get_db()
+        sql = "SELECT * FROM qbank_plans"
+        if active_only:
+            sql += " WHERE is_active = 1"
+        sql += " ORDER BY duration_days ASC, price ASC"
+        cur = db.execute(sql)
+        return [cls(dict(r)) for r in cur.fetchall()]
+
+    @classmethod
+    def find_by_id(cls, plan_id):
+        db = get_db()
+        cur = db.execute("SELECT * FROM qbank_plans WHERE id = ?", (plan_id,))
+        row = cur.fetchone()
+        return cls(dict(row)) if row else None
+
+    @classmethod
+    def create(cls, name, description, duration_days, price, original_price=0, badge='', features=None):
+        db = get_db()
+        now = datetime.now(timezone.utc).isoformat()
+        features_json = json.dumps(features) if isinstance(features, list) else str(features or '[]')
+        cur = db.cursor()
+        cur.execute("""
+            INSERT INTO qbank_plans (name, description, duration_days, price, original_price, badge, features_json, is_active, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+        """, (name, description, int(duration_days), float(price), float(original_price), badge, features_json, now))
+        db.commit()
+        return cls.find_by_id(cur.lastrowid)
+
+    @classmethod
+    def update(cls, plan_id, **kwargs):
+        db = get_db()
+        p = cls.find_by_id(plan_id)
+        if not p:
+            return None
+        name = kwargs.get('name', p.name)
+        description = kwargs.get('description', p.description)
+        duration_days = int(kwargs.get('duration_days', p.duration_days))
+        price = float(kwargs.get('price', p.price))
+        original_price = float(kwargs.get('original_price', p.original_price))
+        badge = kwargs.get('badge', p.badge)
+        if 'features' in kwargs:
+            feats = kwargs['features']
+            features_json = json.dumps(feats) if isinstance(feats, list) else str(feats)
+        else:
+            features_json = json.dumps(p.features)
+        is_active = 1 if kwargs.get('is_active', p.is_active) else 0
+
+        db.execute("""
+            UPDATE qbank_plans
+            SET name = ?, description = ?, duration_days = ?, price = ?, original_price = ?, badge = ?, features_json = ?, is_active = ?
+            WHERE id = ?
+        """, (name, description, duration_days, price, original_price, badge, features_json, is_active, plan_id))
+        db.commit()
+        return cls.find_by_id(plan_id)
+
+
+class QBankSubscription:
+    def __init__(self, data):
+        self.id = data['id']
+        self.user_id = data['user_id']
+        self.plan_id = data.get('plan_id')
+        self.plan_name = data.get('plan_name') or 'Q-Bank Subscription'
+        self.duration_days = int(data.get('duration_days', 30))
+        self.price = float(data.get('price', 0))
+        self.status = data.get('status') or 'pending'
+        self.whatsapp_number = data.get('whatsapp_number') or ''
+        self.payment_screenshot = data.get('payment_screenshot') or ''
+        self.enrolled_at = data.get('enrolled_at', '')
+        self.reviewed_at = data.get('reviewed_at')
+        self.expires_at = data.get('expires_at')
+        self.notes = data.get('notes') or ''
+
+    def to_dict(self):
+        user = User.find_by_id(self.user_id) if self.user_id else None
+        now_dt = datetime.now(timezone.utc)
+        is_active = False
+        days_remaining = 0
+        if self.status == 'approved':
+            if not self.expires_at:
+                is_active = True
+                days_remaining = 999
+            else:
+                try:
+                    exp_dt = datetime.fromisoformat(self.expires_at.replace('Z', '+00:00'))
+                    if exp_dt > now_dt:
+                        is_active = True
+                        days_remaining = max(0, (exp_dt - now_dt).days)
+                except Exception:
+                    is_active = True
+                    days_remaining = self.duration_days
+
+        return {
+            'id': self.id,
+            'userId': self.user_id,
+            'user': user.to_dict() if user else None,
+            'studentName': f"{user.first_name} {user.last_name}".strip() if user else 'Unknown Student',
+            'studentEmail': user.email if user else '',
+            'planId': self.plan_id,
+            'planName': self.plan_name,
+            'durationDays': self.duration_days,
+            'price': self.price,
+            'status': self.status,
+            'whatsappNumber': self.whatsapp_number,
+            'paymentScreenshot': self.payment_screenshot,
+            'enrolledAt': self.enrolled_at,
+            'reviewedAt': self.reviewed_at,
+            'expiresAt': self.expires_at,
+            'isActive': is_active,
+            'daysRemaining': days_remaining,
+            'notes': self.notes,
+        }
+
+    @classmethod
+    def find_by_id(cls, sub_id):
+        db = get_db()
+        cur = db.execute("SELECT * FROM qbank_subscriptions WHERE id = ?", (sub_id,))
+        row = cur.fetchone()
+        return cls(dict(row)) if row else None
+
+    @classmethod
+    def find_by_user_id(cls, user_id):
+        db = get_db()
+        cur = db.execute("SELECT * FROM qbank_subscriptions WHERE user_id = ? ORDER BY id DESC", (user_id,))
+        return [cls(dict(r)) for r in cur.fetchall()]
+
+    @classmethod
+    def user_has_active(cls, user_id):
+        db = get_db()
+        cur = db.execute("""
+            SELECT * FROM qbank_subscriptions
+            WHERE user_id = ? AND status = 'approved'
+            ORDER BY id DESC
+        """, (user_id,))
+        now_dt = datetime.now(timezone.utc)
+        for r in cur.fetchall():
+            sub = cls(dict(r))
+            if not sub.expires_at:
+                return True
+            try:
+                exp_dt = datetime.fromisoformat(sub.expires_at.replace('Z', '+00:00'))
+                if exp_dt > now_dt:
+                    return True
+            except Exception:
+                return True
+        return False
+
+    @classmethod
+    def get_user_status(cls, user_id):
+        db = get_db()
+        cur = db.execute("""
+            SELECT * FROM qbank_subscriptions
+            WHERE user_id = ?
+            ORDER BY id DESC
+        """, (user_id,))
+        rows = [cls(dict(r)) for r in cur.fetchall()]
+        if not rows:
+            return {'hasAccess': False, 'status': 'none', 'subscription': None, 'daysRemaining': 0}
+
+        now_dt = datetime.now(timezone.utc)
+        for sub in rows:
+            if sub.status == 'approved':
+                if not sub.expires_at:
+                    return {'hasAccess': True, 'status': 'approved', 'subscription': sub.to_dict(), 'daysRemaining': 999}
+                try:
+                    exp_dt = datetime.fromisoformat(sub.expires_at.replace('Z', '+00:00'))
+                    if exp_dt > now_dt:
+                        days = max(0, (exp_dt - now_dt).days)
+                        return {'hasAccess': True, 'status': 'approved', 'subscription': sub.to_dict(), 'daysRemaining': days}
+                except Exception:
+                    return {'hasAccess': True, 'status': 'approved', 'subscription': sub.to_dict(), 'daysRemaining': sub.duration_days}
+
+        latest = rows[0]
+        return {
+            'hasAccess': False,
+            'status': latest.status,
+            'subscription': latest.to_dict(),
+            'daysRemaining': 0
+        }
+
+    @classmethod
+    def create(cls, user_id, plan_id, plan_name, duration_days, price, whatsapp_number='', payment_screenshot='', status='pending'):
+        db = get_db()
+        now = datetime.now(timezone.utc).isoformat()
+        cur = db.cursor()
+        cur.execute("""
+            INSERT INTO qbank_subscriptions (
+                user_id, plan_id, plan_name, duration_days, price,
+                status, whatsapp_number, payment_screenshot, enrolled_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, plan_id, plan_name, int(duration_days), float(price), status, whatsapp_number, payment_screenshot, now))
+        db.commit()
+        return cls.find_by_id(cur.lastrowid)
+
+    @classmethod
+    def all(cls, status=None):
+        db = get_db()
+        sql = "SELECT * FROM qbank_subscriptions"
+        params = []
+        if status:
+            sql += " WHERE status = ?"
+            params.append(status)
+        sql += " ORDER BY id DESC"
+        cur = db.execute(sql, tuple(params)) if params else db.execute(sql)
+        return [cls(dict(r)) for r in cur.fetchall()]
+
+    @classmethod
+    def approve(cls, sub_id, notes=None):
+        db = get_db()
+        sub = cls.find_by_id(sub_id)
+        if not sub:
+            return None
+        now_dt = datetime.now(timezone.utc)
+        exp_dt = now_dt + timedelta(days=sub.duration_days)
+        reviewed_at = now_dt.isoformat()
+        expires_at = exp_dt.isoformat()
+        db.execute("""
+            UPDATE qbank_subscriptions
+            SET status = 'approved', reviewed_at = ?, expires_at = ?, notes = COALESCE(?, notes)
+            WHERE id = ?
+        """, (reviewed_at, expires_at, notes, sub_id))
+        db.commit()
+        return cls.find_by_id(sub_id)
+
+    @classmethod
+    def reject(cls, sub_id, notes=None):
+        db = get_db()
+        now_dt = datetime.now(timezone.utc)
+        reviewed_at = now_dt.isoformat()
+        db.execute("""
+            UPDATE qbank_subscriptions
+            SET status = 'rejected', reviewed_at = ?, notes = COALESCE(?, notes)
+            WHERE id = ?
+        """, (reviewed_at, notes, sub_id))
+        db.commit()
+        return cls.find_by_id(sub_id)
+
+    @classmethod
+    def delete(cls, sub_id):
+        db = get_db()
+        db.execute("DELETE FROM qbank_subscriptions WHERE id = ?", (sub_id,))
+        db.commit()
+
+
 # ==============================================================================
 # 3. JWT AUTHENTICATION UTILITIES & DECORATORS
 # ==============================================================================
@@ -2021,10 +3006,224 @@ def update_progress(course_id):
     }), 200
 
 
+
+
+
+# ==============================================================================
+# 6B. Q-BANK (QUESTION BANK) REST API ROUTES (/api/qbank)
+# ==============================================================================
+qbank_bp = Blueprint('qbank', __name__, url_prefix='/api/qbank')
+
+
+# ── 1. GET ALL ACTIVE PLANS (Public) ───────────────────────────────────────────
+@qbank_bp.route('/plans', methods=['GET'])
+def get_qbank_plans():
+    plans = QBankPlan.all(active_only=True)
+    return jsonify({
+        'success': True,
+        'plans': [p.to_dict() for p in plans]
+    }), 200
+
+
+# ── 2. GET USER Q-BANK SUBSCRIPTION STATUS ────────────────────────────────────
+@qbank_bp.route('/status', methods=['GET'])
+@jwt_required(optional=True)
+def get_qbank_status():
+    user_id = get_jwt_identity()
+    if not user_id:
+        return jsonify({
+            'success': True,
+            'isAuthenticated': False,
+            'hasAccess': False,
+            'status': 'unauthenticated',
+            'subscription': None,
+            'daysRemaining': 0
+        }), 200
+
+    user = User.find_by_id(user_id)
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found.'}), 404
+
+    # Admins always have access
+    if user.role == 'admin':
+        return jsonify({
+            'success': True,
+            'isAuthenticated': True,
+            'hasAccess': True,
+            'isAdmin': True,
+            'status': 'approved',
+            'subscription': {
+                'planName': 'Administrator All-Access',
+                'status': 'approved',
+                'daysRemaining': 9999
+            },
+            'daysRemaining': 9999
+        }), 200
+
+    status_data = QBankSubscription.get_user_status(user_id)
+    return jsonify({
+        'success': True,
+        'isAuthenticated': True,
+        'hasAccess': status_data['hasAccess'],
+        'isAdmin': False,
+        'status': status_data['status'],
+        'subscription': status_data['subscription'],
+        'daysRemaining': status_data['daysRemaining']
+    }), 200
+
+
+# ── 3. SUBSCRIBE TO Q-BANK (Upload payment receipt / submit plan) ───────────────
+@qbank_bp.route('/subscribe', methods=['POST'])
+@jwt_required()
+def subscribe_qbank():
+    user_id = get_jwt_identity()
+    user = User.find_by_id(user_id)
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found.'}), 404
+
+    whatsapp_number = ''
+    plan_id = None
+    notes = ''
+    payment_screenshot = ''
+
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+        plan_id = data.get('planId') or data.get('plan_id')
+        whatsapp_number = data.get('whatsappNumber') or data.get('whatsapp_number') or ''
+        notes = data.get('notes') or ''
+        payment_screenshot = data.get('paymentScreenshot') or data.get('payment_screenshot') or ''
+    else:
+        plan_id = request.form.get('planId') or request.form.get('plan_id')
+        whatsapp_number = request.form.get('whatsappNumber') or request.form.get('whatsapp_number') or ''
+        notes = request.form.get('notes') or ''
+        payment_screenshot = request.form.get('paymentScreenshot') or request.form.get('payment_screenshot') or ''
+
+    # Handle file upload for payment screenshot
+    file = request.files.get('screenshot') or request.files.get('payment_screenshot') or request.files.get('paymentScreenshot')
+    if file and file.filename:
+        filename = secure_filename(file.filename)
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.pdf']:
+            ext = '.jpg'
+        saved_filename = f"qbank_pay_u{user_id}_p{plan_id}_{uuid.uuid4().hex[:8]}{ext}"
+        upload_folder = os.path.join(Config.UPLOAD_FOLDER, 'payments')
+        try:
+            os.makedirs(upload_folder, exist_ok=True)
+            file.save(os.path.join(upload_folder, saved_filename))
+            payment_screenshot = f"/uploads/payments/{saved_filename}"
+        except Exception as e:
+            app.logger.warning(f"QBank payment screenshot upload failed: {e}")
+
+    # Validate plan
+    plan = None
+    if plan_id:
+        try:
+            plan = QBankPlan.find_by_id(int(plan_id))
+        except (ValueError, TypeError):
+            plan = None
+
+    if not plan:
+        plans = QBankPlan.all(active_only=True)
+        if plans:
+            plan = plans[0]
+        else:
+            return jsonify({'success': False, 'message': 'Invalid plan selected.'}), 400
+
+    # Create subscription record
+    sub = QBankSubscription.create(
+        user_id=user_id,
+        plan_id=plan.id,
+        plan_name=plan.name,
+        duration_days=plan.duration_days,
+        price=plan.price,
+        whatsapp_number=whatsapp_number,
+        payment_screenshot=payment_screenshot,
+        status='pending'
+    )
+
+    ActivityLog.log(
+        'Q-Bank Subscription Requested',
+        f'Student {user.first_name} {user.last_name} ({user.email}) requested Q-Bank "{plan.name}" ({plan.duration_days} days, Rs. {plan.price:,.0f})',
+        user.id,
+        user.email
+    )
+
+    return jsonify({
+        'success': True,
+        'message': 'Your Q-Bank subscription request has been submitted successfully! The administrator will review and approve your access shortly.',
+        'subscription': sub.to_dict()
+    }), 201
+
+
+# ── 4. GET PRACTICE QUESTIONS (Demo mode vs Full Subscriber mode) ───────────────
+@qbank_bp.route('/questions', methods=['GET'])
+@jwt_required(optional=True)
+def get_qbank_questions():
+    user_id = get_jwt_identity()
+    user = User.find_by_id(user_id) if user_id else None
+
+    is_admin = bool(user and user.role == 'admin')
+    has_sub = bool(user_id and QBankSubscription.user_has_active(user_id))
+    has_access = is_admin or has_sub
+
+    category = request.args.get('category')
+    difficulty = request.args.get('difficulty')
+    exam_type = request.args.get('exam_type')
+
+    # If user has access (subscribed or admin), return all matching questions.
+    # Otherwise return only questions with is_demo = 1.
+    questions = QBankQuestion.all(
+        category=category,
+        difficulty=difficulty,
+        exam_type=exam_type,
+        is_demo_only=not has_access
+    )
+
+    total_in_db = QBankQuestion.count(is_demo_only=False)
+    demo_in_db = QBankQuestion.count(is_demo_only=True)
+
+    return jsonify({
+        'success': True,
+        'isSubscribed': has_access,
+        'demoMode': not has_access,
+        'totalAvailable': len(questions),
+        'totalInBank': total_in_db,
+        'demoCount': demo_in_db,
+        'questions': [q.to_dict(include_answers=True) for q in questions]
+    }), 200
+
+
+# ── 5. CHECK ANSWER & GET RATIONALE (Tutor Mode) ──────────────────────────────
+@qbank_bp.route('/check-answer', methods=['POST'])
+def check_qbank_answer():
+    data = request.get_json(silent=True) or {}
+    question_id = data.get('questionId') or data.get('question_id')
+    selected_index = data.get('selectedIndex') if 'selectedIndex' in data else data.get('selected_index')
+
+    if question_id is None or selected_index is None:
+        return jsonify({'success': False, 'message': 'questionId and selectedIndex are required.'}), 422
+
+    q = QBankQuestion.find_by_id(int(question_id))
+    if not q:
+        return jsonify({'success': False, 'message': 'Question not found.'}), 404
+
+    is_correct = (int(selected_index) == int(q.correct_index))
+
+    return jsonify({
+        'success': True,
+        'isCorrect': is_correct,
+        'correctIndex': q.correct_index,
+        'correctRationale': q.correct_rationale,
+        'distractors': q.distractors,
+        'clinicalPearl': q.clinical_pearl
+    }), 200
+
+
 # ==============================================================================
 # 7. ADMIN MANAGEMENT REST API ROUTES (/api/admin)
 # ==============================================================================
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
+
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'}
 
@@ -2073,6 +3272,24 @@ def get_stats():
     """)
     total_revenue = float(cur.fetchone()[0])
 
+    # Q-Bank metrics
+    cur = db.execute("""
+        SELECT
+            COUNT(CASE WHEN status = 'pending' THEN 1 END) as qbank_pending,
+            COUNT(CASE WHEN status = 'approved' THEN 1 END) as qbank_approved,
+            COUNT(CASE WHEN status = 'rejected' THEN 1 END) as qbank_rejected,
+            COUNT(*) as qbank_total,
+            COALESCE(SUM(CASE WHEN status = 'approved' THEN price ELSE 0 END), 0) as qbank_revenue
+        FROM qbank_subscriptions
+    """)
+    qb_counts = dict(cur.fetchone())
+
+    cur = db.execute("SELECT COUNT(*) FROM qbank_questions")
+    qbank_questions_count = cur.fetchone()[0]
+
+    cur = db.execute("SELECT COUNT(*) FROM qbank_questions WHERE is_demo = 1")
+    qbank_demo_count = cur.fetchone()[0]
+
     # Recent pending registrations
     recent_pending = Enrollment.all_with_details(status='pending')[:5]
 
@@ -2091,6 +3308,14 @@ def get_stats():
             'rejectedRegistrations': e_counts['rejected_count'],
             'totalEnrollments': e_counts['total_enrollments'],
             'totalRevenue': total_revenue,
+            # Q-Bank Metrics
+            'qbankQuestionsCount': qbank_questions_count,
+            'qbankDemoCount': qbank_demo_count,
+            'qbankPendingCount': qb_counts['qbank_pending'],
+            'qbankApprovedCount': qb_counts['qbank_approved'],
+            'qbankRejectedCount': qb_counts['qbank_rejected'],
+            'qbankTotalSubscriptions': qb_counts['qbank_total'],
+            'qbankRevenue': float(qb_counts['qbank_revenue']),
         },
         'recentPending': recent_pending,
         'recentActivities': recent_activities,
@@ -2922,6 +4147,348 @@ def reset_demo_mcqs():
     }), 200
 
 
+# ── Q-BANK QUESTIONS MANAGEMENT (Admin) ───────────────────────────────────────
+@admin_bp.route('/qbank/questions', methods=['GET'])
+@admin_required()
+def admin_list_qbank_questions():
+    category = request.args.get('category')
+    difficulty = request.args.get('difficulty')
+    exam_type = request.args.get('exam_type')
+    is_demo = request.args.get('is_demo')
+    q_search = request.args.get('q', '').strip().lower()
+
+    questions = QBankQuestion.all(
+        category=category,
+        difficulty=difficulty,
+        exam_type=exam_type,
+        is_demo_only=(is_demo == '1')
+    )
+
+    if q_search:
+        questions = [
+            q for q in questions
+            if q_search in q.statement.lower() or
+               q_search in q.category.lower() or
+               q_search in q.correct_rationale.lower() or
+               q_search in q.clinical_pearl.lower()
+        ]
+
+    return jsonify({
+        'success': True,
+        'total': len(questions),
+        'questions': [q.to_dict(include_answers=True) for q in questions]
+    }), 200
+
+
+@admin_bp.route('/qbank/questions', methods=['POST'])
+@admin_required()
+def admin_create_qbank_question():
+    data = request.get_json(silent=True) or {}
+    statement = data.get('statement', '').strip()
+    options = data.get('options', [])
+    correct_index = data.get('correct_index') if 'correct_index' in data else data.get('correctIndex')
+    correct_rationale = data.get('correct_rationale') or data.get('correctRationale', '').strip()
+    category = data.get('category', 'Pharmacology & Parenteral Therapies')
+    difficulty = data.get('difficulty', 'High Yield')
+    exam_type = data.get('exam_type') or data.get('examType', 'NCLEX-RN')
+    client_need = data.get('client_need') or data.get('clientNeed', '')
+    distractors = data.get('distractors', [])
+    clinical_pearl = data.get('clinical_pearl') or data.get('clinicalPearl', '')
+    is_demo = 1 if (data.get('is_demo') or data.get('isDemo')) else 0
+    sort_order = int(data.get('sort_order') or data.get('sortOrder') or 0)
+
+    if not statement:
+        return jsonify({'success': False, 'message': 'Question statement is required.'}), 422
+    if not isinstance(options, list) or len(options) < 2:
+        return jsonify({'success': False, 'message': 'At least 2 answer choices are required.'}), 422
+    if correct_index is None or int(correct_index) < 0 or int(correct_index) >= len(options):
+        return jsonify({'success': False, 'message': 'Valid correct_index is required.'}), 422
+    if not correct_rationale:
+        return jsonify({'success': False, 'message': 'Correct answer rationale is required.'}), 422
+
+    q = QBankQuestion.create(
+        category=category,
+        difficulty=difficulty,
+        statement=statement,
+        options=options,
+        correct_index=int(correct_index),
+        correct_rationale=correct_rationale,
+        distractors=distractors,
+        clinical_pearl=clinical_pearl,
+        client_need=client_need,
+        exam_type=exam_type,
+        is_demo=is_demo,
+        sort_order=sort_order
+    )
+
+    admin_user = g.current_user
+    admin_name = f"{admin_user.first_name} {admin_user.last_name}".strip()
+    ActivityLog.log(
+        'Q-Bank Question Created',
+        f'Admin {admin_name} created question #{q.id} in "{category}" ({exam_type})',
+        admin_user.id,
+        admin_user.email
+    )
+
+    return jsonify({
+        'success': True,
+        'message': 'Q-Bank question created successfully.',
+        'question': q.to_dict(include_answers=True)
+    }), 201
+
+
+@admin_bp.route('/qbank/questions/<int:question_id>', methods=['GET'])
+@admin_required()
+def admin_get_qbank_question(question_id):
+    q = QBankQuestion.find_by_id(question_id)
+    if not q:
+        return jsonify({'success': False, 'message': 'Question not found.'}), 404
+    return jsonify({'success': True, 'question': q.to_dict(include_answers=True)}), 200
+
+
+@admin_bp.route('/qbank/questions/<int:question_id>', methods=['PUT'])
+@admin_required()
+def admin_update_qbank_question(question_id):
+    q = QBankQuestion.find_by_id(question_id)
+    if not q:
+        return jsonify({'success': False, 'message': 'Question not found.'}), 404
+
+    data = request.get_json(silent=True) or {}
+    updated = QBankQuestion.update(
+        question_id,
+        statement=data.get('statement', q.statement),
+        options=data.get('options', q.options),
+        correct_index=data.get('correct_index', data.get('correctIndex', q.correct_index)),
+        correct_rationale=data.get('correct_rationale', data.get('correctRationale', q.correct_rationale)),
+        category=data.get('category', q.category),
+        difficulty=data.get('difficulty', q.difficulty),
+        exam_type=data.get('exam_type', data.get('examType', q.exam_type)),
+        client_need=data.get('client_need', data.get('clientNeed', q.client_need)),
+        distractors=data.get('distractors', q.distractors),
+        clinical_pearl=data.get('clinical_pearl', data.get('clinicalPearl', q.clinical_pearl)),
+        is_demo=data.get('is_demo', data.get('isDemo', q.is_demo)),
+        sort_order=data.get('sort_order', data.get('sortOrder', q.sort_order))
+    )
+
+    admin_user = g.current_user
+    admin_name = f"{admin_user.first_name} {admin_user.last_name}".strip()
+    ActivityLog.log(
+        'Q-Bank Question Updated',
+        f'Admin {admin_name} updated question #{question_id}',
+        admin_user.id,
+        admin_user.email
+    )
+
+    return jsonify({
+        'success': True,
+        'message': 'Question updated successfully.',
+        'question': updated.to_dict(include_answers=True)
+    }), 200
+
+
+@admin_bp.route('/qbank/questions/<int:question_id>', methods=['DELETE'])
+@admin_required()
+def admin_delete_qbank_question(question_id):
+    q = QBankQuestion.find_by_id(question_id)
+    if not q:
+        return jsonify({'success': False, 'message': 'Question not found.'}), 404
+
+    QBankQuestion.delete(question_id)
+    admin_user = g.current_user
+    admin_name = f"{admin_user.first_name} {admin_user.last_name}".strip()
+    ActivityLog.log(
+        'Q-Bank Question Deleted',
+        f'Admin {admin_name} deleted question #{question_id}',
+        admin_user.id,
+        admin_user.email
+    )
+
+    return jsonify({'success': True, 'message': 'Question deleted successfully.'}), 200
+
+
+@admin_bp.route('/qbank/questions/seed', methods=['POST'])
+@admin_required()
+def admin_seed_qbank_questions():
+    questions = QBankQuestion.reset_to_defaults()
+    admin_user = g.current_user
+    admin_name = f"{admin_user.first_name} {admin_user.last_name}".strip()
+    ActivityLog.log(
+        'Q-Bank Questions Reseeded',
+        f'Admin {admin_name} reseeded Q-Bank with {len(questions)} high-yield default questions',
+        admin_user.id,
+        admin_user.email
+    )
+    return jsonify({
+        'success': True,
+        'message': f'Reseeded Q-Bank with {len(questions)} high-yield clinical questions.',
+        'count': len(questions)
+    }), 200
+
+
+# ── Q-BANK SUBSCRIPTIONS MANAGEMENT (Admin) ───────────────────────────────────
+@admin_bp.route('/qbank/subscriptions', methods=['GET'])
+@admin_required()
+def admin_list_qbank_subscriptions():
+    status = request.args.get('status')
+    if status and status.lower() == 'all':
+        status = None
+
+    subs = QBankSubscription.all(status=status)
+    return jsonify({
+        'success': True,
+        'total': len(subs),
+        'subscriptions': [s.to_dict() for s in subs]
+    }), 200
+
+
+@admin_bp.route('/qbank/subscriptions/<int:sub_id>/approve', methods=['PUT'])
+@admin_required()
+def admin_approve_qbank_subscription(sub_id):
+    sub = QBankSubscription.find_by_id(sub_id)
+    if not sub:
+        return jsonify({'success': False, 'message': 'Subscription not found.'}), 404
+
+    data = request.get_json(silent=True) or {}
+    notes = data.get('notes', 'Payment confirmed & approved by administrator')
+
+    updated = QBankSubscription.approve(sub_id, notes=notes)
+
+    admin_user = g.current_user
+    admin_name = f"{admin_user.first_name} {admin_user.last_name}".strip()
+
+    user = User.find_by_id(sub.user_id)
+    student_name = f"{user.first_name} {user.last_name}".strip() if user else 'Student'
+
+    # Build WhatsApp notification message and URL
+    clean_phone = re.sub(r'[^0-9]', '', sub.whatsapp_number or '')
+    msg = (
+        f"Assalam-o-Alaikum {student_name}! Your payment for Q-Bank Plan \"{sub.plan_name}\" has been verified and APPROVED! "
+        f"You now have full access to all 2,500+ NCLEX practice questions with clinical rationales. "
+        f"Log in and start practicing now at: https://simplenclexplatform.vercel.app/qbank"
+    )
+    whatsapp_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(msg)}" if clean_phone else None
+
+    ActivityLog.log(
+        'Q-Bank Subscription Approved',
+        f'Admin {admin_name} approved Q-Bank subscription #{sub_id} for {student_name} ({user.email if user else ""}) — Plan: {sub.plan_name}',
+        admin_user.id,
+        admin_user.email
+    )
+
+    return jsonify({
+        'success': True,
+        'message': f'Q-Bank subscription for {student_name} has been APPROVED! Access valid for {sub.duration_days} days.',
+        'subscription': updated.to_dict() if updated else None,
+        'whatsappUrl': whatsapp_url
+    }), 200
+
+
+@admin_bp.route('/qbank/subscriptions/<int:sub_id>/reject', methods=['PUT'])
+@admin_required()
+def admin_reject_qbank_subscription(sub_id):
+    sub = QBankSubscription.find_by_id(sub_id)
+    if not sub:
+        return jsonify({'success': False, 'message': 'Subscription not found.'}), 404
+
+    data = request.get_json(silent=True) or {}
+    notes = data.get('notes', 'Declined by administrator.')
+
+    updated = QBankSubscription.reject(sub_id, notes=notes)
+
+    admin_user = g.current_user
+    admin_name = f"{admin_user.first_name} {admin_user.last_name}".strip()
+    user = User.find_by_id(sub.user_id)
+    student_name = f"{user.first_name} {user.last_name}".strip() if user else 'Student'
+
+    ActivityLog.log(
+        'Q-Bank Subscription Rejected',
+        f'Admin {admin_name} rejected Q-Bank subscription #{sub_id} for {student_name}. Reason: {notes}',
+        admin_user.id,
+        admin_user.email
+    )
+
+    return jsonify({
+        'success': True,
+        'message': 'Q-Bank subscription has been REJECTED.',
+        'subscription': updated.to_dict() if updated else None
+    }), 200
+
+
+@admin_bp.route('/qbank/subscriptions/<int:sub_id>', methods=['DELETE'])
+@admin_required()
+def admin_delete_qbank_subscription(sub_id):
+    sub = QBankSubscription.find_by_id(sub_id)
+    if not sub:
+        return jsonify({'success': False, 'message': 'Subscription not found.'}), 404
+
+    QBankSubscription.delete(sub_id)
+    admin_user = g.current_user
+    admin_name = f"{admin_user.first_name} {admin_user.last_name}".strip()
+    ActivityLog.log(
+        'Q-Bank Subscription Deleted',
+        f'Admin {admin_name} deleted Q-Bank subscription record #{sub_id}',
+        admin_user.id,
+        admin_user.email
+    )
+
+    return jsonify({'success': True, 'message': 'Subscription record deleted successfully.'}), 200
+
+
+@admin_bp.route('/qbank/subscriptions/manual', methods=['POST'])
+@admin_required()
+def admin_manual_qbank_subscription():
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('userId') or data.get('user_id')
+    email = (data.get('email') or '').strip().lower()
+    plan_id = data.get('planId') or data.get('plan_id')
+    duration_days = data.get('durationDays') or data.get('duration_days')
+    notes = data.get('notes', 'Manual grant by administrator')
+
+    user = None
+    if user_id:
+        user = User.find_by_id(int(user_id))
+    elif email:
+        user = User.find_by_email(email)
+
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found. Please provide a valid user ID or registered email.'}), 404
+
+    plan = None
+    if plan_id:
+        plan = QBankPlan.find_by_id(int(plan_id))
+
+    plan_name = plan.name if plan else 'Admin Custom Pass'
+    days = int(duration_days) if duration_days else (plan.duration_days if plan else 30)
+    price = plan.price if plan else 0.0
+
+    sub = QBankSubscription.create(
+        user_id=user.id,
+        plan_id=plan.id if plan else None,
+        plan_name=plan_name,
+        duration_days=days,
+        price=price,
+        whatsapp_number='',
+        payment_screenshot='',
+        status='pending'
+    )
+    approved_sub = QBankSubscription.approve(sub.id, notes=notes)
+
+    admin_user = g.current_user
+    admin_name = f"{admin_user.first_name} {admin_user.last_name}".strip()
+    ActivityLog.log(
+        'Manual Q-Bank Access Granted',
+        f'Admin {admin_name} manually granted {days}-day Q-Bank access to {user.first_name} {user.last_name} ({user.email})',
+        admin_user.id,
+        admin_user.email
+    )
+
+    return jsonify({
+        'success': True,
+        'message': f'Q-Bank access successfully granted to {user.first_name} {user.last_name} for {days} days!',
+        'subscription': approved_sub.to_dict() if approved_sub else None
+    }), 201
+
+
 # ==============================================================================
 # 8. SEED DATA & PUBLIC ENDPOINTS
 # ==============================================================================
@@ -3011,6 +4578,7 @@ def create_app():
     # Register API Blueprints
     app.register_blueprint(auth_bp)
     app.register_blueprint(courses_bp)
+    app.register_blueprint(qbank_bp)
     app.register_blueprint(admin_bp)
 
     # ── Public APIs ────────────────────────────────────────────────────────────
@@ -3080,6 +4648,11 @@ def create_app():
     @app.route('/register.html')
     def register_page():
         return render_template('register.html')
+
+    @app.route('/qbank')
+    @app.route('/qbank.html')
+    def qbank_page():
+        return render_template('qbank.html')
 
     @app.route('/admin')
     @app.route('/admin.html')

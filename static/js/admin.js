@@ -82,6 +82,8 @@
     coursesView: 'Course Management & Picture Editor',
     curriculumView: 'Course Curriculum & Modules',
     demoMcqsView: 'NCLEX Q-Bank DEMO MCQs',
+    qbankQuestionsView: 'NCLEX & SNLE Question Bank (All Items)',
+    qbankSubscriptionsView: 'Q-Bank Subscriptions & Access Management',
     settingsView: 'Site Content & Personal Details',
     usersView: 'Students & Users Directory',
   };
@@ -114,6 +116,8 @@
         if (targetId === 'coursesView') loadCourses();
         if (targetId === 'curriculumView') loadCurriculumView();
         if (targetId === 'demoMcqsView') loadDemoMcqs();
+        if (targetId === 'qbankQuestionsView') loadQBankQuestions();
+        if (targetId === 'qbankSubscriptionsView') loadQBankSubscriptions();
         if (targetId === 'settingsView') loadSiteSettings();
         if (targetId === 'usersView') loadUsers();
       });
@@ -159,6 +163,13 @@
       const approvedEl = document.getElementById('statApproved');
       if (approvedEl) approvedEl.textContent = s.approvedEnrollments || 0;
 
+      // Q-Bank Stats
+      const qbQEl = document.getElementById('statQBankQuestions');
+      if (qbQEl) qbQEl.textContent = s.qbankQuestionsCount || 0;
+
+      const qbPendingEl = document.getElementById('statQBankPending');
+      if (qbPendingEl) qbPendingEl.textContent = s.qbankPendingCount || 0;
+
       // Update sidebar badge
       const badge = document.getElementById('sidebarPendingBadge');
       if (badge) {
@@ -167,6 +178,16 @@
           badge.style.display = 'inline-block';
         } else {
           badge.style.display = 'none';
+        }
+      }
+
+      const qbBadge = document.getElementById('sidebarQBankPendingBadge');
+      if (qbBadge) {
+        if (s.qbankPendingCount > 0) {
+          qbBadge.textContent = s.qbankPendingCount;
+          qbBadge.style.display = 'inline-block';
+        } else {
+          qbBadge.style.display = 'none';
         }
       }
 
@@ -1814,6 +1835,651 @@
     });
   }
 
+  // ── 9. Q-BANK QUESTIONS MANAGEMENT (ALL) ──────────────────────────────────
+  let cachedQBankQuestions = [];
+
+  async function loadQBankQuestions() {
+    const listContainer = document.getElementById('qbankAdminQuestionsList');
+    if (!listContainer) return;
+    listContainer.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--admin-text-muted)">Loading Q-Bank questions…</div>`;
+
+    const category = document.getElementById('qbankAdminCategory')?.value || 'all';
+    const difficulty = document.getElementById('qbankAdminDifficulty')?.value || 'all';
+    const examType = document.getElementById('qbankAdminExamType')?.value || 'all';
+    const isDemo = document.getElementById('qbankAdminDemo')?.value || 'all';
+    const search = document.getElementById('qbankAdminSearch')?.value.trim() || '';
+
+    const params = new URLSearchParams();
+    if (category !== 'all') params.append('category', category);
+    if (difficulty !== 'all') params.append('difficulty', difficulty);
+    if (examType !== 'all') params.append('exam_type', examType);
+    if (isDemo !== 'all') params.append('is_demo', isDemo);
+    if (search) params.append('q', search);
+
+    try {
+      const res = await fetch(`${API_ADMIN}/qbank/questions?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+
+      cachedQBankQuestions = data.questions || [];
+      renderQBankQuestionsList(cachedQBankQuestions);
+    } catch (err) {
+      console.error('Error loading Q-Bank questions:', err);
+      listContainer.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--admin-danger)">Failed to load Q-Bank questions: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function renderQBankQuestionsList(questions) {
+    const listContainer = document.getElementById('qbankAdminQuestionsList');
+    if (!listContainer) return;
+
+    if (!questions.length) {
+      listContainer.innerHTML = `
+        <div style="text-align:center;padding:3rem;color:var(--admin-text-muted)">
+          No questions found matching your search or filters. Click "Add New Question" above to add one.
+        </div>
+      `;
+      return;
+    }
+
+    const letters = ['A', 'B', 'C', 'D'];
+    listContainer.innerHTML = questions.map((q) => {
+      let opts = [];
+      try {
+        opts = Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]');
+      } catch (_) {
+        opts = [];
+      }
+
+      return `
+        <div class="admin-mcq-card" style="border:1px solid var(--admin-border);border-radius:10px;padding:1.5rem;background:#ffffff;margin-bottom:1.5rem;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:0.85rem;flex-wrap:wrap">
+            <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
+              <span class="admin-badge admin-badge-info" style="font-weight:700">#${q.id}</span>
+              <span class="admin-badge admin-badge-primary">${escapeHtml(q.category || 'General')}</span>
+              <span class="admin-badge admin-badge-warning">${escapeHtml(q.difficulty || 'High Yield')}</span>
+              <span class="admin-badge" style="background:#ede9fe;color:#5b21b6;font-weight:600">${escapeHtml(q.examType || 'NCLEX-RN')}</span>
+              ${q.isDemo ? `<span class="admin-badge admin-badge-success">🌟 Free Demo Item</span>` : `<span class="admin-badge" style="background:#f1f5f9;color:#475569">🔒 Subscribers Only</span>`}
+            </div>
+            <div style="display:flex;gap:0.5rem">
+              <button class="admin-btn admin-btn-sm admin-btn-secondary" onclick="window.adminEditQBankQuestion(${q.id})">
+                ✏️ Edit
+              </button>
+              <button class="admin-btn admin-btn-sm admin-btn-danger" onclick="window.adminDeleteQBankQuestion(${q.id})">
+                🗑️ Delete
+              </button>
+            </div>
+          </div>
+
+          <div style="font-size:1.05rem;font-weight:600;color:var(--admin-text-main);line-height:1.6;margin-bottom:1rem">
+            ${escapeHtml(q.statement)}
+          </div>
+
+          <!-- Options Grid -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:0.6rem;margin-bottom:1rem">
+            ${opts.map((opt, optIdx) => {
+              const isCorrect = (optIdx === q.correctIndex);
+              return `
+                <div style="padding:0.65rem 0.85rem;border-radius:6px;font-size:0.88rem;display:flex;align-items:center;gap:0.6rem;${isCorrect ? 'background:#ecfdf5;border:1.5px solid #10b981;color:#065f46;font-weight:700' : 'background:#f8fafc;border:1px solid #e2e8f0;color:#334155'}">
+                  <span style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;${isCorrect ? 'background:#10b981;color:#fff' : 'background:#cbd5e1;color:#1e293b'}">
+                    ${letters[optIdx] || optIdx + 1}
+                  </span>
+                  <span>${escapeHtml(opt)} ${isCorrect ? '✓ (Correct)' : ''}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- Rationale & Pearl Preview -->
+          <div style="background:#f8fafc;padding:0.85rem 1rem;border-radius:8px;border-left:4px solid var(--admin-primary);font-size:0.88rem;line-height:1.5;color:#334155;margin-bottom:0.5rem">
+            <strong>📖 Clinical Rationale:</strong> ${escapeHtml(q.correctRationale)}
+          </div>
+
+          ${q.clinicalPearl ? `
+            <div style="background:#fffbeb;padding:0.65rem 1rem;border-radius:6px;border:1px solid #fde68a;font-size:0.85rem;color:#92400e;line-height:1.4">
+              <strong>💡 High-Yield Pearl:</strong> ${escapeHtml(q.clinicalPearl)}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  window.adminEditQBankQuestion = function(questionId) {
+    openQBankQuestionModal(questionId);
+  };
+
+  window.adminDeleteQBankQuestion = async function(questionId) {
+    if (!confirm(`Are you sure you want to permanently delete Question #${questionId}?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_ADMIN}/qbank/questions/${questionId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+
+      showToast('Question deleted successfully.', 'success');
+      await loadQBankQuestions();
+      loadStats();
+    } catch (err) {
+      console.error('Error deleting question:', err);
+      showToast(err.message || 'Error deleting question', 'error');
+    }
+  };
+
+  async function openQBankQuestionModal(questionId = null) {
+    const modal = document.getElementById('qbankQuestionModal');
+    if (!modal) return;
+    const title = document.getElementById('qbankQuestionModalTitle');
+    const form = document.getElementById('qbankQuestionForm');
+    form.reset();
+
+    document.getElementById('qbankQuestionId').value = questionId || '';
+
+    if (questionId) {
+      title.textContent = `Edit Q-Bank Question #${questionId}`;
+      const q = cachedQBankQuestions.find(item => item.id === questionId);
+      if (q) {
+        populateQBankQuestionForm(q);
+      } else {
+        try {
+          const res = await fetch(`${API_ADMIN}/qbank/questions/${questionId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const data = await res.json();
+          if (data.success && data.question) {
+            populateQBankQuestionForm(data.question);
+          }
+        } catch (err) {
+          console.error('Failed to load question details:', err);
+        }
+      }
+    } else {
+      title.textContent = 'Add New Q-Bank Question';
+      document.querySelector('input[name="qbankCorrectOption"][value="0"]').checked = true;
+      document.getElementById('qbankIsDemo').checked = false;
+      document.getElementById('qbankSortOrder').value = 0;
+    }
+
+    openModal('qbankQuestionModal');
+  }
+
+  function populateQBankQuestionForm(q) {
+    document.getElementById('qbankStatement').value = q.statement || '';
+    document.getElementById('qbankCategory').value = q.category || 'Pharmacology & Parenteral Therapies';
+    document.getElementById('qbankDifficulty').value = q.difficulty || 'High Yield';
+    document.getElementById('qbankExamType').value = q.examType || 'NCLEX-RN';
+    document.getElementById('qbankClientNeed').value = q.clientNeed || '';
+
+    let opts = [];
+    try {
+      opts = Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]');
+    } catch (_) {
+      opts = [];
+    }
+    document.getElementById('qbankOpt0').value = opts[0] || '';
+    document.getElementById('qbankOpt1').value = opts[1] || '';
+    document.getElementById('qbankOpt2').value = opts[2] || '';
+    document.getElementById('qbankOpt3').value = opts[3] || '';
+
+    const correctRadio = document.querySelector(`input[name="qbankCorrectOption"][value="${q.correctIndex || 0}"]`);
+    if (correctRadio) correctRadio.checked = true;
+
+    document.getElementById('qbankCorrectRationale').value = q.correctRationale || '';
+
+    let distractors = [];
+    try {
+      distractors = Array.isArray(q.distractors) ? q.distractors : JSON.parse(q.distractors || '[]');
+    } catch (_) {
+      distractors = [];
+    }
+    document.getElementById('qbankDistractors').value = distractors.join('\n');
+
+    document.getElementById('qbankClinicalPearl').value = q.clinicalPearl || '';
+    document.getElementById('qbankIsDemo').checked = Boolean(q.isDemo);
+    document.getElementById('qbankSortOrder').value = q.sortOrder || 0;
+  }
+
+  async function handleSaveQBankQuestion() {
+    const id = document.getElementById('qbankQuestionId').value;
+    const statement = document.getElementById('qbankStatement').value.trim();
+    const category = document.getElementById('qbankCategory').value;
+    const difficulty = document.getElementById('qbankDifficulty').value;
+    const examType = document.getElementById('qbankExamType').value;
+    const clientNeed = document.getElementById('qbankClientNeed').value.trim();
+
+    const opt0 = document.getElementById('qbankOpt0').value.trim();
+    const opt1 = document.getElementById('qbankOpt1').value.trim();
+    const opt2 = document.getElementById('qbankOpt2').value.trim();
+    const opt3 = document.getElementById('qbankOpt3').value.trim();
+    const options = [opt0, opt1, opt2, opt3].filter(o => o.length > 0);
+
+    const correctRadio = document.querySelector('input[name="qbankCorrectOption"]:checked');
+    const correctIndex = correctRadio ? parseInt(correctRadio.value, 10) : 0;
+
+    const correctRationale = document.getElementById('qbankCorrectRationale').value.trim();
+    const distractorsRaw = document.getElementById('qbankDistractors').value.trim();
+    const distractors = distractorsRaw ? distractorsRaw.split('\n').map(s => s.trim()).filter(Boolean) : [];
+    const clinicalPearl = document.getElementById('qbankClinicalPearl').value.trim();
+    const isDemo = document.getElementById('qbankIsDemo').checked ? 1 : 0;
+    const sortOrder = parseInt(document.getElementById('qbankSortOrder').value, 10) || 0;
+
+    if (!statement) {
+      showToast('Please enter the question scenario stem.', 'error');
+      return;
+    }
+    if (options.length < 2) {
+      showToast('Please provide at least 2 answer choices.', 'error');
+      return;
+    }
+    if (!correctRationale) {
+      showToast('Please provide the clinical rationale for the correct answer.', 'error');
+      return;
+    }
+
+    const payload = {
+      statement,
+      category,
+      difficulty,
+      examType,
+      clientNeed,
+      options,
+      correctIndex,
+      correctRationale,
+      distractors,
+      clinicalPearl,
+      isDemo,
+      sortOrder
+    };
+
+    const saveBtn = document.getElementById('saveQBankQuestionBtn');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+
+    try {
+      const url = id ? `${API_ADMIN}/qbank/questions/${id}` : `${API_ADMIN}/qbank/questions`;
+      const method = id ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Failed to save question.');
+
+      showToast(id ? 'Question updated successfully!' : 'New question added successfully!', 'success');
+      closeModal('qbankQuestionModal');
+      await loadQBankQuestions();
+      loadStats();
+    } catch (err) {
+      console.error('Error saving question:', err);
+      showToast(err.message || 'Error saving question.', 'error');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '💾 Save Question';
+    }
+  }
+
+  async function handleReseedQBankQuestions() {
+    if (!confirm('Are you sure you want to reseed the Q-Bank with default high-yield clinical questions? Any questions with custom changes will be reset.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_ADMIN}/qbank/questions/seed`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+
+      showToast(data.message || 'Q-Bank reseeded successfully.', 'success');
+      await loadQBankQuestions();
+      loadStats();
+    } catch (err) {
+      console.error('Error reseeding questions:', err);
+      showToast(err.message || 'Failed to reseed questions.', 'error');
+    }
+  }
+
+  function setupQBankQuestionsControls() {
+    const addBtn = document.getElementById('addQBankQuestionBtn');
+    if (addBtn) addBtn.addEventListener('click', () => openQBankQuestionModal());
+
+    const reseedBtn = document.getElementById('reseedQBankBtn');
+    if (reseedBtn) reseedBtn.addEventListener('click', () => handleReseedQBankQuestions());
+
+    const saveBtn = document.getElementById('saveQBankQuestionBtn');
+    if (saveBtn) saveBtn.addEventListener('click', () => handleSaveQBankQuestion());
+
+    // Search and filter triggers
+    const searchInput = document.getElementById('qbankAdminSearch');
+    if (searchInput) {
+      let debounce;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(debounce);
+        debounce = setTimeout(() => loadQBankQuestions(), 350);
+      });
+    }
+
+    ['qbankAdminCategory', 'qbankAdminDifficulty', 'qbankAdminExamType', 'qbankAdminDemo'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', () => loadQBankQuestions());
+    });
+  }
+
+  // ── 10. Q-BANK SUBSCRIPTIONS MANAGEMENT ───────────────────────────────────
+  let activeQBankSubFilter = 'all';
+
+  async function loadQBankSubscriptions(status = null) {
+    if (status !== null) activeQBankSubFilter = status;
+    const tbody = document.getElementById('qbankSubscriptionsTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:3rem;color:var(--admin-text-muted)">Loading subscriptions…</td></tr>`;
+
+    const url = activeQBankSubFilter === 'all'
+      ? `${API_ADMIN}/qbank/subscriptions`
+      : `${API_ADMIN}/qbank/subscriptions?status=${encodeURIComponent(activeQBankSubFilter)}`;
+
+    try {
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+
+      renderQBankSubscriptionsTable(data.subscriptions || []);
+    } catch (err) {
+      console.error('Error loading subscriptions:', err);
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:3rem;color:var(--admin-danger)">Failed to load subscriptions: ${escapeHtml(err.message)}</td></tr>`;
+    }
+  }
+
+  function renderQBankSubscriptionsTable(subs) {
+    const tbody = document.getElementById('qbankSubscriptionsTableBody');
+    if (!tbody) return;
+
+    if (!subs.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align:center;padding:3rem;color:var(--admin-text-muted)">
+            No ${activeQBankSubFilter !== 'all' ? activeQBankSubFilter : ''} subscriptions found.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = subs.map(sub => {
+      let statusBadge = '';
+      if (sub.status === 'approved') {
+        statusBadge = `<span class="admin-badge admin-badge-success">Approved</span>`;
+      } else if (sub.status === 'pending') {
+        statusBadge = `<span class="admin-badge admin-badge-warning">Pending Review</span>`;
+      } else {
+        statusBadge = `<span class="admin-badge admin-badge-danger">Rejected</span>`;
+      }
+
+      const validUntil = sub.status === 'approved'
+        ? (sub.expiresAt ? `${sub.expiresAt.substring(0, 10)} (${sub.daysRemaining}d left)` : 'Active Forever')
+        : '—';
+
+      return `
+        <tr>
+          <td>#${sub.id}</td>
+          <td>
+            <strong>${escapeHtml(sub.studentName || 'Student')}</strong><br/>
+            <span style="font-size:0.8rem;color:var(--admin-text-muted)">${escapeHtml(sub.studentEmail || '')}</span>
+          </td>
+          <td>
+            <strong>${escapeHtml(sub.planName)}</strong>
+          </td>
+          <td>${sub.durationDays} Days</td>
+          <td><strong>Rs. ${Number(sub.price).toLocaleString()}</strong></td>
+          <td>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              ${formatWhatsAppLink(sub.whatsappNumber, sub.studentName, `Q-Bank ${sub.planName}`)}
+              ${formatScreenshotPreview(sub.paymentScreenshot, sub.studentName, `Q-Bank ${sub.planName}`)}
+            </div>
+          </td>
+          <td>${statusBadge}</td>
+          <td style="font-size:0.85rem">${validUntil}</td>
+          <td>
+            <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
+              ${sub.status === 'pending' ? `
+                <button class="admin-btn admin-btn-xs admin-btn-success" onclick="window.adminApproveQBankSub(${sub.id}, '${escapeHtml(sub.whatsappNumber || '')}', '${escapeHtml(sub.studentName || '')}', '${escapeHtml(sub.planName || '')}')">
+                  ✅ Approve
+                </button>
+                <button class="admin-btn admin-btn-xs admin-btn-danger" onclick="window.adminRejectQBankSub(${sub.id}, '${escapeHtml(sub.studentName || '')}', '${escapeHtml(sub.planName || '')}')">
+                  ❌ Reject
+                </button>
+              ` : sub.status === 'approved' ? `
+                <button class="admin-btn admin-btn-xs admin-btn-secondary" onclick="window.adminApproveQBankSub(${sub.id}, '${escapeHtml(sub.whatsappNumber || '')}', '${escapeHtml(sub.studentName || '')}', '${escapeHtml(sub.planName || '')}')" title="Re-approve & extend">
+                  🔄 Re-Approve
+                </button>
+                <button class="admin-btn admin-btn-xs admin-btn-danger" onclick="window.adminRejectQBankSub(${sub.id}, '${escapeHtml(sub.studentName || '')}', '${escapeHtml(sub.planName || '')}')">
+                  Revoke
+                </button>
+              ` : `
+                <button class="admin-btn admin-btn-xs admin-btn-success" onclick="window.adminApproveQBankSub(${sub.id}, '${escapeHtml(sub.whatsappNumber || '')}', '${escapeHtml(sub.studentName || '')}', '${escapeHtml(sub.planName || '')}')">
+                  ✅ Approve
+                </button>
+              `}
+              <button class="admin-btn admin-btn-xs admin-btn-secondary" onclick="window.adminDeleteQBankSub(${sub.id})" title="Delete record">
+                🗑️
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  window.adminApproveQBankSub = async function(subId, whatsappNumber = '', studentName = '', planName = '') {
+    try {
+      const res = await fetch(`${API_ADMIN}/qbank/subscriptions/${subId}/approve`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ notes: 'Payment confirmed & approved by administrator' })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Approval failed.');
+
+      showToast(data.message || 'Subscription APPROVED! Student now has full Q-Bank access.', 'success');
+      loadQBankSubscriptions();
+      loadStats();
+
+      // Offer instant WhatsApp notification
+      if (whatsappNumber) {
+        const clean = whatsappNumber.replace(/[^0-9]/g, '');
+        const msg = `Assalam-o-Alaikum ${studentName}! Your payment for Q-Bank Plan "${planName}" has been verified and APPROVED! You now have full access to all 2,500+ NCLEX practice questions with clinical rationales. Start practicing now at: https://simplenclexplatform.vercel.app/qbank`;
+        const waUrl = data.whatsappUrl || `https://wa.me/${clean}?text=${encodeURIComponent(msg)}`;
+        setTimeout(() => {
+          if (confirm(`Q-Bank access approved! Open WhatsApp now to notify ${studentName}?`)) {
+            window.open(waUrl, '_blank');
+          }
+        }, 400);
+      }
+    } catch (err) {
+      console.error('Error approving subscription:', err);
+      showToast(err.message || 'Error approving subscription.', 'error');
+    }
+  };
+
+  window.adminRejectQBankSub = async function(subId, studentName = '', planName = '') {
+    const reason = prompt(`Reason for rejecting ${studentName}'s Q-Bank subscription (${planName}):`, 'Payment screenshot unverified or invalid transaction.');
+    if (reason === null) return;
+
+    try {
+      const res = await fetch(`${API_ADMIN}/qbank/subscriptions/${subId}/reject`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ notes: reason })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message);
+
+      showToast('Subscription has been rejected.', 'info');
+      loadQBankSubscriptions();
+      loadStats();
+    } catch (err) {
+      console.error('Error rejecting subscription:', err);
+      showToast(err.message || 'Error rejecting subscription', 'error');
+    }
+  };
+
+  window.adminDeleteQBankSub = async function(subId) {
+    if (!confirm(`Are you sure you want to permanently delete subscription record #${subId}?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_ADMIN}/qbank/subscriptions/${subId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+
+      showToast('Subscription record deleted.', 'success');
+      loadQBankSubscriptions();
+      loadStats();
+    } catch (err) {
+      console.error('Error deleting subscription:', err);
+      showToast(err.message || 'Error deleting subscription', 'error');
+    }
+  };
+
+  async function openManualQBankGrantModal() {
+    const modal = document.getElementById('qbankManualSubModal');
+    if (!modal) return;
+    document.getElementById('qbankManualSubForm').reset();
+    document.getElementById('qbankCustomDaysWrap').style.display = 'none';
+
+    // Populate user select dropdown
+    const userSelect = document.getElementById('qbankManualUserId');
+    userSelect.innerHTML = `<option value="">Loading students…</option>`;
+
+    try {
+      const res = await fetch(`${API_ADMIN}/users`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success && data.users) {
+        userSelect.innerHTML = `
+          <option value="">-- Choose Registered Student --</option>
+          ${data.users.map(u => `<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.email)})</option>`).join('')}
+        `;
+      }
+    } catch (err) {
+      userSelect.innerHTML = `<option value="">-- Enter Email Below --</option>`;
+    }
+
+    openModal('qbankManualSubModal');
+  }
+
+  async function handleSaveManualQBankGrant() {
+    const userId = document.getElementById('qbankManualUserId').value;
+    const email = document.getElementById('qbankManualEmail').value.trim();
+    const planVal = document.getElementById('qbankManualPlanId').value;
+    const notes = document.getElementById('qbankManualNotes').value.trim() || 'Manual grant by administrator';
+
+    let planId = null;
+    let durationDays = 30;
+
+    if (planVal === 'custom') {
+      durationDays = parseInt(document.getElementById('qbankManualCustomDays').value, 10) || 30;
+    } else {
+      planId = parseInt(planVal, 10);
+      if (planVal === '1') durationDays = 30;
+      if (planVal === '2') durationDays = 90;
+      if (planVal === '3') durationDays = 180;
+    }
+
+    if (!userId && !email) {
+      showToast('Please select a student or enter a registered email.', 'error');
+      return;
+    }
+
+    const payload = {
+      userId: userId ? parseInt(userId, 10) : null,
+      email: email || null,
+      planId,
+      durationDays,
+      notes
+    };
+
+    const btn = document.getElementById('saveManualQBankSubBtn');
+    btn.disabled = true;
+    btn.textContent = 'Granting…';
+
+    try {
+      const res = await fetch(`${API_ADMIN}/qbank/subscriptions/manual`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message);
+
+      showToast(data.message || 'Access granted successfully!', 'success');
+      closeModal('qbankManualSubModal');
+      loadQBankSubscriptions();
+      loadStats();
+    } catch (err) {
+      console.error('Error granting manual access:', err);
+      showToast(err.message || 'Failed to grant access.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '✅ Grant Q-Bank Access';
+    }
+  }
+
+  function setupQBankSubscriptionsControls() {
+    const grantBtn = document.getElementById('manualQBankGrantBtn');
+    if (grantBtn) grantBtn.addEventListener('click', () => openManualQBankGrantModal());
+
+    const saveGrantBtn = document.getElementById('saveManualQBankSubBtn');
+    if (saveGrantBtn) saveGrantBtn.addEventListener('click', () => handleSaveManualQBankGrant());
+
+    const planSelect = document.getElementById('qbankManualPlanId');
+    if (planSelect) {
+      planSelect.addEventListener('change', (e) => {
+        const wrap = document.getElementById('qbankCustomDaysWrap');
+        if (wrap) wrap.style.display = (e.target.value === 'custom') ? 'block' : 'none';
+      });
+    }
+
+    // Filter tabs
+    document.querySelectorAll('.qbank-sub-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.qbank-sub-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const filter = tab.dataset.subFilter;
+        loadQBankSubscriptions(filter);
+      });
+    });
+  }
+
   // ── BOOTSTRAP ──────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', async () => {
     const authenticated = await checkAdminAuth();
@@ -1824,6 +2490,8 @@
     setupCoursesControls();
     setupCurriculumControls();
     setupDemoMcqsControls();
+    setupQBankQuestionsControls();
+    setupQBankSubscriptionsControls();
     setupSettingsControls();
     setupUsersControls();
     setupEditUserControls();

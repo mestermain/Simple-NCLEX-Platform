@@ -60,6 +60,21 @@
           </div>
         </a>
 
+        <a class="admin-nav-item" data-target="qbankQuestionsView">
+          <div class="admin-nav-link-content">
+            <span>🎯</span>
+            <span>Q-Bank Questions (All)</span>
+          </div>
+        </a>
+
+        <a class="admin-nav-item" data-target="qbankSubscriptionsView">
+          <div class="admin-nav-link-content">
+            <span>🎟️</span>
+            <span>Q-Bank Subscriptions</span>
+          </div>
+          <span class="admin-badge-count" id="sidebarQBankPendingBadge" style="display:none">0</span>
+        </a>
+
         <a class="admin-nav-item" data-target="settingsView">
           <div class="admin-nav-link-content">
             <span>⚙️</span>
@@ -140,6 +155,22 @@
               <div class="admin-stat-info">
                 <h3 id="statApproved">0</h3>
                 <p>Approved Students</p>
+              </div>
+            </div>
+
+            <div class="admin-stat-card">
+              <div class="admin-stat-icon" style="background:#e0e7ff;color:#4338ca">🎯</div>
+              <div class="admin-stat-info">
+                <h3 id="statQBankQuestions">0</h3>
+                <p>Q-Bank Questions</p>
+              </div>
+            </div>
+
+            <div class="admin-stat-card">
+              <div class="admin-stat-icon" style="background:#fef3c7;color:#b45309">🎟️</div>
+              <div class="admin-stat-info">
+                <h3 id="statQBankPending">0</h3>
+                <p>Q-Bank Pending Subs</p>
               </div>
             </div>
           </div>
@@ -569,6 +600,131 @@
             </div>
           </div>
         </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- VIEW 9: Q-BANK QUESTIONS MANAGEMENT (ALL)                           -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="admin-view" id="qbankQuestionsView">
+          <div class="admin-card">
+            <div class="admin-card-header" style="flex-wrap:wrap;gap:1rem">
+              <div>
+                <h2><span>🎯</span> NCLEX & SNLE Question Bank (All Items)</h2>
+                <p style="font-size:0.88rem;color:var(--admin-text-muted);margin-top:0.25rem">
+                  Manage the full clinical item bank for NCLEX-RN, Next-Gen NGN, SNLE, and Prometric. Add items, edit rationales & clinical pearls, and toggle free demo access.
+                </p>
+              </div>
+              <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+                <button type="button" class="admin-btn admin-btn-secondary" id="reseedQBankBtn">
+                  <span>🔄 Reseed Default Questions</span>
+                </button>
+                <button type="button" class="admin-btn admin-btn-primary" id="addQBankQuestionBtn">
+                  <span>➕ Add New Question</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Filters Bar -->
+            <div style="padding:1rem 1.5rem;background:#f8fafc;border-bottom:1px solid var(--admin-border);display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center">
+              <input type="text" id="qbankAdminSearch" placeholder="🔍 Search questions, topics, pearls..." style="flex:1;min-width:200px;padding:0.5rem 0.85rem;border:1px solid var(--admin-border);border-radius:6px;font-size:0.88rem"/>
+              
+              <select id="qbankAdminCategory" style="padding:0.5rem 0.85rem;border:1px solid var(--admin-border);border-radius:6px;font-size:0.88rem">
+                <option value="all">All Categories</option>
+                <option value="Pharmacology & Parenteral Therapies">Pharmacology</option>
+                <option value="Physiological Adaptation (Med-Surg)">Med-Surg & Adaptation</option>
+                <option value="Reduction of Risk Potential">Reduction of Risk</option>
+                <option value="Management of Care & Delegation">Management of Care</option>
+                <option value="Maternal & Newborn Nursing">Maternal & Newborn (OB)</option>
+                <option value="Pediatric Nursing">Pediatric Nursing</option>
+                <option value="Psychosocial Integrity & Mental Health">Mental Health</option>
+                <option value="Safe & Effective Care Environment">Infection & Safety</option>
+              </select>
+
+              <select id="qbankAdminDifficulty" style="padding:0.5rem 0.85rem;border:1px solid var(--admin-border);border-radius:6px;font-size:0.88rem">
+                <option value="all">All Difficulties</option>
+                <option value="High Yield">High Yield</option>
+                <option value="Hard">Hard</option>
+                <option value="Moderate">Moderate</option>
+                <option value="Easy">Easy</option>
+              </select>
+
+              <select id="qbankAdminExamType" style="padding:0.5rem 0.85rem;border:1px solid var(--admin-border);border-radius:6px;font-size:0.88rem">
+                <option value="all">All Tracks</option>
+                <option value="NCLEX-RN">NCLEX-RN</option>
+                <option value="Next-Gen (NGN)">Next-Gen (NGN)</option>
+                <option value="SNLE">SNLE</option>
+                <option value="Prometric">Prometric</option>
+              </select>
+
+              <select id="qbankAdminDemo" style="padding:0.5rem 0.85rem;border:1px solid var(--admin-border);border-radius:6px;font-size:0.88rem">
+                <option value="all">All Visibility</option>
+                <option value="1">Free Demo Only</option>
+                <option value="0">Subscribers Only</option>
+              </select>
+            </div>
+
+            <div class="admin-card-body">
+              <div id="qbankAdminQuestionsList" class="admin-mcq-list">
+                <div style="text-align:center;padding:3rem;color:var(--admin-text-muted)">
+                  Loading Question Bank items…
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <!-- VIEW 10: Q-BANK SUBSCRIPTIONS & APPROVALS                           -->
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+        <section class="admin-view" id="qbankSubscriptionsView">
+          <div class="admin-card">
+            <div class="admin-card-header" style="flex-wrap:wrap;gap:1rem">
+              <div>
+                <h2><span>🎟️</span> Q-Bank Subscriptions & Student Access</h2>
+                <p style="font-size:0.88rem;color:var(--admin-text-muted);margin-top:0.25rem">
+                  Review student Q-Bank subscription requests. Approving a subscription automatically unlocks question bank access and provides an instant one-click WhatsApp notification.
+                </p>
+              </div>
+              <div style="display:flex;gap:0.75rem;align-items:center">
+                <button type="button" class="admin-btn admin-btn-primary" id="manualQBankGrantBtn">
+                  <span>➕ Manual Grant Q-Bank Access</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Filter Tabs -->
+            <div style="padding:0.75rem 1.5rem;background:#f8fafc;border-bottom:1px solid var(--admin-border);display:flex;gap:0.5rem;flex-wrap:wrap">
+              <button class="admin-btn admin-btn-sm admin-btn-secondary qbank-sub-tab active" data-sub-filter="all">All Subscriptions</button>
+              <button class="admin-btn admin-btn-sm admin-btn-secondary qbank-sub-tab" data-sub-filter="pending">Pending Approvals</button>
+              <button class="admin-btn admin-btn-sm admin-btn-secondary qbank-sub-tab" data-sub-filter="approved">Approved & Active</button>
+              <button class="admin-btn admin-btn-sm admin-btn-secondary qbank-sub-tab" data-sub-filter="rejected">Rejected</button>
+            </div>
+
+            <div class="admin-table-wrap">
+              <table class="admin-table" id="qbankSubscriptionsTable">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Student Name & Email</th>
+                    <th>Selected Plan</th>
+                    <th>Duration</th>
+                    <th>Price</th>
+                    <th>WhatsApp & Receipt</th>
+                    <th>Status</th>
+                    <th>Valid Until</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="qbankSubscriptionsTableBody">
+                  <tr>
+                    <td colspan="9" style="text-align:center;padding:3rem;color:var(--admin-text-muted)">
+                      Loading subscriptions…
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -937,6 +1093,212 @@
       <div class="admin-modal-footer">
         <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="demoMcqModal">Cancel</button>
         <button type="button" class="admin-btn admin-btn-primary" id="saveDemoMcqBtn">💾 Save Demo Question</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <!-- MODAL: Q-BANK QUESTION EDITOR (ALL ITEMS)                           -->
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <div class="admin-modal-backdrop" id="qbankQuestionModal">
+    <div class="admin-modal" style="max-width:850px">
+      <div class="admin-modal-header">
+        <h3 id="qbankQuestionModalTitle">Edit Q-Bank Question</h3>
+        <button class="admin-modal-close" data-close-modal="qbankQuestionModal">×</button>
+      </div>
+      <div class="admin-modal-body">
+        <form id="qbankQuestionForm">
+          <input type="hidden" id="qbankQuestionId" value=""/>
+
+          <!-- Classification & Track -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Clinical Category *</label>
+              <select id="qbankCategory" required>
+                <option value="Pharmacology & Parenteral Therapies">Pharmacology & Parenteral Therapies</option>
+                <option value="Physiological Adaptation (Med-Surg)">Physiological Adaptation (Med-Surg)</option>
+                <option value="Reduction of Risk Potential">Reduction of Risk Potential</option>
+                <option value="Management of Care & Delegation">Management of Care & Delegation</option>
+                <option value="Maternal & Newborn Nursing">Maternal & Newborn Nursing (OB)</option>
+                <option value="Pediatric Nursing">Pediatric Nursing</option>
+                <option value="Psychosocial Integrity & Mental Health">Psychosocial Integrity & Mental Health</option>
+                <option value="Safe & Effective Care Environment">Safe & Effective Care Environment</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Exam Target Track *</label>
+              <select id="qbankExamType" required>
+                <option value="NCLEX-RN">NCLEX-RN (US / Canada)</option>
+                <option value="Next-Gen (NGN)">Next-Generation NCLEX (NGN)</option>
+                <option value="SNLE">SNLE (Saudi Licensure)</option>
+                <option value="Prometric">Prometric (Gulf DHA / MOH)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Difficulty Level *</label>
+              <select id="qbankDifficulty" required>
+                <option value="High Yield">High Yield (Exam Priority)</option>
+                <option value="Hard">Hard / Challenging</option>
+                <option value="Moderate">Moderate</option>
+                <option value="Easy">Easy Baseline</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Client Need Framework</label>
+              <input type="text" id="qbankClientNeed" placeholder="e.g. Physiological Adaptation — Hemodynamic Regulation"/>
+            </div>
+          </div>
+
+          <!-- Question Stem Statement -->
+          <div class="form-group">
+            <label>Question Scenario Stem *</label>
+            <textarea id="qbankStatement" rows="4" required placeholder="Detailed clinical patient scenario, vital signs, lab values, and clinical question..."></textarea>
+          </div>
+
+          <!-- Options & Correct Choice Radio -->
+          <div class="form-group">
+            <label>Answer Choices & Correct Option Selection *</label>
+            <p style="font-size:0.8rem;color:var(--admin-text-muted);margin-bottom:0.75rem">
+              Select the radio button next to the option that is the correct clinical answer.
+            </p>
+
+            <div class="mcq-option-row">
+              <label class="mcq-option-radio-wrap">
+                <input type="radio" name="qbankCorrectOption" value="0" checked/>
+                <span>Option A (Correct)</span>
+              </label>
+              <input type="text" id="qbankOpt0" required placeholder="Option A text"/>
+            </div>
+
+            <div class="mcq-option-row">
+              <label class="mcq-option-radio-wrap">
+                <input type="radio" name="qbankCorrectOption" value="1"/>
+                <span>Option B (Correct)</span>
+              </label>
+              <input type="text" id="qbankOpt1" required placeholder="Option B text"/>
+            </div>
+
+            <div class="mcq-option-row">
+              <label class="mcq-option-radio-wrap">
+                <input type="radio" name="qbankCorrectOption" value="2"/>
+                <span>Option C (Correct)</span>
+              </label>
+              <input type="text" id="qbankOpt2" required placeholder="Option C text"/>
+            </div>
+
+            <div class="mcq-option-row">
+              <label class="mcq-option-radio-wrap">
+                <input type="radio" name="qbankCorrectOption" value="3"/>
+                <span>Option D (Correct)</span>
+              </label>
+              <input type="text" id="qbankOpt3" required placeholder="Option D text"/>
+            </div>
+          </div>
+
+          <!-- Rationales Section -->
+          <div class="form-group">
+            <label>Correct Answer Detailed Clinical Rationale *</label>
+            <textarea id="qbankCorrectRationale" rows="3" required placeholder="Comprehensive physiological & pharmacological explanation for why the chosen option is correct..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Distractor Analysis (Why Other Options Are Incorrect)</label>
+            <p style="font-size:0.8rem;color:var(--admin-text-muted);margin-bottom:0.4rem">
+              Enter each distractor explanation on a new line (e.g. "Option A: ...").
+            </p>
+            <textarea id="qbankDistractors" rows="3" placeholder="Option A: ...&#10;Option C: ...&#10;Option D: ..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Saunders & ATI Clinical Pearl / High-Yield Rule</label>
+            <textarea id="qbankClinicalPearl" rows="2" placeholder="e.g. NCLEX Clinical Pearl: Potassium levels must ALWAYS be verified before..."></textarea>
+          </div>
+
+          <!-- Visibility & Ordering -->
+          <div class="form-row" style="align-items:center;background:#f8fafc;padding:0.75rem 1rem;border-radius:8px;border:1px solid var(--admin-border)">
+            <div class="form-group" style="margin-bottom:0">
+              <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+                <input type="checkbox" id="qbankIsDemo" value="1" style="width:18px;height:18px"/>
+                <span style="font-weight:700;color:var(--admin-text-main)">Feature as Free Demo Item (Visible to unsubscribed students)</span>
+              </label>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;width:150px">
+              <label>Sort Order</label>
+              <input type="number" id="qbankSortOrder" value="0" min="0"/>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="qbankQuestionModal">Cancel</button>
+        <button type="button" class="admin-btn admin-btn-primary" id="saveQBankQuestionBtn">💾 Save Question</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <!-- MODAL: MANUAL GRANT Q-BANK ACCESS                                    -->
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <div class="admin-modal-backdrop" id="qbankManualSubModal">
+    <div class="admin-modal" style="max-width:550px">
+      <div class="admin-modal-header">
+        <h3><span>🎟️</span> Manual Grant Q-Bank Access</h3>
+        <button class="admin-modal-close" data-close-modal="qbankManualSubModal">×</button>
+      </div>
+      <div class="admin-modal-body">
+        <p style="font-size:0.88rem;color:var(--admin-text-muted);margin-bottom:1.25rem">
+          Directly activate Question Bank subscriber privileges for any registered student without requiring payment receipt uploads.
+        </p>
+
+        <form id="qbankManualSubForm">
+          <div class="form-group">
+            <label>Select Registered Student *</label>
+            <select id="qbankManualUserId" required>
+              <option value="">-- Choose Student --</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Or Enter Student Email directly:</label>
+            <input type="email" id="qbankManualEmail" placeholder="student@example.com"/>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Subscription Plan *</label>
+              <select id="qbankManualPlanId">
+                <option value="1">1-Month Intensive Pass (30 Days)</option>
+                <option value="2">3-Month High-Yield Master (90 Days)</option>
+                <option value="3">6-Month Complete Pass (180 Days)</option>
+                <option value="custom">Custom Days Access</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="qbankCustomDaysWrap" style="display:none">
+              <label>Custom Days *</label>
+              <input type="number" id="qbankManualCustomDays" value="30" min="1" max="365"/>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Admin Notes / Reason</label>
+            <input type="text" id="qbankManualNotes" placeholder="e.g. VIP scholarship / Manual cash payment confirmed"/>
+          </div>
+        </form>
+      </div>
+      <div class="admin-modal-footer">
+        <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="qbankManualSubModal">Cancel</button>
+        <button type="button" class="admin-btn admin-btn-primary" id="saveManualQBankSubBtn">
+          ✅ Grant Q-Bank Access
+        </button>
       </div>
     </div>
   </div>

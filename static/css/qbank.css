@@ -1,0 +1,757 @@
+/* qbank.css — Interactive Question Bank & Subscription Styles */
+
+:root {
+  --qb-primary: #0284c7;
+  --qb-primary-dark: #0369a1;
+  --qb-primary-light: #e0f2fe;
+  --qb-success: #10b981;
+  --qb-success-light: #d1fae5;
+  --qb-danger: #ef4444;
+  --qb-danger-light: #fee2e2;
+  --qb-warning: #f59e0b;
+  --qb-warning-light: #fef3c7;
+  --qb-purple: #8b5cf6;
+  --qb-purple-light: #ede9fe;
+  --qb-border: #e2e8f0;
+  --qb-card-bg: #ffffff;
+  --qb-text-main: #0f172a;
+  --qb-text-muted: #64748b;
+  --qb-radius: 12px;
+  --qb-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08);
+  --qb-shadow-hover: 0 10px 30px -4px rgba(15, 23, 42, 0.12);
+}
+
+/* ── HERO & BANNER ── */
+.qbank-hero {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0369a1 100%);
+  color: #ffffff;
+  padding: 4.5rem 0 3.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.qbank-hero::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(2, 132, 199, 0.25) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.qbank-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  padding: 0.4rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.qbank-status-bar {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--qb-radius);
+  padding: 1rem 1.5rem;
+  margin-top: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.qbank-status-info {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.qbank-status-badge {
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.qbank-status-badge.demo {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.qbank-status-badge.approved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.qbank-status-badge.pending {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* ── MAIN INTERFACE GRID ── */
+.qbank-container {
+  max-width: 1200px;
+  margin: -2rem auto 4rem;
+  padding: 0 1.5rem;
+  position: relative;
+  z-index: 10;
+}
+
+.qbank-interface-wrap {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 1.75rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .qbank-interface-wrap {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── SIDEBAR CONTROLS ── */
+.qbank-sidebar {
+  background: var(--qb-card-bg);
+  border: 1px solid var(--qb-border);
+  border-radius: var(--qb-radius);
+  box-shadow: var(--qb-shadow);
+  padding: 1.5rem;
+  position: sticky;
+  top: 90px;
+}
+
+.qbank-sidebar h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--qb-text-main);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.qbank-filter-group {
+  margin-bottom: 1.25rem;
+}
+
+.qbank-filter-group label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--qb-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.4rem;
+}
+
+.qbank-select {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--qb-border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background-color: #f8fafc;
+  color: var(--qb-text-main);
+  transition: all 0.2s ease;
+}
+
+.qbank-select:focus {
+  outline: none;
+  border-color: var(--qb-primary);
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.qbank-stats-box {
+  background: #f8fafc;
+  border: 1px dashed var(--qb-border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1.5rem;
+}
+
+.qbank-stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.qbank-stat-row:last-child {
+  border-bottom: none;
+}
+
+/* ── PRACTICE CARD AREA ── */
+.qbank-card {
+  background: var(--qb-card-bg);
+  border: 1px solid var(--qb-border);
+  border-radius: var(--qb-radius);
+  box-shadow: var(--qb-shadow);
+  padding: 2.25rem;
+  transition: box-shadow 0.2s ease;
+}
+
+.qbank-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--qb-border);
+}
+
+.qbank-tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.qbank-tag {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.qbank-tag.category {
+  background: var(--qb-primary-light);
+  color: var(--qb-primary-dark);
+}
+
+.qbank-tag.difficulty {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.qbank-tag.exam {
+  background: var(--qb-purple-light);
+  color: #5b21b6;
+}
+
+.qbank-tag.demo-indicator {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.qbank-progress-indicator {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--qb-text-muted);
+}
+
+/* ── QUESTION STEM ── */
+.qbank-statement {
+  font-size: 1.15rem;
+  line-height: 1.7;
+  color: var(--qb-text-main);
+  font-weight: 600;
+  margin-bottom: 1.75rem;
+}
+
+/* ── OPTIONS ── */
+.qbank-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 2rem;
+}
+
+.qbank-option-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1.5px solid var(--qb-border);
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.qbank-option-item:hover:not(.locked) {
+  border-color: var(--qb-primary);
+  background: #f0f9ff;
+  transform: translateY(-1px);
+}
+
+.qbank-option-item.selected {
+  border-color: var(--qb-primary);
+  background: #f0f9ff;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.qbank-option-item.correct {
+  border-color: var(--qb-success) !important;
+  background: #ecfdf5 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2) !important;
+}
+
+.qbank-option-item.incorrect {
+  border-color: var(--qb-danger) !important;
+  background: #fef2f2 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+}
+
+.qbank-option-letter {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: var(--qb-text-main);
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.qbank-option-item.selected .qbank-option-letter {
+  background: var(--qb-primary);
+  color: #ffffff;
+}
+
+.qbank-option-item.correct .qbank-option-letter {
+  background: var(--qb-success);
+  color: #ffffff;
+}
+
+.qbank-option-item.incorrect .qbank-option-letter {
+  background: var(--qb-danger);
+  color: #ffffff;
+}
+
+.qbank-option-text {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--qb-text-main);
+  flex-grow: 1;
+}
+
+/* ── ACTION CONTROLS ── */
+.qbank-actions-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--qb-border);
+}
+
+.qbank-nav-buttons {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.qbank-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.4rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.qbank-btn-primary {
+  background: var(--qb-primary);
+  color: #ffffff;
+}
+
+.qbank-btn-primary:hover:not(:disabled) {
+  background: var(--qb-primary-dark);
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+}
+
+.qbank-btn-secondary {
+  background: #f1f5f9;
+  color: var(--qb-text-main);
+  border-color: #cbd5e1;
+}
+
+.qbank-btn-secondary:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.qbank-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── RATIONALE ACCORDION / CONTAINER ── */
+.qbank-rationale-box {
+  margin-top: 2rem;
+  padding: 1.75rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.qbank-rationale-box.correct {
+  border-left: 5px solid var(--qb-success);
+}
+
+.qbank-rationale-box.incorrect {
+  border-left: 5px solid var(--qb-danger);
+}
+
+.qbank-rationale-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.qbank-rationale-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.qbank-rationale-title.correct {
+  color: #065f46;
+}
+
+.qbank-rationale-title.incorrect {
+  color: #991b1b;
+}
+
+.qbank-rationale-section {
+  margin-bottom: 1.25rem;
+}
+
+.qbank-rationale-section h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--qb-text-main);
+  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.qbank-rationale-section p {
+  font-size: 0.93rem;
+  line-height: 1.6;
+  color: #334155;
+  margin: 0;
+}
+
+.qbank-distractors-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.qbank-distractor-item {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #475569;
+  background: #ffffff;
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.qbank-pearl-box {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  color: #78350f;
+  margin-top: 1rem;
+}
+
+.qbank-pearl-box strong {
+  display: block;
+  font-size: 0.92rem;
+  margin-bottom: 0.35rem;
+}
+
+/* ── SUBSCRIPTION PLANS SECTION ── */
+.qbank-pricing-section {
+  padding: 4.5rem 0 5rem;
+  background: #f8fafc;
+  border-top: 1px solid var(--qb-border);
+}
+
+.qbank-plans-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  margin-top: 2.5rem;
+}
+
+@media (max-width: 992px) {
+  .qbank-plans-grid {
+    grid-template-columns: 1fr;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.qbank-plan-card {
+  background: #ffffff;
+  border: 1px solid var(--qb-border);
+  border-radius: 16px;
+  padding: 2.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: var(--qb-shadow);
+  transition: all 0.25s ease;
+}
+
+.qbank-plan-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--qb-shadow-hover);
+}
+
+.qbank-plan-card.featured {
+  border: 2px solid var(--qb-primary);
+  box-shadow: 0 10px 30px -4px rgba(2, 132, 199, 0.2);
+}
+
+.qbank-plan-badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--qb-primary);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0.35rem 1rem;
+  border-radius: 9999px;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+}
+
+.qbank-plan-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--qb-text-main);
+  margin-bottom: 0.5rem;
+}
+
+.qbank-plan-desc {
+  font-size: 0.9rem;
+  color: var(--qb-text-muted);
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+  min-height: 42px;
+}
+
+.qbank-plan-price-wrap {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--qb-border);
+}
+
+.qbank-plan-price {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: var(--qb-text-main);
+}
+
+.qbank-plan-original {
+  text-decoration: line-through;
+  color: var(--qb-text-muted);
+  font-size: 1rem;
+  margin-left: 0.5rem;
+}
+
+.qbank-plan-duration {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--qb-primary);
+  margin-top: 0.25rem;
+}
+
+.qbank-plan-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2rem 0;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.qbank-plan-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  font-size: 0.92rem;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.qbank-plan-feature span.check {
+  color: var(--qb-success);
+  font-weight: 800;
+}
+
+/* ── MODAL STYLES ── */
+.qbank-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.qbank-modal-backdrop.show {
+  display: flex;
+}
+
+.qbank-modal {
+  background: #ffffff;
+  border-radius: var(--qb-radius);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  animation: modalScale 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalScale {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.qbank-modal-header {
+  padding: 1.5rem 1.75rem;
+  border-bottom: 1px solid var(--qb-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.qbank-modal-header h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--qb-text-main);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.qbank-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--qb-text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.qbank-modal-body {
+  padding: 1.75rem;
+}
+
+.qbank-payment-details-box {
+  background: #f8fafc;
+  border: 1px solid var(--qb-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.qbank-payment-details-box h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--qb-text-main);
+  margin-bottom: 0.75rem;
+}
+
+.qbank-payment-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.qbank-payment-row:last-child {
+  border-bottom: none;
+}
+
+.qbank-form-group {
+  margin-bottom: 1.25rem;
+}
+
+.qbank-form-group label {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--qb-text-main);
+  margin-bottom: 0.4rem;
+}
+
+.qbank-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--qb-border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: #ffffff;
+}
+
+.qbank-input:focus {
+  outline: none;
+  border-color: var(--qb-primary);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.qbank-modal-footer {
+  padding: 1.25rem 1.75rem;
+  border-top: 1px solid var(--qb-border);
+  background: #f8fafc;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
