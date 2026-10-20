@@ -126,31 +126,26 @@ interface UserItem {
 function AdminContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const tabFromUrl = searchParams.get('tab') as any;
+  const rawTab = searchParams.get('tab');
 
-  const validTabs = [
-    'overview',
-    'registrations',
-    'subscriptions',
-    'questions',
-    'bulk-import',
-    'courses',
-    'demo-mcqs',
-    'users',
-    'settings',
-  ];
+  const normalizeTab = (raw: string | null): string => {
+    if (!raw) return 'overview';
+    const clean = raw.toLowerCase().replace('view', '');
+    if (clean.includes('reg') || clean.includes('enroll')) return 'registrations';
+    if (clean.includes('sub')) return 'subscriptions';
+    if (clean.includes('question') || (clean.includes('mcq') && !clean.includes('demo'))) return 'questions';
+    if (clean.includes('import') || clean.includes('bulk')) return 'bulk-import';
+    if (clean.includes('course') || clean.includes('curric')) return 'courses';
+    if (clean.includes('demo')) return 'demo-mcqs';
+    if (clean.includes('user') || clean.includes('student')) return 'users';
+    if (clean.includes('setting')) return 'settings';
+    if (clean.includes('over') || clean.includes('dash')) return 'overview';
+    return 'overview';
+  };
 
-  const [activeTab, setActiveTab] = useState<string>(
-    validTabs.includes(tabFromUrl) ? tabFromUrl : 'overview'
-  );
+  const activeTab = normalizeTab(rawTab);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Sync tab with URL
-  const switchTab = (tabId: string) => {
-    setActiveTab(tabId);
-    router.push(`/admin?tab=${tabId}`, { scroll: false });
-  };
 
   // Questions tab state
   const [questions, setQuestions] = useState<QBankItem[]>([]);
@@ -610,6 +605,35 @@ function AdminContent() {
         </div>
       </header>
 
+      {/* ── MOBILE / TABLET TOP HORIZONTAL NAVIGATION BAR ── */}
+      <div className="bg-white border-b border-slate-200 lg:hidden overflow-x-auto custom-scrollbar px-4 py-2.5 sticky top-16 z-40 shadow-xs">
+        <div className="flex space-x-2 min-w-max">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <Link
+                key={item.id}
+                href={`/admin?tab=${item.id}`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                  isActive
+                    ? 'bg-sky-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{item.name}</span>
+                {item.badge && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${isActive ? 'bg-white/20 text-white' : item.badgeColor}`}>
+                    {item.badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── WORKSPACE: SIDEBAR + MAIN VIEW ── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
@@ -624,9 +648,9 @@ function AdminContent() {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (
-                <button
+                <Link
                   key={item.id}
-                  onClick={() => switchTab(item.id)}
+                  href={`/admin?tab=${item.id}`}
                   className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-medium transition-all ${
                     isActive
                       ? 'bg-sky-50 text-sky-800 font-bold border border-sky-200 shadow-sm'
@@ -642,7 +666,7 @@ function AdminContent() {
                       {item.badge}
                     </span>
                   )}
-                </button>
+                </Link>
               );
             })}
           </aside>
@@ -669,23 +693,23 @@ function AdminContent() {
                   <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200">
                     <div className="text-xs font-bold uppercase text-amber-600">Pending Course Registrations</div>
                     <div className="text-3xl font-black text-amber-600 mt-2">{stats.pendingEnrollments}</div>
-                    <button
-                      onClick={() => switchTab('registrations')}
+                    <Link
+                      href="/admin?tab=registrations"
                       className="text-xs font-bold text-sky-600 hover:underline mt-1 block"
                     >
                       Review approval queue →
-                    </button>
+                    </Link>
                   </div>
 
                   <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200">
                     <div className="text-xs font-bold uppercase text-indigo-600">Pending Subscriptions</div>
                     <div className="text-3xl font-black text-indigo-600 mt-2">{stats.pendingSubscriptions}</div>
-                    <button
-                      onClick={() => switchTab('subscriptions')}
+                    <Link
+                      href="/admin?tab=subscriptions"
                       className="text-xs font-bold text-sky-600 hover:underline mt-1 block"
                     >
                       Review subscriptions →
-                    </button>
+                    </Link>
                   </div>
                 </div>
 
@@ -695,9 +719,9 @@ function AdminContent() {
                     Quick Operational Shortcuts
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <button
-                      onClick={() => switchTab('bulk-import')}
-                      className="p-4 rounded-xl border border-slate-200 hover:border-sky-300 hover:bg-sky-50/50 text-left transition-all space-y-1"
+                    <Link
+                      href="/admin?tab=bulk-import"
+                      className="p-4 rounded-xl border border-slate-200 hover:border-sky-300 hover:bg-sky-50/50 text-left transition-all space-y-1 block"
                     >
                       <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
                         <FileCode className="w-4 h-4 text-sky-600" />
@@ -706,11 +730,11 @@ function AdminContent() {
                       <p className="text-xs text-slate-500">
                         Add dozens of MCQs & SATA MSQs with automatic key detection.
                       </p>
-                    </button>
+                    </Link>
 
-                    <button
-                      onClick={() => switchTab('registrations')}
-                      className="p-4 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-left transition-all space-y-1"
+                    <Link
+                      href="/admin?tab=registrations"
+                      className="p-4 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-left transition-all space-y-1 block"
                     >
                       <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -719,11 +743,11 @@ function AdminContent() {
                       <p className="text-xs text-slate-500">
                         Verify student payment proofs and activate full Q-Bank access.
                       </p>
-                    </button>
+                    </Link>
 
-                    <button
-                      onClick={() => switchTab('subscriptions')}
-                      className="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-left transition-all space-y-1"
+                    <Link
+                      href="/admin?tab=subscriptions"
+                      className="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-left transition-all space-y-1 block"
                     >
                       <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
                         <Sparkles className="w-4 h-4 text-indigo-600" />
@@ -732,7 +756,7 @@ function AdminContent() {
                       <p className="text-xs text-slate-500">
                         Review standalone 1, 3, or 6-month question bank access requests.
                       </p>
-                    </button>
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -981,15 +1005,13 @@ function AdminContent() {
                     />
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <button
-                      onClick={() => switchTab('bulk-import')}
+                    <Link
+                      href="/admin?tab=bulk-import"
                       className="px-4 py-2 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 rounded-lg flex items-center gap-1.5"
                     >
                       <FileCode className="w-4 h-4" />
                       <span>Bulk Paste JSON</span>
-                    </button>
-                  </div>
+                    </Link>
                 </div>
 
                 <div className="clinical-card bg-white rounded-2xl border border-slate-200 overflow-hidden">
