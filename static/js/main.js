@@ -367,10 +367,12 @@
               ` : ''}
 
               ${pearl ? `
-                <div class="fame-mcq-desc-section-title"><span>💡</span> Saunders & ATI Clinical Pearl:</div>
-                <p style="background:#e0f2fe;border-left:4px solid var(--primary);padding:0.75rem 1rem;border-radius:4px;color:#0369a1;font-weight:600">
-                  ${pearl}
-                </p>
+                <div class="fame-pearl-box">
+                  <div style="font-weight:800;display:flex;align-items:center;gap:0.4rem;margin-bottom:0.35rem">
+                    <span>💡</span> High-Yield Saunders & ATI Clinical Pearl:
+                  </div>
+                  <div>${pearl}</div>
+                </div>
               ` : ''}
             </div>
           </div>
