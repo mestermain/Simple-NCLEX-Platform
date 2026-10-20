@@ -88,38 +88,92 @@
     usersView: 'Students & Users Directory',
   };
 
-  function setupNavigation() {
+  function switchAdminView(targetInput) {
+    if (!targetInput) return;
+    let targetId = targetInput;
+    const map = {
+      'overview': 'dashboardView',
+      'dashboard': 'dashboardView',
+      'dashboardview': 'dashboardView',
+      'registrations': 'registrationsView',
+      'registrationsview': 'registrationsView',
+      'enrollments': 'registrationsView',
+      'courses': 'coursesView',
+      'coursesview': 'coursesView',
+      'curriculum': 'curriculumView',
+      'curriculumview': 'curriculumView',
+      'demo-mcqs': 'demoMcqsView',
+      'demomcqs': 'demoMcqsView',
+      'demomcqsview': 'demoMcqsView',
+      'demo': 'demoMcqsView',
+      'questions': 'qbankQuestionsView',
+      'qbankquestionsview': 'qbankQuestionsView',
+      'qbank': 'qbankQuestionsView',
+      'subscriptions': 'qbankSubscriptionsView',
+      'qbanksubscriptionsview': 'qbankSubscriptionsView',
+      'settings': 'settingsView',
+      'settingsview': 'settingsView',
+      'users': 'usersView',
+      'usersview': 'usersView'
+    };
+    const lower = String(targetInput).toLowerCase().trim();
+    if (map[lower]) {
+      targetId = map[lower];
+    }
+
     const navItems = document.querySelectorAll('.admin-nav-item');
     const views = document.querySelectorAll('.admin-view');
     const pageTitle = document.getElementById('pageTitle');
+
+    navItems.forEach(n => {
+      if (n.dataset.target === targetId) {
+        n.classList.add('active');
+      } else {
+        n.classList.remove('active');
+      }
+    });
+
+    views.forEach(v => v.classList.remove('active'));
+    const targetView = document.getElementById(targetId);
+    if (targetView) {
+      targetView.classList.add('active');
+    }
+
+    if (pageTitle && viewTitles[targetId]) {
+      pageTitle.textContent = viewTitles[targetId];
+    }
+
+    // Trigger view-specific loads safely
+    try {
+      if (targetId === 'dashboardView') loadStats();
+      if (targetId === 'registrationsView') loadRegistrations();
+      if (targetId === 'coursesView') loadCourses();
+      if (targetId === 'curriculumView') loadCurriculumView();
+      if (targetId === 'demoMcqsView') loadDemoMcqs();
+      if (targetId === 'qbankQuestionsView') loadQBankQuestions();
+      if (targetId === 'qbankSubscriptionsView') loadQBankSubscriptions();
+      if (targetId === 'settingsView') loadSiteSettings();
+      if (targetId === 'usersView') loadUsers();
+    } catch (err) {
+      console.warn('Error during tab load:', err);
+    }
+  }
+  window.switchAdminView = switchAdminView;
+
+  function setupNavigation() {
+    const navItems = document.querySelectorAll('.admin-nav-item');
 
     navItems.forEach(item => {
       item.addEventListener('click', (e) => {
         e.preventDefault();
         const targetId = item.dataset.target;
         if (!targetId) return;
-
-        navItems.forEach(n => n.classList.remove('active'));
-        item.classList.add('active');
-
-        views.forEach(v => v.classList.remove('active'));
-        const targetView = document.getElementById(targetId);
-        if (targetView) targetView.classList.add('active');
-
-        if (pageTitle && viewTitles[targetId]) {
-          pageTitle.textContent = viewTitles[targetId];
-        }
-
-        // Trigger view-specific loads
-        if (targetId === 'dashboardView') loadStats();
-        if (targetId === 'registrationsView') loadRegistrations();
-        if (targetId === 'coursesView') loadCourses();
-        if (targetId === 'curriculumView') loadCurriculumView();
-        if (targetId === 'demoMcqsView') loadDemoMcqs();
-        if (targetId === 'qbankQuestionsView') loadQBankQuestions();
-        if (targetId === 'qbankSubscriptionsView') loadQBankSubscriptions();
-        if (targetId === 'settingsView') loadSiteSettings();
-        if (targetId === 'usersView') loadUsers();
+        switchAdminView(targetId);
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('tab', targetId.replace('View', '').toLowerCase());
+          window.history.pushState({}, '', url);
+        } catch (_) {}
       });
     });
 
@@ -3089,9 +3143,7 @@
 
   // ── BOOTSTRAP ──────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', async () => {
-    const authenticated = await checkAdminAuth();
-    if (!authenticated) return;
-
+    // 1. Initialize navigation and controls immediately so tabs are responsive
     setupNavigation();
     setupRegistrationsControls();
     setupCoursesControls();
@@ -3104,8 +3156,20 @@
     setupUsersControls();
     setupEditUserControls();
 
-    // Initial load
-    loadStats();
+    // 2. Support URL parameters for direct tab navigation (?tab=courses, etc.)
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const initialTab = urlParams.get('tab') || window.location.hash.replace('#', '');
+      if (initialTab) {
+        switchAdminView(initialTab);
+      }
+    } catch (_) {}
+
+    // 3. Authenticate and populate dashboard stats
+    const authenticated = await checkAdminAuth();
+    if (authenticated) {
+      loadStats();
+    }
   });
 
 })();

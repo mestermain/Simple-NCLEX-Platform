@@ -126,11 +126,10 @@ interface UserItem {
 function AdminContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const rawTab = searchParams.get('tab');
 
   const normalizeTab = (raw: string | null): string => {
     if (!raw) return 'overview';
-    const clean = raw.toLowerCase().replace('view', '');
+    const clean = raw.toLowerCase().replace('view', '').trim();
     if (clean.includes('reg') || clean.includes('enroll')) return 'registrations';
     if (clean.includes('sub')) return 'subscriptions';
     if (clean.includes('question') || (clean.includes('mcq') && !clean.includes('demo'))) return 'questions';
@@ -143,7 +142,48 @@ function AdminContent() {
     return 'overview';
   };
 
-  const activeTab = normalizeTab(rawTab);
+  const [activeTab, setActiveTab] = useState<string>('overview');
+
+  // Synchronous, foolproof tab switching
+  const switchTab = (tabId: string) => {
+    const clean = normalizeTab(tabId);
+    setActiveTab(clean);
+    if (typeof window !== 'undefined') {
+      const newUrl = `/admin?tab=${clean}`;
+      window.history.pushState({ tab: clean }, '', newUrl);
+    }
+  };
+
+  // Sync tab on mount from window.location or searchParams
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab') || window.location.hash.replace('#', '');
+      if (tabParam) {
+        setActiveTab(normalizeTab(tabParam));
+      }
+    }
+  }, []);
+
+  // Sync tab if searchParams changes externally
+  useEffect(() => {
+    const rawTab = searchParams.get('tab');
+    if (rawTab) {
+      setActiveTab(normalizeTab(rawTab));
+    }
+  }, [searchParams]);
+
+  // Handle browser back and forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        setActiveTab(normalizeTab(params.get('tab')));
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -612,10 +652,11 @@ function AdminContent() {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
-              <Link
+              <button
+                type="button"
                 key={item.id}
-                href={`/admin?tab=${item.id}`}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                onClick={() => switchTab(item.id)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                   isActive
                     ? 'bg-sky-600 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -628,7 +669,7 @@ function AdminContent() {
                     {item.badge}
                   </span>
                 )}
-              </Link>
+              </button>
             );
           })}
         </div>
@@ -648,10 +689,11 @@ function AdminContent() {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (
-                <Link
+                <button
+                  type="button"
                   key={item.id}
-                  href={`/admin?tab=${item.id}`}
-                  className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-medium transition-all ${
+                  onClick={() => switchTab(item.id)}
+                  className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-medium transition-all text-left cursor-pointer ${
                     isActive
                       ? 'bg-sky-50 text-sky-800 font-bold border border-sky-200 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -666,7 +708,7 @@ function AdminContent() {
                       {item.badge}
                     </span>
                   )}
-                </Link>
+                </button>
               );
             })}
           </aside>
@@ -675,41 +717,43 @@ function AdminContent() {
           <main className="lg:col-span-3 space-y-6">
             
             {/* ── TAB 1: OVERVIEW ── */}
-            {activeTab === 'overview' && stats && (
+            {activeTab === 'overview' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200">
                     <div className="text-xs font-bold uppercase text-slate-400">Total Registered Users</div>
-                    <div className="text-3xl font-black text-slate-900 mt-2">{stats.totalUsers}</div>
-                    <div className="text-xs text-slate-500 mt-1">{stats.totalStudents} enrolled students</div>
+                    <div className="text-3xl font-black text-slate-900 mt-2">{stats ? stats.totalUsers : '...'}</div>
+                    <div className="text-xs text-slate-500 mt-1">{stats ? stats.totalStudents : 0} enrolled students</div>
                   </div>
 
                   <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200">
                     <div className="text-xs font-bold uppercase text-slate-400">Questions in Bank</div>
-                    <div className="text-3xl font-black text-sky-600 mt-2">{stats.totalQuestions}</div>
+                    <div className="text-3xl font-black text-sky-600 mt-2">{stats ? stats.totalQuestions : '...'}</div>
                     <div className="text-xs text-slate-500 mt-1">Single Choice & SATA items</div>
                   </div>
 
                   <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200">
                     <div className="text-xs font-bold uppercase text-amber-600">Pending Course Registrations</div>
-                    <div className="text-3xl font-black text-amber-600 mt-2">{stats.pendingEnrollments}</div>
-                    <Link
-                      href="/admin?tab=registrations"
-                      className="text-xs font-bold text-sky-600 hover:underline mt-1 block"
+                    <div className="text-3xl font-black text-amber-600 mt-2">{stats ? stats.pendingEnrollments : '0'}</div>
+                    <button
+                      type="button"
+                      onClick={() => switchTab('registrations')}
+                      className="text-xs font-bold text-sky-600 hover:underline mt-1 block text-left cursor-pointer"
                     >
                       Review approval queue →
-                    </Link>
+                    </button>
                   </div>
 
                   <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200">
                     <div className="text-xs font-bold uppercase text-indigo-600">Pending Subscriptions</div>
-                    <div className="text-3xl font-black text-indigo-600 mt-2">{stats.pendingSubscriptions}</div>
-                    <Link
-                      href="/admin?tab=subscriptions"
-                      className="text-xs font-bold text-sky-600 hover:underline mt-1 block"
+                    <div className="text-3xl font-black text-indigo-600 mt-2">{stats ? stats.pendingSubscriptions : '0'}</div>
+                    <button
+                      type="button"
+                      onClick={() => switchTab('subscriptions')}
+                      className="text-xs font-bold text-sky-600 hover:underline mt-1 block text-left cursor-pointer"
                     >
                       Review subscriptions →
-                    </Link>
+                    </button>
                   </div>
                 </div>
 
@@ -719,9 +763,10 @@ function AdminContent() {
                     Quick Operational Shortcuts
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Link
-                      href="/admin?tab=bulk-import"
-                      className="p-4 rounded-xl border border-slate-200 hover:border-sky-300 hover:bg-sky-50/50 text-left transition-all space-y-1 block"
+                    <button
+                      type="button"
+                      onClick={() => switchTab('bulk-import')}
+                      className="p-4 rounded-xl border border-slate-200 hover:border-sky-300 hover:bg-sky-50/50 text-left transition-all space-y-1 block cursor-pointer w-full"
                     >
                       <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
                         <FileCode className="w-4 h-4 text-sky-600" />
@@ -730,11 +775,12 @@ function AdminContent() {
                       <p className="text-xs text-slate-500">
                         Add dozens of MCQs & SATA MSQs with automatic key detection.
                       </p>
-                    </Link>
+                    </button>
 
-                    <Link
-                      href="/admin?tab=registrations"
-                      className="p-4 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-left transition-all space-y-1 block"
+                    <button
+                      type="button"
+                      onClick={() => switchTab('registrations')}
+                      className="p-4 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-left transition-all space-y-1 block cursor-pointer w-full"
                     >
                       <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -743,11 +789,12 @@ function AdminContent() {
                       <p className="text-xs text-slate-500">
                         Verify student payment proofs and activate full Q-Bank access.
                       </p>
-                    </Link>
+                    </button>
 
-                    <Link
-                      href="/admin?tab=subscriptions"
-                      className="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-left transition-all space-y-1 block"
+                    <button
+                      type="button"
+                      onClick={() => switchTab('subscriptions')}
+                      className="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-left transition-all space-y-1 block cursor-pointer w-full"
                     >
                       <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
                         <Sparkles className="w-4 h-4 text-indigo-600" />
@@ -756,7 +803,7 @@ function AdminContent() {
                       <p className="text-xs text-slate-500">
                         Review standalone 1, 3, or 6-month question bank access requests.
                       </p>
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1005,13 +1052,14 @@ function AdminContent() {
                     />
                   </div>
 
-                    <Link
-                      href="/admin?tab=bulk-import"
-                      className="px-4 py-2 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 rounded-lg flex items-center gap-1.5"
-                    >
-                      <FileCode className="w-4 h-4" />
-                      <span>Bulk Paste JSON</span>
-                    </Link>
+                  <button
+                    type="button"
+                    onClick={() => switchTab('bulk-import')}
+                    className="px-4 py-2 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 rounded-lg flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <FileCode className="w-4 h-4" />
+                    <span>Bulk Paste JSON</span>
+                  </button>
                 </div>
 
                 <div className="clinical-card bg-white rounded-2xl border border-slate-200 overflow-hidden">

@@ -1648,5 +1648,24 @@
   <div class="admin-toast-container" id="toastContainer"></div>
 
   <script src="/static/js/admin.js"></script>
+  <script>
+    // Fail-safe immediate tab switching
+    document.addEventListener('click', function(e) {
+      var navItem = e.target.closest('.admin-nav-item');
+      if (navItem && navItem.dataset.target) {
+        e.preventDefault();
+        var targetId = navItem.dataset.target;
+        if (window.switchAdminView) {
+          window.switchAdminView(targetId);
+        } else {
+          document.querySelectorAll('.admin-nav-item').forEach(function(el) { el.classList.remove('active'); });
+          navItem.classList.add('active');
+          document.querySelectorAll('.admin-view').forEach(function(el) { el.classList.remove('active'); });
+          var target = document.getElementById(targetId);
+          if (target) target.classList.add('active');
+        }
+      }
+    });
+  </script>
 </body>
 </html>
