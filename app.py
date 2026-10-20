@@ -4420,6 +4420,321 @@ def admin_create_qbank_question():
     }), 201
 
 
+def _normalize_bulk_qbank_item(item, index=0, default_exam_type='NCLEX-RN', default_category='Pharmacology & Parenteral Therapies', default_demo=0):
+    """
+    Robust normalizer for bulk imported MCQ and MSQ (Select All That Apply) questions.
+    Supports varied keys (type/msq_type/question_type, options, correct_index/indices/letters, rationales).
+    """
+    if not isinstance(item, dict):
+        return None, f"Item #{index + 1} is not a valid JSON object."
+
+    statement = (
+        item.get('statement') or
+        item.get('question') or
+        item.get('title') or
+        item.get('stem') or
+        item.get('prompt') or
+        item.get('text') or
+        item.get('question_text') or
+        item.get('questionText') or
+        ''
+    )
+    if not isinstance(statement, str) or not statement.strip():
+        return None, f"Item #{index + 1} has an empty or missing question statement."
+    statement = statement.strip()
+
+    # Determine MSQ / MCQ Question Type
+    raw_type = (
+        item.get('type') or
+        item.get('question_type') or
+        item.get('questionType') or
+        item.get('msq_type') or
+        item.get('msqType') or
+        item.get('mcq_type') or
+        item.get('mcqType') or
+        item.get('item_type') or
+        item.get('itemType') or
+        ''
+    )
+    raw_type_str = str(raw_type).strip().lower()
+
+    # Parse options array or dictionary
+    raw_options = item.get('options') or item.get('choices') or item.get('answers') or []
+    extracted_correct_from_options = []
+    options = []
+
+    if isinstance(raw_options, dict):
+        # e.g. {"A": "Option 1", "B": "Option 2"}
+        sorted_keys = sorted(raw_options.keys())
+        for k in sorted_keys:
+            v = str(raw_options[k]).strip()
+            if v:
+                options.append(v)
+    elif isinstance(raw_options, list):
+        for opt_idx, opt in enumerate(raw_options):
+            if isinstance(opt, dict):
+                opt_text = opt.get('text') or opt.get('option') or opt.get('label') or str(opt)
+                opt_text = str(opt_text).strip()
+                options.append(opt_text)
+                if opt.get('is_correct') or opt.get('isCorrect') or opt.get('correct'):
+                    extracted_correct_from_options.append(opt_idx)
+            else:
+                opt_text = str(opt).strip()
+                if opt_text:
+                    options.append(opt_text)
+    else:
+        return None, f"Item #{index + 1} options must be an array or object."
+
+    if len(options) < 2:
+        return None, f"Item #{index + 1} must have at least 2 valid options (found {len(options)})."
+
+    # Parse correct answers (indices, letters, or matching values)
+    correct_indices = []
+    if extracted_correct_from_options:
+        correct_indices = extracted_correct_from_options
+    else:
+        raw_correct = (
+            item.get('correct_indices') if 'correct_indices' in item else
+            item.get('correctIndices') if 'correctIndices' in item else
+            item.get('correct_index') if 'correct_index' in item else
+            item.get('correctIndex') if 'correctIndex' in item else
+            item.get('correct_letters') if 'correct_letters' in item else
+            item.get('correctLetters') if 'correctLetters' in item else
+            item.get('correct_letter') if 'correct_letter' in item else
+            item.get('correctLetter') if 'correctLetter' in item else
+            item.get('correct_answers') if 'correct_answers' in item else
+            item.get('correctAnswers') if 'correctAnswers' in item else
+            item.get('correct_answer') if 'correct_answer' in item else
+            item.get('correctAnswer') if 'correctAnswer' in item else
+            item.get('correct') if 'correct' in item else
+            item.get('answer') if 'answer' in item else
+            item.get('key')
+        )
+
+        def _parse_token(tok):
+            if isinstance(tok, int):
+                return tok
+            tok_str = str(tok).strip()
+            if tok_str.isdigit():
+                return int(tok_str)
+            clean_tok = tok_str.upper()
+            if clean_tok.startswith('OPTION ') or clean_tok.startswith('CHOICE '):
+                clean_tok = clean_tok.split()[-1]
+            if len(clean_tok) == 1 and 'A' <= clean_tok <= 'Z':
+                return ord(clean_tok) - ord('A')
+            # Check match against option text
+            for o_i, o_val in enumerate(options):
+                if o_val.strip().lower() == tok_str.lower():
+                    return o_i
+            return None
+
+        if isinstance(raw_correct, list):
+            for entry in raw_correct:
+                idx = _parse_token(entry)
+                if idx is not None:
+                    correct_indices.append(idx)
+        elif isinstance(raw_correct, str) and (',' in raw_correct or ';' in raw_correct):
+            delim = ',' if ',' in raw_correct else ';'
+            for part in raw_correct.split(delim):
+                idx = _parse_token(part.strip())
+                if idx is not None:
+                    correct_indices.append(idx)
+        elif raw_correct is not None:
+            idx = _parse_token(raw_correct)
+            if idx is not None:
+                correct_indices.append(idx)
+
+    clean_indices = sorted(list(set([i for i in correct_indices if 0 <= i < len(options)])))
+    if not clean_indices:
+        return None, f"Item #{index + 1} has no valid correct option specified."
+
+    # Question Type determination
+    if 'multi' in raw_type_str or 'sata' in raw_type_str or 'all' in raw_type_str or 'multiple' in raw_type_str:
+        question_type = 'multiple'
+    elif 'single' in raw_type_str or 'one' in raw_type_str or 'best' in raw_type_str:
+        question_type = 'single'
+        clean_indices = [clean_indices[0]]
+    else:
+        # Default based on count of correct options
+        question_type = 'multiple' if len(clean_indices) > 1 else 'single'
+
+    correct_index = clean_indices[0]
+
+    # Rationales and extra fields
+    correct_rationale = (
+        item.get('correct_rationale') or
+        item.get('correctRationale') or
+        item.get('rationale') or
+        item.get('explanation') or
+        item.get('reason') or
+        ''
+    ).strip()
+
+    if not correct_rationale:
+        letters = [chr(65 + i) for i in clean_indices]
+        correct_rationale = f"Option(s) {', '.join(letters)} is the correct answer according to standard clinical protocol."
+
+    raw_distractors = item.get('distractors') or item.get('distractor_notes') or []
+    if isinstance(raw_distractors, list):
+        distractors = [str(d).strip() for d in raw_distractors if str(d).strip()]
+    elif isinstance(raw_distractors, str):
+        distractors = [d.strip() for d in raw_distractors.split('\n') if d.strip()]
+    else:
+        distractors = []
+
+    clinical_pearl = (
+        item.get('clinical_pearl') or
+        item.get('clinicalPearl') or
+        item.get('pearl') or
+        item.get('key_point') or
+        item.get('takeaway') or
+        ''
+    ).strip()
+
+    category = (item.get('category') or item.get('topic') or item.get('subject') or default_category).strip()
+    difficulty = (item.get('difficulty') or item.get('level') or 'High Yield').strip()
+    exam_type = (item.get('exam_type') or item.get('examType') or item.get('track') or default_exam_type).strip()
+    client_need = (item.get('client_need') or item.get('clientNeed') or '').strip()
+
+    is_demo = 1 if (item.get('is_demo') or item.get('isDemo') or item.get('demo') or default_demo) else 0
+    sort_order = int(item.get('sort_order') or item.get('sortOrder') or 0)
+
+    return {
+        'statement': statement,
+        'options': options,
+        'question_type': question_type,
+        'correct_index': correct_index,
+        'correct_indices': clean_indices,
+        'correct_rationale': correct_rationale,
+        'distractors': distractors,
+        'clinical_pearl': clinical_pearl,
+        'category': category,
+        'difficulty': difficulty,
+        'exam_type': exam_type,
+        'client_need': client_need,
+        'is_demo': is_demo,
+        'sort_order': sort_order,
+        'correctLetters': [chr(65 + i) for i in clean_indices],
+        'isMultipleResponse': question_type == 'multiple'
+    }, None
+
+
+@admin_bp.route('/qbank/questions/bulk-import', methods=['POST'])
+@admin_required()
+def admin_bulk_import_qbank_questions():
+    """
+    Bulk import MCQs and MSQs (Select All That Apply) into Question Bank from JSON.
+    Accepts raw JSON string or parsed JSON object/array. Supports dry-run validation preview.
+    """
+    data = request.get_json(silent=True) or {}
+    validate_only = bool(data.get('validateOnly') or data.get('validate_only'))
+
+    raw_items = []
+    if 'rawJson' in data and isinstance(data['rawJson'], str):
+        try:
+            parsed_raw = json.loads(data['rawJson'])
+            if isinstance(parsed_raw, list):
+                raw_items = parsed_raw
+            elif isinstance(parsed_raw, dict):
+                raw_items = parsed_raw.get('questions') or parsed_raw.get('mcqs') or parsed_raw.get('msqs') or [parsed_raw]
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Invalid JSON syntax: {str(e)}'}), 400
+    elif 'questions' in data and isinstance(data['questions'], list):
+        raw_items = data['questions']
+    elif 'mcqs' in data and isinstance(data['mcqs'], list):
+        raw_items = data['mcqs']
+    elif 'msqs' in data and isinstance(data['msqs'], list):
+        raw_items = data['msqs']
+    elif isinstance(data, list):
+        raw_items = data
+    else:
+        return jsonify({'success': False, 'message': 'Please provide a JSON questions array or raw JSON string.'}), 422
+
+    if not raw_items:
+        return jsonify({'success': False, 'message': 'No questions found in the provided JSON data.'}), 422
+
+    default_exam = data.get('defaultExamType') or data.get('exam_type') or 'NCLEX-RN'
+    default_cat = data.get('defaultCategory') or data.get('category') or 'Pharmacology & Parenteral Therapies'
+    default_demo = 1 if (data.get('defaultDemo') or data.get('isDemo')) else 0
+
+    parsed_questions = []
+    errors = []
+
+    for idx, item in enumerate(raw_items):
+        norm, err = _normalize_bulk_qbank_item(
+            item,
+            index=idx,
+            default_exam_type=default_exam,
+            default_category=default_cat,
+            default_demo=default_demo
+        )
+        if err:
+            errors.append(err)
+        else:
+            parsed_questions.append(norm)
+
+    single_count = sum(1 for q in parsed_questions if q['question_type'] == 'single')
+    multi_count = sum(1 for q in parsed_questions if q['question_type'] == 'multiple')
+
+    if validate_only:
+        return jsonify({
+            'success': True,
+            'valid': len(errors) == 0,
+            'totalReceived': len(raw_items),
+            'validCount': len(parsed_questions),
+            'errorCount': len(errors),
+            'singleCount': single_count,
+            'multipleCount': multi_count,
+            'errors': errors,
+            'preview': parsed_questions[:10]
+        }), 200
+
+    if not parsed_questions:
+        return jsonify({
+            'success': False,
+            'message': 'Failed to import: all items in JSON had validation errors.',
+            'errors': errors
+        }), 422
+
+    created_questions = []
+    for q_data in parsed_questions:
+        q = QBankQuestion.create(
+            category=q_data['category'],
+            difficulty=q_data['difficulty'],
+            statement=q_data['statement'],
+            options=q_data['options'],
+            correct_index=q_data['correct_index'],
+            correct_rationale=q_data['correct_rationale'],
+            distractors=q_data['distractors'],
+            clinical_pearl=q_data['clinical_pearl'],
+            client_need=q_data['client_need'],
+            exam_type=q_data['exam_type'],
+            is_demo=q_data['is_demo'],
+            sort_order=q_data['sort_order'],
+            question_type=q_data['question_type'],
+            correct_indices=q_data['correct_indices']
+        )
+        created_questions.append(q)
+
+    admin_user = g.current_user
+    admin_name = f"{admin_user.first_name} {admin_user.last_name}".strip()
+    ActivityLog.log(
+        'Q-Bank Bulk Import',
+        f'Admin {admin_name} bulk imported {len(created_questions)} questions ({single_count} Single Choice, {multi_count} SATA) via JSON',
+        admin_user.id,
+        admin_user.email
+    )
+
+    return jsonify({
+        'success': True,
+        'message': f'Successfully imported {len(created_questions)} questions ({single_count} Single Best Answer, {multi_count} SATA Multiple Correct).',
+        'importedCount': len(created_questions),
+        'singleCount': single_count,
+        'multipleCount': multi_count,
+        'warningErrors': errors if errors else None
+    }), 201
+
+
 @admin_bp.route('/qbank/questions/<int:question_id>', methods=['GET'])
 @admin_required()
 def admin_get_qbank_question(question_id):

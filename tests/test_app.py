@@ -499,9 +499,127 @@ class SimpleNCLEXPlatformTestCase(unittest.TestCase):
         del_res = self.client.delete(f'/api/admin/qbank/questions/{q_id}', headers=headers)
         self.assertEqual(del_res.status_code, 200)
 
+    def test_admin_qbank_bulk_import_validation_and_execution(self):
+        """
+        Verify that Admin can paste and bulk-import JSON containing single-choice MCQs
+        and multi-choice MSQs (Select All That Apply), with flexible key mappings and types.
+        """
+        admin_login = self.client.post('/api/auth/login', json={
+            'email': 'admin@simplenclex.com',
+            'password': 'Admin123!'
+        })
+        headers = {'Authorization': f"Bearer {admin_login.get_json()['token']}"}
+
+        # 1. Test Dry-Run Validation on mixed JSON questions
+        sample_json_text = """[
+            {
+                "type": "single",
+                "question": "Which electrolyte imbalance is characterized by positive Chvostek and Trousseau signs?",
+                "options": [
+                    "Hyperkalemia",
+                    "Hypocalcemia",
+                    "Hypernatremia",
+                    "Hypomagnesemia isolated"
+                ],
+                "correct_letter": "B",
+                "rationale": "Hypocalcemia causes increased neuromuscular excitability, manifesting as carpopedal spasm (Trousseau) and facial twitching (Chvostek).",
+                "category": "Physiological Adaptation (Med-Surg)",
+                "difficulty": "High Yield"
+            },
+            {
+                "type": "multiple",
+                "question": "A nurse cares for a client receiving intravenous magnesium sulfate for severe preeclampsia. Which findings indicate magnesium toxicity? (Select all that apply.)",
+                "options": [
+                    "Absence of patellar deep tendon reflexes (DTRs)",
+                    "Respiratory rate < 12 breaths per minute",
+                    "Urine output < 30 mL/hr",
+                    "Hyperactive clonus and hyperreflexia",
+                    "Serum magnesium level > 8 mg/dL"
+                ],
+                "correct_answers": ["A", "B", "C", "E"],
+                "rationale": "Magnesium toxicity manifests as loss of deep tendon reflexes, respiratory depression, oliguria, and elevated serum levels > 8 mg/dL.",
+                "clinical_pearl": "Keep calcium gluconate at the bedside as the specific antidote for magnesium toxicity.",
+                "category": "Maternal & Newborn Nursing",
+                "difficulty": "High Yield"
+            },
+            {
+                "msq_type": "sata",
+                "statement": "Which clinical interventions are appropriate for a client during an acute tonic-clonic seizure? (Select all that apply.)",
+                "options": [
+                    "Ease the client to the floor and place a soft pillow under the head",
+                    "Insert a padded tongue blade between the teeth",
+                    "Turn the client onto the side (recovery position) to prevent aspiration",
+                    "Loosen restrictive clothing around the neck",
+                    "Restrain the client limbs firmly to prevent injury"
+                ],
+                "correct_indices": [0, 2, 3],
+                "correct_rationale": "Protect the client from injury: place on floor, turn to side, loosen clothing. Never place anything in the mouth and never restrain limbs.",
+                "category": "Safe & Effective Care Environment"
+            }
+        ]"""
+
+        # Dry run validation
+        val_res = self.client.post('/api/admin/qbank/questions/bulk-import', headers=headers, json={
+            'rawJson': sample_json_text,
+            'validateOnly': True
+        })
+        self.assertEqual(val_res.status_code, 200)
+        val_data = val_res.get_json()
+        self.assertTrue(val_data['success'])
+        self.assertTrue(val_data['valid'])
+        self.assertEqual(val_data['validCount'], 3)
+        self.assertEqual(val_data['singleCount'], 1)
+        self.assertEqual(val_data['multipleCount'], 2)
+        self.assertEqual(val_data['errorCount'], 0)
+        self.assertEqual(len(val_data['preview']), 3)
+
+        # 2. Execute Bulk Import
+        import_res = self.client.post('/api/admin/qbank/questions/bulk-import', headers=headers, json={
+            'rawJson': sample_json_text,
+            'validateOnly': False,
+            'defaultExamType': 'NCLEX-RN',
+            'defaultDemo': 1
+        })
+        self.assertEqual(import_res.status_code, 201)
+        import_data = import_res.get_json()
+        self.assertTrue(import_data['success'])
+        self.assertEqual(import_data['importedCount'], 3)
+        self.assertEqual(import_data['singleCount'], 1)
+        self.assertEqual(import_data['multipleCount'], 2)
+
+        # 3. Verify newly imported questions are accessible in practice bank and check answer works
+        questions_res = self.client.get('/api/qbank/questions')
+        self.assertEqual(questions_res.status_code, 200)
+        q_list = questions_res.get_json()['questions']
+
+        # Find the imported seizure SATA question
+        seizure_q = next((q for q in q_list if 'tonic-clonic seizure' in q['statement']), None)
+        self.assertIsNotNone(seizure_q, "Imported SATA seizure question should be found in Q-Bank")
+        self.assertEqual(seizure_q['questionType'], 'multiple')
+        self.assertEqual(seizure_q['correctIndices'], [0, 2, 3])
+
+        # Test check answer on the imported SATA question
+        ans_res = self.client.post('/api/qbank/check-answer', json={
+            'questionId': seizure_q['id'],
+            'selectedIndices': [0, 2, 3]
+        })
+        self.assertEqual(ans_res.status_code, 200)
+        self.assertTrue(ans_res.get_json()['isCorrect'])
+
+        # 4. Test error handling for invalid JSON input
+        invalid_res = self.client.post('/api/admin/qbank/questions/bulk-import', headers=headers, json={
+            'rawJson': '[{ "statement": "Missing options and correct answer" }]',
+            'validateOnly': True
+        })
+        self.assertEqual(invalid_res.status_code, 200)
+        inv_data = invalid_res.get_json()
+        self.assertEqual(inv_data['validCount'], 0)
+        self.assertGreaterEqual(inv_data['errorCount'], 1)
+
 
 if __name__ == '__main__':
     unittest.main()
+
 
 
 

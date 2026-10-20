@@ -2263,6 +2263,318 @@
     });
   }
 
+  // ── BULK IMPORT QUESTIONS VIA JSON (MCQs & MSQs) ──────────────────────────
+  const SAMPLE_BULK_JSON = [
+    {
+      "type": "single",
+      "statement": "A client with acute anaphylactic shock arrives at the emergency department. Which medication must the registered nurse prepare and administer first?",
+      "options": [
+        "Intramuscular epinephrine (1:1,000) into the anterolateral thigh",
+        "Intravenous diphenhydramine 50 mg",
+        "Nebulized albuterol sulfate 2.5 mg",
+        "Intravenous methylprednisolone 125 mg"
+      ],
+      "correct_index": 0,
+      "correct_rationale": "Intramuscular epinephrine is the indisputable first-line emergency medication for anaphylaxis. It stimulates alpha-1 (vasoconstriction), beta-1 (inotropic/chronotropic), and beta-2 (bronchodilation) adrenergic receptors to reverse life-threatening hypotension and bronchospasm.",
+      "clinical_pearl": "Administer IM epinephrine promptly in the vastus lateralis. Antihistamines and corticosteroids are secondary adjunctive medications and never replace epinephrine.",
+      "category": "Pharmacology & Parenteral Therapies",
+      "difficulty": "High Yield",
+      "exam_type": "NCLEX-RN",
+      "client_need": "Pharmacological and Parenteral Therapies",
+      "is_demo": 1
+    },
+    {
+      "type": "multiple",
+      "statement": "A nurse is providing discharge instructions to a client newly prescribed oral digoxin 0.25 mg daily for heart failure. Which signs, symptoms, and clinical findings should the nurse teach the client to recognize as evidence of digoxin toxicity? (Select all that apply.)",
+      "options": [
+        "Visual disturbances including yellow-green halos or blurred vision",
+        "Anorexia, nausea, and vomiting",
+        "Heart rate < 60 bpm, skipped beats, or palpitations",
+        "Hypokalemia (e.g. from concurrent loop diuretic therapy)",
+        "Sudden onset of severe bilateral peripheral pitting edema",
+        "Persistent hyperpyrexia with diaphoresis"
+      ],
+      "correct_indices": [0, 1, 2, 3],
+      "correct_rationale": "Digoxin toxicity manifestations include gastrointestinal distress (anorexia, nausea, vomiting), visual alterations (yellow-green halos, hazy/blurred vision), and cardiac dysrhythmias / bradycardia. Hypokalemia greatly potentiates digitalis toxicity.",
+      "clinical_pearl": "NCLEX Digoxin Pearl: Check apical pulse for 1 full minute prior to dosing; withhold if HR < 60 bpm. Serum digoxin levels > 2.0 ng/mL indicate toxic accumulation.",
+      "category": "Pharmacology & Parenteral Therapies",
+      "difficulty": "High Yield",
+      "exam_type": "NCLEX-RN",
+      "client_need": "Pharmacological and Parenteral Therapies",
+      "is_demo": 0
+    }
+  ];
+
+  function openQBankBulkImportModal() {
+    const modal = document.getElementById('qbankBulkImportModal');
+    if (!modal) return;
+    const txt = document.getElementById('qbankBulkJsonText');
+    if (txt && !txt.value.trim()) {
+      txt.value = JSON.stringify(SAMPLE_BULK_JSON, null, 2);
+    }
+    modal.classList.add('active');
+    handleValidateBulkJson(false);
+  }
+
+  async function handleValidateBulkJson(showToastNotice = true) {
+    const txt = document.getElementById('qbankBulkJsonText');
+    const rawVal = txt ? txt.value.trim() : '';
+    const section = document.getElementById('bulkValidationSection');
+    const chipsWrap = document.getElementById('bulkSummaryChips');
+    const errorAlert = document.getElementById('bulkErrorAlert');
+    const previewList = document.getElementById('bulkPreviewContainer');
+    const previewCount = document.getElementById('bulkPreviewCount');
+    const execBtn = document.getElementById('executeBulkImportBtn');
+
+    if (!rawVal) {
+      if (section) section.style.display = 'none';
+      if (execBtn) execBtn.disabled = true;
+      if (showToastNotice) showToast('Please paste JSON questions first.', 'error');
+      return null;
+    }
+
+    try {
+      const res = await fetch(`${API_ADMIN}/qbank/questions/bulk-import`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          rawJson: rawVal,
+          validateOnly: true,
+          defaultExamType: document.getElementById('bulkDefaultExamType')?.value || 'NCLEX-RN',
+          defaultCategory: document.getElementById('bulkDefaultCategory')?.value || 'Pharmacology & Parenteral Therapies',
+          defaultDemo: document.getElementById('bulkDefaultDemo')?.value === '1' ? 1 : 0
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok && !data.preview) {
+        throw new Error(data.message || 'JSON validation failed.');
+      }
+
+      if (section) section.style.display = 'block';
+
+      // Render summary chips
+      if (chipsWrap) {
+        chipsWrap.innerHTML = `
+          <span class="bulk-chip total">📋 Total: ${data.totalReceived || 0}</span>
+          <span class="bulk-chip single">🔵 Single Choice (MCQ): ${data.singleCount || 0}</span>
+          <span class="bulk-chip multiple">🟣 SATA Multi-Answer (MSQ): ${data.multipleCount || 0}</span>
+          ${data.errorCount > 0 ? `<span class="bulk-chip error">⚠️ Errors: ${data.errorCount}</span>` : `<span class="bulk-chip total" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0">✅ 100% Valid</span>`}
+        `;
+      }
+
+      // Render errors
+      if (errorAlert) {
+        if (data.errors && data.errors.length) {
+          errorAlert.style.display = 'block';
+          errorAlert.innerHTML = `<strong>⚠️ Issues detected:</strong><ul style="margin:0.4rem 0 0 1.2rem;padding:0">${data.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>`;
+        } else {
+          errorAlert.style.display = 'none';
+        }
+      }
+
+      // Render preview cards
+      if (previewList) {
+        if (!data.preview || !data.preview.length) {
+          previewList.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--admin-text-muted)">No valid questions parsed from JSON yet.</div>`;
+        } else {
+          previewList.innerHTML = data.preview.map((q, idx) => {
+            const isSata = q.question_type === 'multiple' || q.isMultipleResponse;
+            const letters = ['A','B','C','D','E','F','G'];
+            return `
+              <div class="bulk-preview-item">
+                <div class="bulk-preview-header">
+                  <span class="bulk-chip ${isSata ? 'multiple' : 'single'}" style="font-size:0.75rem">
+                    ${isSata ? '🟣 SATA / Multi-Answer' : '🔵 Single Choice'}
+                  </span>
+                  <span style="font-size:0.75rem;color:var(--admin-text-muted)">
+                    Item #${idx + 1} • ${escapeHtml(q.category || '')} • ${escapeHtml(q.exam_type || 'NCLEX-RN')}
+                  </span>
+                </div>
+                <div class="bulk-preview-title">
+                  ${escapeHtml(q.statement)}
+                </div>
+                <div class="bulk-preview-options">
+                  ${(q.options || []).map((opt, o_i) => {
+                    const isCorrect = (q.correct_indices || []).includes(o_i);
+                    return `
+                      <div class="bulk-preview-option-chip ${isCorrect ? 'is-correct' : ''}" title="${escapeHtml(opt)}">
+                        <strong>${letters[o_i] || o_i + 1}:</strong>
+                        <span>${escapeHtml(opt)}</span>
+                        ${isCorrect ? ' ✓' : ''}
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+                <div class="bulk-preview-footer">
+                  <span><strong>Correct Answer:</strong> Option(s) ${(q.correctLetters || []).join(', ')}</span>
+                  <span style="color:#059669">${q.is_demo ? '🌟 Demo Unlocked' : '🔒 Subscribers Only'}</span>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+
+      if (previewCount) {
+        previewCount.textContent = `Showing ${Math.min(data.preview ? data.preview.length : 0, 10)} of ${data.validCount || 0} valid items`;
+      }
+
+      if (execBtn) {
+        execBtn.disabled = !data.validCount || data.validCount === 0;
+        execBtn.innerHTML = `<span>🚀 Import ${data.validCount || 0} Questions to Bank</span>`;
+      }
+
+      if (showToastNotice) {
+        showToast(`Validated: ${data.validCount || 0} questions parsed (${data.singleCount || 0} Single, ${data.multipleCount || 0} SATA).`, 'success');
+      }
+
+      return data;
+    } catch (err) {
+      console.error('Validation error:', err);
+      if (section) section.style.display = 'block';
+      if (errorAlert) {
+        errorAlert.style.display = 'block';
+        errorAlert.innerHTML = `<strong>JSON Parsing Error:</strong> ${escapeHtml(err.message)}`;
+      }
+      if (execBtn) execBtn.disabled = true;
+      if (showToastNotice) showToast(err.message, 'error');
+      return null;
+    }
+  }
+
+  async function handleExecuteBulkImport() {
+    const txt = document.getElementById('qbankBulkJsonText');
+    const rawVal = txt ? txt.value.trim() : '';
+    const execBtn = document.getElementById('executeBulkImportBtn');
+
+    if (!rawVal) {
+      showToast('Please provide JSON code first.', 'error');
+      return;
+    }
+
+    try {
+      if (execBtn) {
+        execBtn.disabled = true;
+        execBtn.innerHTML = `<span>⏳ Importing Questions...</span>`;
+      }
+
+      const res = await fetch(`${API_ADMIN}/qbank/questions/bulk-import`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          rawJson: rawVal,
+          validateOnly: false,
+          defaultExamType: document.getElementById('bulkDefaultExamType')?.value || 'NCLEX-RN',
+          defaultCategory: document.getElementById('bulkDefaultCategory')?.value || 'Pharmacology & Parenteral Therapies',
+          defaultDemo: document.getElementById('bulkDefaultDemo')?.value === '1' ? 1 : 0
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Import failed.');
+      }
+
+      showToast(data.message || 'Questions imported successfully!', 'success');
+      closeModal('qbankBulkImportModal');
+
+      // Reload questions list and stats in background
+      await loadQBankQuestions();
+      loadStats();
+    } catch (err) {
+      console.error('Bulk import execution error:', err);
+      showToast(err.message || 'Failed to import questions.', 'error');
+    } finally {
+      if (execBtn) {
+        execBtn.disabled = false;
+        execBtn.innerHTML = `<span>🚀 Import to Question Bank</span>`;
+      }
+    }
+  }
+
+  function setupQBankBulkImportControls() {
+    const bulkBtn = document.getElementById('bulkImportQBankBtn');
+    if (bulkBtn) bulkBtn.addEventListener('click', () => openQBankBulkImportModal());
+
+    const sampleBtn = document.getElementById('loadSampleBulkJsonBtn');
+    if (sampleBtn) {
+      sampleBtn.addEventListener('click', () => {
+        const txt = document.getElementById('qbankBulkJsonText');
+        if (txt) {
+          txt.value = JSON.stringify(SAMPLE_BULK_JSON, null, 2);
+          handleValidateBulkJson(false);
+          showToast('Sample JSON template loaded!', 'info');
+        }
+      });
+    }
+
+    const formatBtn = document.getElementById('formatBulkJsonBtn');
+    if (formatBtn) {
+      formatBtn.addEventListener('click', () => {
+        const txt = document.getElementById('qbankBulkJsonText');
+        if (!txt || !txt.value.trim()) return;
+        try {
+          const parsed = JSON.parse(txt.value.trim());
+          txt.value = JSON.stringify(parsed, null, 2);
+          showToast('JSON formatted nicely.', 'success');
+        } catch (err) {
+          showToast('Cannot format: ' + err.message, 'error');
+        }
+      });
+    }
+
+    const clearBtn = document.getElementById('clearBulkJsonBtn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        const txt = document.getElementById('qbankBulkJsonText');
+        if (txt) txt.value = '';
+        const section = document.getElementById('bulkValidationSection');
+        if (section) section.style.display = 'none';
+        const execBtn = document.getElementById('executeBulkImportBtn');
+        if (execBtn) {
+          execBtn.disabled = true;
+          execBtn.innerHTML = `<span>🚀 Import to Question Bank</span>`;
+        }
+      });
+    }
+
+    const valBtn = document.getElementById('validateBulkJsonBtn');
+    if (valBtn) valBtn.addEventListener('click', () => handleValidateBulkJson(true));
+
+    const execBtn = document.getElementById('executeBulkImportBtn');
+    if (execBtn) execBtn.addEventListener('click', () => handleExecuteBulkImport());
+
+    // Debounced live typing validation
+    const jsonTxt = document.getElementById('qbankBulkJsonText');
+    if (jsonTxt) {
+      let debounce;
+      jsonTxt.addEventListener('input', () => {
+        clearTimeout(debounce);
+        debounce = setTimeout(() => {
+          if (jsonTxt.value.trim().length > 10) {
+            handleValidateBulkJson(false);
+          }
+        }, 500);
+      });
+    }
+
+    // Default selectors triggers re-validation preview
+    ['bulkDefaultExamType', 'bulkDefaultCategory', 'bulkDefaultDemo'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', () => {
+        const txt = document.getElementById('qbankBulkJsonText');
+        if (txt && txt.value.trim()) handleValidateBulkJson(false);
+      });
+    });
+  }
+
   // ── 10. Q-BANK SUBSCRIPTIONS MANAGEMENT ───────────────────────────────────
   let activeQBankSubFilter = 'all';
 
@@ -2576,6 +2888,7 @@
     setupCurriculumControls();
     setupDemoMcqsControls();
     setupQBankQuestionsControls();
+    setupQBankBulkImportControls();
     setupQBankSubscriptionsControls();
     setupSettingsControls();
     setupUsersControls();

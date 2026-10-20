@@ -617,6 +617,9 @@
                 <button type="button" class="admin-btn admin-btn-secondary" id="reseedQBankBtn">
                   <span>🔄 Reseed Default Questions</span>
                 </button>
+                <button type="button" class="admin-btn admin-btn-secondary" id="bulkImportQBankBtn" style="border-color:#6366f1;color:#4f46e5;font-weight:600">
+                  <span>📥 Paste JSON Bulk Import</span>
+                </button>
                 <button type="button" class="admin-btn admin-btn-primary" id="addQBankQuestionBtn">
                   <span>➕ Add New Question</span>
                 </button>
@@ -1326,6 +1329,143 @@
         <button type="button" class="admin-btn admin-btn-primary" id="saveManualQBankSubBtn">
           ✅ Grant Q-Bank Access
         </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <!-- MODAL: BULK IMPORT QUESTIONS VIA JSON (MCQ & MSQ / SATA)            -->
+  <!-- ═════════════════════════════════════════════════════════════════════ -->
+  <div class="admin-modal-backdrop" id="qbankBulkImportModal">
+    <div class="admin-modal" style="max-width:920px">
+      <div class="admin-modal-header">
+        <div>
+          <h3 style="display:flex;align-items:center;gap:0.5rem">
+            <span>📥</span> Bulk Import Questions via JSON
+          </h3>
+          <p style="font-size:0.83rem;color:var(--admin-text-muted);margin-top:0.2rem">
+            Paste raw JSON code for Single Choice MCQs and Multiple Choice MSQs (Select All That Apply).
+          </p>
+        </div>
+        <button class="admin-modal-close" data-close-modal="qbankBulkImportModal">×</button>
+      </div>
+      <div class="admin-modal-body" style="padding:1.5rem">
+
+        <!-- Quick Toolbar & Key Reference -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:0.75rem">
+          <div style="font-size:0.83rem;color:var(--admin-text-muted)">
+            Supported keys: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#0f172a">"type": "single" | "multiple"</code>, <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#0f172a">options</code>, <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#0f172a">correct_indices</code> / <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;color:#0f172a">correct_answers</code>
+          </div>
+          <div style="display:flex;gap:0.5rem">
+            <button type="button" class="admin-btn admin-btn-sm admin-btn-secondary" id="loadSampleBulkJsonBtn" style="color:#4f46e5;border-color:#c7d2fe;background:#eef2ff">
+              <span>📋 Load Sample JSON</span>
+            </button>
+            <button type="button" class="admin-btn admin-btn-sm admin-btn-secondary" id="formatBulkJsonBtn" title="Format and indent JSON">
+              <span>🧹 Format JSON</span>
+            </button>
+            <button type="button" class="admin-btn admin-btn-sm admin-btn-secondary" id="clearBulkJsonBtn" style="color:#ef4444">
+              <span>🗑️ Clear</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Code Editor Textarea -->
+        <div class="form-group" style="margin-bottom:1rem">
+          <textarea id="qbankBulkJsonText" rows="11" spellcheck="false" placeholder='[
+  {
+    "type": "single",
+    "statement": "Which medication is prescribed first-line for anaphylaxis?",
+    "options": ["Epinephrine", "Diphenhydramine", "Albuterol", "Methylprednisolone"],
+    "correct_index": 0,
+    "correct_rationale": "Intramuscular epinephrine is the first-line medication of choice."
+  },
+  {
+    "type": "multiple",
+    "statement": "Which clinical findings indicate digoxin toxicity? (Select all that apply.)",
+    "options": [
+      "Visual changes with yellow-green halos",
+      "Anorexia, nausea, and vomiting",
+      "Bradycardia and cardiac dysrhythmias",
+      "Hypokalemia as an exacerbating factor",
+      "Hyperthermia"
+    ],
+    "correct_indices": [0, 1, 2, 3],
+    "correct_rationale": "Digoxin toxicity features gastrointestinal distress, yellow-green visual halos, and bradycardia."
+  }
+]' style="font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:0.85rem;line-height:1.5;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:8px;padding:1rem;resize:vertical;width:100%"></textarea>
+        </div>
+
+        <!-- Default Meta Settings for imported questions if not specified in JSON -->
+        <div style="background:#f8fafc;border:1px solid var(--admin-border);border-radius:8px;padding:0.85rem 1rem;margin-bottom:1.25rem">
+          <div style="font-size:0.8rem;font-weight:700;color:var(--admin-text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.6rem">
+            Default Metadata (applied if omitted in JSON)
+          </div>
+          <div class="form-row" style="margin-bottom:0;gap:0.75rem">
+            <div class="form-group" style="margin-bottom:0;flex:1">
+              <label style="font-size:0.8rem">Default Target Track</label>
+              <select id="bulkDefaultExamType" style="font-size:0.85rem;padding:0.4rem 0.65rem">
+                <option value="NCLEX-RN">NCLEX-RN (US / Canada)</option>
+                <option value="Next-Gen (NGN)">Next-Generation NCLEX (NGN)</option>
+                <option value="SNLE">SNLE (Saudi Licensure)</option>
+                <option value="Prometric">Prometric (Gulf DHA / MOH)</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;flex:1.2">
+              <label style="font-size:0.8rem">Default Clinical Category</label>
+              <select id="bulkDefaultCategory" style="font-size:0.85rem;padding:0.4rem 0.65rem">
+                <option value="Pharmacology &amp; Parenteral Therapies">Pharmacology &amp; Parenteral Therapies</option>
+                <option value="Physiological Adaptation (Med-Surg)">Physiological Adaptation (Med-Surg)</option>
+                <option value="Reduction of Risk Potential">Reduction of Risk Potential</option>
+                <option value="Management of Care &amp; Delegation">Management of Care &amp; Delegation</option>
+                <option value="Maternal &amp; Newborn Nursing">Maternal &amp; Newborn Nursing (OB)</option>
+                <option value="Pediatric Nursing">Pediatric Nursing</option>
+                <option value="Psychosocial Integrity &amp; Mental Health">Psychosocial Integrity &amp; Mental Health</option>
+                <option value="Safe &amp; Effective Care Environment">Safe &amp; Effective Care Environment</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;flex:1">
+              <label style="font-size:0.8rem">Student Visibility</label>
+              <select id="bulkDefaultDemo" style="font-size:0.85rem;padding:0.4rem 0.65rem">
+                <option value="0">Subscribers Only (Default)</option>
+                <option value="1">Free Demo Items (Unlocked for all)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Validation Summary & Preview Section -->
+        <div id="bulkValidationSection" style="display:none;margin-top:1rem">
+          <div id="bulkSummaryChips" style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+            <!-- Dynamic stats pills -->
+          </div>
+
+          <div id="bulkErrorAlert" style="display:none;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:0.75rem 1rem;border-radius:8px;font-size:0.85rem;margin-bottom:1rem">
+            <!-- Dynamic error messages -->
+          </div>
+
+          <div style="font-size:0.85rem;font-weight:700;color:var(--admin-text-main);margin-bottom:0.5rem;display:flex;justify-content:space-between">
+            <span>Validated Questions Preview:</span>
+            <span id="bulkPreviewCount" style="color:var(--admin-text-muted);font-weight:normal"></span>
+          </div>
+          <div id="bulkPreviewContainer" style="max-height:280px;overflow-y:auto;border:1px solid var(--admin-border);border-radius:8px;padding:0.75rem;background:#fafafa;display:flex;flex-direction:column;gap:0.75rem">
+            <!-- Dynamic preview cards -->
+          </div>
+        </div>
+
+      </div>
+      <div class="admin-modal-footer" style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <button type="button" class="admin-btn admin-btn-secondary" id="validateBulkJsonBtn">
+            <span>🔍 Validate &amp; Preview</span>
+          </button>
+        </div>
+        <div style="display:flex;gap:0.75rem">
+          <button type="button" class="admin-btn admin-btn-secondary" data-close-modal="qbankBulkImportModal">Cancel</button>
+          <button type="button" class="admin-btn admin-btn-primary" id="executeBulkImportBtn" disabled>
+            <span>🚀 Import to Question Bank</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
