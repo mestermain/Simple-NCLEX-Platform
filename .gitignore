@@ -43,3 +43,9 @@ uploads/courses/*
 !uploads/courses/.gitkeep
 uploads/payments/*
 !uploads/payments/.gitkeep
+
+# Next.js & Node
+node_modules/
+.next/
+out/
+next-env.d.ts
