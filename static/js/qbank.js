@@ -9,9 +9,11 @@
 
   // State
   let state = {
-    token: localStorage.getItem('nclex_token') || '',
+    token: localStorage.getItem('nclex_token') || localStorage.getItem('token') || localStorage.getItem('access_token') || '',
     user: null,
     hasAccess: false,
+    isAdmin: false,
+    isCourseEnrolled: false,
     status: 'unauthenticated',
     daysRemaining: 0,
     plans: [],
@@ -67,13 +69,20 @@
   });
 
   function initUserSession() {
-    const userStr = localStorage.getItem('nclex_user');
+    state.token = localStorage.getItem('nclex_token') || localStorage.getItem('token') || localStorage.getItem('access_token') || '';
+    const userStr = localStorage.getItem('nclex_user') || localStorage.getItem('user');
     if (userStr) {
       try {
         state.user = JSON.parse(userStr);
       } catch (_) {
         state.user = null;
       }
+    }
+    if (state.user && state.user.role === 'admin') {
+      state.hasAccess = true;
+      state.isAdmin = true;
+      state.status = 'approved';
+      state.daysRemaining = 9999;
     }
   }
 
@@ -91,6 +100,7 @@
   }
 
   async function checkSubscriptionStatus() {
+    initUserSession();
     const headers = {};
     if (state.token) {
       headers['Authorization'] = `Bearer ${state.token}`;
@@ -100,13 +110,21 @@
       const res = await fetch(`${API_QBANK}/status`, { headers });
       const data = await res.json();
       if (data.success) {
-        state.hasAccess = data.hasAccess;
-        state.status = data.status;
-        state.daysRemaining = data.daysRemaining || 0;
+        state.hasAccess = Boolean(data.hasAccess || (state.user && state.user.role === 'admin'));
+        state.isAdmin = Boolean(data.isAdmin || (state.user && state.user.role === 'admin'));
+        state.isCourseEnrolled = Boolean(data.isCourseEnrolled);
+        state.status = data.status || (state.hasAccess ? 'approved' : 'none');
+        state.daysRemaining = data.daysRemaining || (state.isAdmin ? 9999 : 0);
         renderStatusBar();
       }
     } catch (err) {
       console.warn('Status check failed:', err);
+      if (state.user && state.user.role === 'admin') {
+        state.hasAccess = true;
+        state.isAdmin = true;
+        state.status = 'approved';
+        state.daysRemaining = 9999;
+      }
       renderStatusBar();
     }
   }
@@ -114,37 +132,55 @@
   function renderStatusBar() {
     if (!statusBadge || !statusText) return;
 
+    if (state.isAdmin || (state.user && state.user.role === 'admin')) {
+      statusBadge.className = 'qbank-status-badge approved';
+      statusBadge.innerHTML = '<span>👑</span> Administrator Access';
+      statusText.innerHTML = `<strong>Admin All-Access Unlocked:</strong> You have unlimited administrator access to preview, practice, and test all 2,500+ NCLEX questions with rationales across the platform.`;
+      if (statusActionBtn) {
+        statusActionBtn.textContent = 'Manage in Admin Panel ⚙️';
+        statusActionBtn.onclick = () => {
+          window.location.href = 'admin.html#qbank-questions';
+        };
+      }
+      return;
+    }
+
     if (state.hasAccess) {
       statusBadge.className = 'qbank-status-badge approved';
       statusBadge.innerHTML = '<span>✅</span> All-Access Active';
-      statusText.innerHTML = `<strong>Subscriber Access Unlocked!</strong> You have full access to all 2,500+ NCLEX questions with rationales (${state.daysRemaining} days remaining).`;
+      const label = state.isCourseEnrolled ? 'Enrolled Course Student' : 'Subscriber';
+      statusText.innerHTML = `<strong>${label} Access Unlocked!</strong> You have full, unrestricted access to all NCLEX questions with rationales and clinical pearls.`;
       if (statusActionBtn) {
-        statusActionBtn.textContent = 'View My Plan';
+        statusActionBtn.textContent = 'View My Profile 👤';
         statusActionBtn.onclick = () => {
-          document.getElementById('pricingSection')?.scrollIntoView({ behavior: 'smooth' });
+          window.location.href = 'profile.html';
         };
       }
-    } else if (state.status === 'pending') {
+      return;
+    }
+
+    if (state.status === 'pending') {
       statusBadge.className = 'qbank-status-badge pending';
       statusBadge.innerHTML = '<span>⏳</span> Subscription Pending';
-      statusText.innerHTML = `<strong>Payment Under Review:</strong> Your Q-Bank subscription request is awaiting administrator confirmation. You can practice demo questions in the meantime.`;
+      statusText.innerHTML = `<strong>Payment Under Review:</strong> Your subscription request is awaiting administrator confirmation. You can practice demo questions in the meantime.`;
       if (statusActionBtn) {
         statusActionBtn.textContent = 'Contact WhatsApp';
         statusActionBtn.onclick = () => {
           const phone = state.settings.contact_whatsapp || '923085737093';
-          window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=Assalam-o-Alaikum!%20I%20have%20submitted%20my%20Q-Bank%20subscription%20payment%20proof.%20Please%20verify.`, '_blank');
+          window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=Assalam-o-Alaikum!%20I%20have%20submitted%20my%20payment%20proof.%20Please%20verify.`, '_blank');
         };
       }
-    } else {
-      statusBadge.className = 'qbank-status-badge demo';
-      statusBadge.innerHTML = '<span>🔒</span> Free Demo Mode';
-      statusText.innerHTML = `You are currently viewing <strong>Free Demo Questions</strong>. Subscribe to unlock the complete 2,500+ question clinical bank, Next-Gen cases, and rationales.`;
-      if (statusActionBtn) {
-        statusActionBtn.textContent = 'Unlock Full Q-Bank →';
-        statusActionBtn.onclick = () => {
-          document.getElementById('pricingSection')?.scrollIntoView({ behavior: 'smooth' });
-        };
-      }
+      return;
+    }
+
+    statusBadge.className = 'qbank-status-badge demo';
+    statusBadge.innerHTML = '<span>🔒</span> Free Demo Mode';
+    statusText.innerHTML = `You are currently viewing <strong>Free Demo Questions</strong>. Enroll in any course or subscribe to unlock the complete clinical bank and Next-Gen cases.`;
+    if (statusActionBtn) {
+      statusActionBtn.textContent = 'Unlock Full Q-Bank →';
+      statusActionBtn.onclick = () => {
+        document.getElementById('pricingSection')?.scrollIntoView({ behavior: 'smooth' });
+      };
     }
   }
 
@@ -195,8 +231,8 @@
               </li>
             `).join('')}
           </ul>
-          <button class="qbank-btn qbank-btn-primary" style="width:100%" onclick="window.openSubscribeModal(${p.id})">
-            ${state.hasAccess ? 'Extend Subscription' : 'Subscribe & Unlock Bank'}
+          <button class="qbank-btn ${state.isAdmin ? 'qbank-btn-secondary' : 'qbank-btn-primary'}" style="width:100%" onclick="${state.isAdmin ? "window.location.href='admin.html#qbank-questions'" : `window.openSubscribeModal(${p.id})`}">
+            ${state.isAdmin ? '👑 Admin All-Access Active' : (state.hasAccess ? 'Extend / Upgrade Plan' : 'Subscribe & Unlock Bank')}
           </button>
         </div>
       `;
@@ -204,6 +240,7 @@
   }
 
   async function fetchQuestions() {
+    initUserSession();
     const headers = {};
     if (state.token) {
       headers['Authorization'] = `Bearer ${state.token}`;
@@ -227,8 +264,21 @@
         state.questions = data.questions || [];
         state.currentIndex = 0;
         state.answersRecord = {};
+        if (data.hasAccess !== undefined) {
+          state.hasAccess = Boolean(data.hasAccess);
+        }
+        if (data.isAdmin !== undefined) {
+          state.isAdmin = Boolean(data.isAdmin);
+        }
+        if (data.isCourseEnrolled !== undefined) {
+          state.isCourseEnrolled = Boolean(data.isCourseEnrolled);
+        }
+        renderStatusBar();
+
         if (questionsCountBadge) {
-          questionsCountBadge.textContent = `${state.questions.length} questions available`;
+          const modeLabel = (state.isAdmin || state.hasAccess) ? 'Full Access' : 'Demo Mode';
+          const bankTotal = data.totalInBank ? ` (${data.totalInBank} in Bank)` : '';
+          questionsCountBadge.textContent = `${state.questions.length} questions loaded • ${modeLabel}${bankTotal}`;
         }
         renderCurrentQuestion();
         updateScoreStats();

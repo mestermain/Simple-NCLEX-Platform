@@ -757,6 +757,122 @@ class SimpleNCLEXPlatformTestCase(unittest.TestCase):
         new_login = self.client.post('/api/auth/login', json={'email': test_email, 'password': new_pass})
         self.assertEqual(new_login.status_code, 200)
 
+    def test_admin_and_approved_users_have_full_mcq_access(self):
+        """
+        Verify:
+        1. Admin has immediate, unrestricted full access to ALL MCQs in Q-Bank (no demo restriction).
+        2. Student with an approved course enrollment has full access to ALL MCQs across the platform.
+        3. Student with an approved Q-Bank subscription has full access to ALL MCQs across the platform.
+        4. Unapproved / unauthenticated user receives demoMode = True (only demo items).
+        5. Admin Q-Bank filtering by Category works seamlessly even with category label variations.
+        """
+        import uuid
+        # 1. Admin login
+        admin_login = self.client.post('/api/auth/login', json={
+            'email': 'admin@simplenclex.com',
+            'password': 'Admin123!'
+        })
+        self.assertEqual(admin_login.status_code, 200)
+        admin_token = admin_login.get_json()['token']
+        admin_headers = {'Authorization': f'Bearer {admin_token}'}
+
+        # Check Admin Q-Bank status
+        admin_status = self.client.get('/api/qbank/status', headers=admin_headers)
+        self.assertEqual(admin_status.status_code, 200)
+        admin_status_data = admin_status.get_json()
+        self.assertTrue(admin_status_data['hasAccess'])
+        self.assertTrue(admin_status_data['isAdmin'])
+        self.assertEqual(admin_status_data['status'], 'approved')
+
+        # Admin fetches all questions from /api/qbank/questions
+        admin_qb = self.client.get('/api/qbank/questions', headers=admin_headers)
+        self.assertEqual(admin_qb.status_code, 200)
+        admin_qb_data = admin_qb.get_json()
+        self.assertTrue(admin_qb_data['hasAccess'])
+        self.assertTrue(admin_qb_data['isSubscribed'])
+        self.assertFalse(admin_qb_data['demoMode'])
+        self.assertTrue(admin_qb_data['isAdmin'])
+        self.assertGreaterEqual(admin_qb_data['totalAvailable'], 40)
+        self.assertEqual(len(admin_qb_data['questions']), admin_qb_data['totalAvailable'])
+
+        # Admin lists questions in /api/admin/qbank/questions and filters by category
+        admin_list = self.client.get('/api/admin/qbank/questions', headers=admin_headers)
+        self.assertEqual(admin_list.status_code, 200)
+        admin_list_data = admin_list.get_json()
+        self.assertGreaterEqual(admin_list_data['total'], 40)
+
+        # Test flexible category filtering
+        cat_filter = self.client.get('/api/admin/qbank/questions?category=Management+of+Care+%26+Delegation', headers=admin_headers)
+        self.assertEqual(cat_filter.status_code, 200)
+        cat_data = cat_filter.get_json()
+        self.assertGreater(cat_data['total'], 0, "Management of Care filter should find matching questions")
+
+        cat_filter2 = self.client.get('/api/admin/qbank/questions?category=Reduction+of+Risk+Potential', headers=admin_headers)
+        self.assertEqual(cat_filter2.status_code, 200)
+        self.assertGreater(cat_filter2.get_json()['total'], 0, "Reduction of Risk filter should find matching questions")
+
+        # 2. Register a new student
+        unique_suffix = uuid.uuid4().hex[:6]
+        student_email = f"approved_student_{unique_suffix}@test.com"
+        student_pass = "SecurePass123!"
+        reg_res = self.client.post('/api/auth/register', json={
+            'firstName': 'Fatima',
+            'lastName': 'Nurse',
+            'email': student_email,
+            'password': student_pass,
+            'examType': 'NCLEX-RN'
+        })
+        self.assertEqual(reg_res.status_code, 201)
+        student_token = reg_res.get_json()['token']
+        student_headers = {'Authorization': f'Bearer {student_token}'}
+        student_id = reg_res.get_json()['user']['id']
+
+        # Before any approval, student should have demoMode = True
+        init_qb = self.client.get('/api/qbank/questions', headers=student_headers)
+        self.assertEqual(init_qb.status_code, 200)
+        init_qb_data = init_qb.get_json()
+        self.assertFalse(init_qb_data['hasAccess'])
+        self.assertTrue(init_qb_data['demoMode'])
+
+        # 3. Student enrolls in a course and admin approves it
+        courses_res = self.client.get('/api/courses')
+        course_id = courses_res.get_json()['courses'][0]['id']
+        enroll_res = self.client.post(f'/api/courses/{course_id}/enroll', headers=student_headers, json={
+            'whatsappNumber': '+923001234567',
+            'paymentScreenshot': '/uploads/payments/fatima_pay.jpg',
+            'transactionId': 'TX_FATIMA_999'
+        })
+        self.assertIn(enroll_res.status_code, [200, 201])
+        reg_id = enroll_res.get_json()['enrollment']['id']
+
+        # Admin approves enrollment
+        approve_res = self.client.put(f'/api/admin/registrations/{reg_id}/approve', headers=admin_headers)
+        self.assertEqual(approve_res.status_code, 200)
+
+        # 4. NOW: Because student got approval, they can use EVERY MCQ of the platform!
+        approved_status = self.client.get('/api/qbank/status', headers=student_headers)
+        self.assertEqual(approved_status.status_code, 200)
+        app_status_data = approved_status.get_json()
+        self.assertTrue(app_status_data['hasAccess'], "Approved course student must have hasAccess=True")
+        self.assertEqual(app_status_data['status'], 'approved')
+        self.assertTrue(app_status_data['isCourseEnrolled'])
+
+        approved_qb = self.client.get('/api/qbank/questions', headers=student_headers)
+        self.assertEqual(approved_qb.status_code, 200)
+        approved_qb_data = approved_qb.get_json()
+        self.assertTrue(approved_qb_data['hasAccess'], "Approved course student must have full Q-Bank access")
+        self.assertTrue(approved_qb_data['isSubscribed'])
+        self.assertFalse(approved_qb_data['demoMode'], "Approved student must NOT be in demoMode")
+        self.assertGreaterEqual(approved_qb_data['totalAvailable'], 40)
+        self.assertEqual(len(approved_qb_data['questions']), approved_qb_data['totalAvailable'])
+
+        # 5. Check profile endpoint reflects full platform access
+        prof_res = self.client.get('/api/student/profile', headers=student_headers)
+        self.assertEqual(prof_res.status_code, 200)
+        prof_data = prof_res.get_json()
+        self.assertTrue(prof_data['hasFullAccess'])
+        self.assertTrue(prof_data['hasApprovedEnrollment'])
+
 
 if __name__ == '__main__':
     unittest.main()

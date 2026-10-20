@@ -2022,21 +2022,50 @@ class QBankQuestion:
         return d
 
     @classmethod
-    def all(cls, category=None, difficulty=None, exam_type=None, is_demo_only=False):
+    def all(cls, category=None, difficulty=None, exam_type=None, is_demo_only=False, is_demo=None):
         db = get_db()
         sql = "SELECT * FROM qbank_questions WHERE 1=1"
         params = []
         if is_demo_only:
             sql += " AND is_demo = 1"
+        elif is_demo is not None and str(is_demo).strip().lower() != 'all':
+            demo_str = str(is_demo).strip().lower()
+            if demo_str in ('1', 'true', 'yes'):
+                sql += " AND is_demo = 1"
+            elif demo_str in ('0', 'false', 'no'):
+                sql += " AND is_demo = 0"
+
         if category and category.lower() != 'all':
-            sql += " AND category = ?"
-            params.append(category)
+            cat_clean = category.strip()
+            cat_lower = cat_clean.lower()
+            if 'pharmacology' in cat_lower:
+                sql += " AND LOWER(category) LIKE '%pharmacology%'"
+            elif 'physiological' in cat_lower or 'med-surg' in cat_lower:
+                sql += " AND (LOWER(category) LIKE '%physiological%' OR LOWER(category) LIKE '%med-surg%')"
+            elif 'reduction of risk' in cat_lower or 'cardiac' in cat_lower:
+                sql += " AND (LOWER(category) LIKE '%reduction of risk%' OR LOWER(category) LIKE '%cardiac%')"
+            elif 'management of care' in cat_lower or 'delegation' in cat_lower or 'triaging' in cat_lower:
+                sql += " AND LOWER(category) LIKE '%management of care%'"
+            elif 'maternal' in cat_lower or 'newborn' in cat_lower or 'ob' in cat_lower:
+                sql += " AND (LOWER(category) LIKE '%maternal%' OR LOWER(category) LIKE '%newborn%')"
+            elif 'pediatric' in cat_lower:
+                sql += " AND LOWER(category) LIKE '%pediatric%'"
+            elif 'psychosocial' in cat_lower or 'mental' in cat_lower:
+                sql += " AND (LOWER(category) LIKE '%psychosocial%' OR LOWER(category) LIKE '%mental%')"
+            elif 'safe' in cat_lower or 'infection' in cat_lower or 'safety' in cat_lower:
+                sql += " AND (LOWER(category) LIKE '%safe%' OR LOWER(category) LIKE '%infection%')"
+            else:
+                sql += " AND (category = ? OR LOWER(category) LIKE ?)"
+                params.extend([cat_clean, f"%{cat_lower}%"])
+
         if difficulty and difficulty.lower() != 'all':
-            sql += " AND difficulty = ?"
-            params.append(difficulty)
+            sql += " AND LOWER(difficulty) = ?"
+            params.append(difficulty.strip().lower())
+
         if exam_type and exam_type.lower() != 'all':
-            sql += " AND exam_type = ?"
-            params.append(exam_type)
+            sql += " AND (LOWER(exam_type) = ? OR LOWER(exam_type) LIKE ?)"
+            params.extend([exam_type.strip().lower(), f"%{exam_type.strip().lower()}%"])
+
         sql += " ORDER BY sort_order ASC, id ASC"
         cur = db.execute(sql, tuple(params)) if params else db.execute(sql)
         return [cls(dict(r)) for r in cur.fetchall()]
@@ -2728,13 +2757,19 @@ def decode_token(token):
 
 def verify_jwt_in_request(optional=False):
     """
-    Inspect Authorization header and set g.user_id if valid.
+    Inspect Authorization header, query parameter, or cookies and set g.user_id if valid.
     Returns True if valid token present, False otherwise.
     """
     auth_header = request.headers.get('Authorization', '')
     token = None
     if auth_header.startswith('Bearer '):
         token = auth_header.split(' ', 1)[1].strip()
+    elif 'token' in request.args:
+        token = request.args.get('token', '').strip()
+    elif 'nclex_token' in request.cookies:
+        token = request.cookies.get('nclex_token', '').strip()
+    elif 'token' in request.cookies:
+        token = request.cookies.get('token', '').strip()
 
     if not token:
         g.user_id = None
@@ -3500,6 +3535,128 @@ def get_qbank_plans():
     }), 200
 
 
+def check_user_platform_access(user_id):
+    """
+    Check if a user has full platform MCQ access.
+    Returns a dict with:
+        has_access: bool
+        is_admin: bool
+        is_course_enrolled: bool
+        has_qbank_sub: bool
+        status: str ('approved', 'pending', 'expired', 'none', 'unauthenticated')
+        plan_name: str
+        days_remaining: int
+        subscription: dict or None
+    """
+    if not user_id:
+        return {
+            'has_access': False,
+            'is_admin': False,
+            'is_course_enrolled': False,
+            'has_qbank_sub': False,
+            'status': 'unauthenticated',
+            'plan_name': None,
+            'days_remaining': 0,
+            'subscription': None
+        }
+
+    try:
+        uid = int(user_id)
+    except (ValueError, TypeError):
+        return {
+            'has_access': False,
+            'is_admin': False,
+            'is_course_enrolled': False,
+            'has_qbank_sub': False,
+            'status': 'invalid',
+            'plan_name': None,
+            'days_remaining': 0,
+            'subscription': None
+        }
+
+    user = User.find_by_id(uid)
+    if not user:
+        return {
+            'has_access': False,
+            'is_admin': False,
+            'is_course_enrolled': False,
+            'has_qbank_sub': False,
+            'status': 'not_found',
+            'plan_name': None,
+            'days_remaining': 0,
+            'subscription': None
+        }
+
+    # 1. Administrator has immediate, permanent 100% full access to all MCQs across the platform
+    if user.role == 'admin':
+        return {
+            'has_access': True,
+            'is_admin': True,
+            'is_course_enrolled': False,
+            'has_qbank_sub': True,
+            'status': 'approved',
+            'plan_name': 'Administrator All-Access',
+            'days_remaining': 9999,
+            'subscription': {
+                'planName': 'Administrator All-Access',
+                'status': 'approved',
+                'daysRemaining': 9999
+            }
+        }
+
+    # 2. Check active Q-Bank subscription
+    sub_status = QBankSubscription.get_user_status(uid)
+    if sub_status.get('hasAccess'):
+        sub_dict = sub_status.get('subscription') or {}
+        return {
+            'has_access': True,
+            'is_admin': False,
+            'is_course_enrolled': False,
+            'has_qbank_sub': True,
+            'status': 'approved',
+            'plan_name': sub_dict.get('planName') or 'Q-Bank Subscription',
+            'days_remaining': sub_status.get('daysRemaining', 30),
+            'subscription': sub_dict
+        }
+
+    # 3. Check approved course enrollments:
+    # "if some one got approval then they can use every MCQs of the platform"
+    enrollments = Enrollment.find_by_user(uid)
+    approved_enrollments = [e for e in enrollments if e.status == 'approved']
+    if approved_enrollments:
+        first_course_name = approved_enrollments[0].course.title if (approved_enrollments[0].course and approved_enrollments[0].course.title) else 'Enrolled Course'
+        return {
+            'has_access': True,
+            'is_admin': False,
+            'is_course_enrolled': True,
+            'has_qbank_sub': False,
+            'status': 'approved',
+            'plan_name': f'Course Enrolled All-Access ({first_course_name})',
+            'days_remaining': 365,
+            'subscription': {
+                'planName': f'Course Enrolled All-Access ({first_course_name})',
+                'status': 'approved',
+                'daysRemaining': 365
+            }
+        }
+
+    # Check for pending status
+    pending_sub = (sub_status.get('status') == 'pending')
+    pending_course = any(e.status == 'pending' for e in enrollments)
+    status_str = 'pending' if (pending_sub or pending_course) else sub_status.get('status', 'none')
+
+    return {
+        'has_access': False,
+        'is_admin': False,
+        'is_course_enrolled': False,
+        'has_qbank_sub': False,
+        'status': status_str,
+        'plan_name': None,
+        'days_remaining': 0,
+        'subscription': sub_status.get('subscription')
+    }
+
+
 # ── 2. GET USER Q-BANK SUBSCRIPTION STATUS ────────────────────────────────────
 @qbank_bp.route('/status', methods=['GET'])
 @jwt_required(optional=True)
@@ -3510,40 +3667,29 @@ def get_qbank_status():
             'success': True,
             'isAuthenticated': False,
             'hasAccess': False,
+            'isAdmin': False,
             'status': 'unauthenticated',
             'subscription': None,
             'daysRemaining': 0
         }), 200
 
-    user = User.find_by_id(user_id)
-    if not user:
+    access = check_user_platform_access(user_id)
+    if access['status'] == 'not_found':
         return jsonify({'success': False, 'message': 'User not found.'}), 404
 
-    # Admins always have access
-    if user.role == 'admin':
-        return jsonify({
-            'success': True,
-            'isAuthenticated': True,
-            'hasAccess': True,
-            'isAdmin': True,
-            'status': 'approved',
-            'subscription': {
-                'planName': 'Administrator All-Access',
-                'status': 'approved',
-                'daysRemaining': 9999
-            },
-            'daysRemaining': 9999
-        }), 200
-
-    status_data = QBankSubscription.get_user_status(user_id)
     return jsonify({
         'success': True,
         'isAuthenticated': True,
-        'hasAccess': status_data['hasAccess'],
-        'isAdmin': False,
-        'status': status_data['status'],
-        'subscription': status_data['subscription'],
-        'daysRemaining': status_data['daysRemaining']
+        'hasAccess': access['has_access'],
+        'isAdmin': access['is_admin'],
+        'isCourseEnrolled': access['is_course_enrolled'],
+        'status': access['status'],
+        'subscription': access.get('subscription') or {
+            'planName': access['plan_name'],
+            'status': access['status'],
+            'daysRemaining': access['days_remaining']
+        },
+        'daysRemaining': access['days_remaining']
     }), 200
 
 
@@ -3635,17 +3781,14 @@ def subscribe_qbank():
 @jwt_required(optional=True)
 def get_qbank_questions():
     user_id = get_jwt_identity()
-    user = User.find_by_id(user_id) if user_id else None
-
-    is_admin = bool(user and user.role == 'admin')
-    has_sub = bool(user_id and QBankSubscription.user_has_active(user_id))
-    has_access = is_admin or has_sub
+    access = check_user_platform_access(user_id)
+    has_access = access['has_access']
 
     category = request.args.get('category')
     difficulty = request.args.get('difficulty')
     exam_type = request.args.get('exam_type')
 
-    # If user has access (subscribed or admin), return all matching questions.
+    # If user has access (admin, subscribed, or course-approved), return all matching questions.
     # Otherwise return only questions with is_demo = 1.
     questions = QBankQuestion.all(
         category=category,
@@ -3660,6 +3803,9 @@ def get_qbank_questions():
     return jsonify({
         'success': True,
         'isSubscribed': has_access,
+        'hasAccess': has_access,
+        'isAdmin': access['is_admin'],
+        'isCourseEnrolled': access['is_course_enrolled'],
         'demoMode': not has_access,
         'totalAvailable': len(questions),
         'totalInBank': total_in_db,
@@ -4695,7 +4841,7 @@ def admin_list_qbank_questions():
         category=category,
         difficulty=difficulty,
         exam_type=exam_type,
-        is_demo_only=(is_demo == '1')
+        is_demo=is_demo
     )
 
     if q_search:
@@ -5588,12 +5734,17 @@ def student_get_profile():
     enrollments = Enrollment.find_by_user(user.id)
     stats = StudentQBankAttempt.get_user_stats(user.id)
     unread_notifs = StudentNotification.get_unread_count(user.id)
+    access = check_user_platform_access(user.id)
 
     return jsonify({
         'success': True,
         'user': user.to_dict(),
         'qbankSubscription': display_sub.to_dict() if display_sub else None,
-        'hasActiveQBank': bool(sub),
+        'hasActiveQBank': bool(sub or user.role == 'admin'),
+        'hasApprovedEnrollment': bool(any(e.status == 'approved' for e in enrollments)),
+        'hasFullAccess': access['has_access'],
+        'isAdmin': access['is_admin'],
+        'accessDetails': access,
         'courseEnrollments': [e.to_dict() for e in enrollments],
         'qbankStats': stats,
         'unreadNotificationsCount': unread_notifs

@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       renderProfileBanner(data.user, data.qbankSubscription, data.courseEnrollments, data.qbankStats);
       renderScoreStats(data.qbankStats);
-      renderSubscriptions(data.qbankSubscription, data.courseEnrollments);
+      renderSubscriptions(data.qbankSubscription, data.courseEnrollments, data.user, data.accessDetails);
       updateNotifBadge(data.unreadNotificationsCount);
       populateSettingsForm(data.user);
 
@@ -137,9 +137,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Quick Status Cards
     const qbBadgeEl = document.getElementById('profileQBankQuickBadge');
     if (qbBadgeEl) {
-      if (qbankSub && (qbankSub.status === 'approved' || qbankSub.status === 'active')) {
+      if (user && user.role === 'admin') {
+        qbBadgeEl.innerHTML = `<span style="color:#38bdf8;font-weight:700">👑 Admin All-Access</span>`;
+      } else if (qbankSub && (qbankSub.status === 'approved' || qbankSub.status === 'active')) {
         const days = qbankSub.daysRemaining ?? qbankSub.durationDays ?? 0;
         qbBadgeEl.innerHTML = `<span style="color:#4ade80;">Active (${days}d left)</span>`;
+      } else if ((enrollments || []).some(e => e.status === 'approved')) {
+        qbBadgeEl.innerHTML = `<span style="color:#4ade80;font-weight:700">Course All-Access Active</span>`;
       } else if (qbankSub && qbankSub.status === 'pending') {
         qbBadgeEl.innerHTML = `<span style="color:#fbbf24;">Pending Verification</span>`;
       } else {
@@ -248,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ── RENDER ALL STATUS & SUBSCRIPTIONS ──
-  function renderSubscriptions(qbankSub, enrollments) {
+  function renderSubscriptions(qbankSub, enrollments, user, accessDetails) {
     // Q-Bank Card
     const statusPill = document.getElementById('qbankStatusPill');
     const planNameEl = document.getElementById('qbankPlanName');
@@ -259,7 +263,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const notesText = document.getElementById('qbankNotesText');
     const actionBtn = document.getElementById('qbankActionBtn');
 
-    if (qbankSub) {
+    const isAdmin = (user && user.role === 'admin') || (accessDetails && accessDetails.is_admin);
+    const approvedCourse = (enrollments || []).find(e => e.status === 'approved');
+
+    if (isAdmin) {
+      if (statusPill) {
+        statusPill.className = 'sub-status-pill approved';
+        statusPill.textContent = 'ADMIN ACCESS';
+      }
+      if (planNameEl) planNameEl.textContent = 'Administrator All-Access Pass';
+      if (durationEl) durationEl.textContent = 'Lifetime Access';
+      if (countdownEl) {
+        countdownEl.textContent = 'Unlimited (All MCQs Unlocked)';
+        countdownEl.style.color = '#10b981';
+      }
+      if (expiresAtEl) expiresAtEl.textContent = 'Permanent Admin Session';
+      if (actionBtn) {
+        actionBtn.textContent = 'Open Admin Management Portal ⚙️';
+        actionBtn.href = 'admin.html';
+      }
+      if (notesBox) notesBox.style.display = 'none';
+    } else if (qbankSub) {
       const status = (qbankSub.status || 'pending').toLowerCase();
       if (statusPill) {
         statusPill.className = `sub-status-pill ${status}`;
@@ -276,8 +300,8 @@ document.addEventListener('DOMContentLoaded', () => {
           countdownEl.style.color = days <= 5 ? '#ef4444' : '#0284c7';
         }
         if (actionBtn) {
-          actionBtn.textContent = 'Extend / Renew Q-Bank Pass';
-          actionBtn.href = 'qbank.html#plans';
+          actionBtn.textContent = 'Practice in Q-Bank (All Access) →';
+          actionBtn.href = 'qbank.html';
         }
       } else if (status === 'pending') {
         if (countdownEl) countdownEl.textContent = 'Pending Admin Review';
@@ -303,6 +327,25 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (notesBox) {
         notesBox.style.display = 'none';
       }
+    } else if (approvedCourse) {
+      // Student has approved enrollment in a course: full Q-Bank access granted!
+      const courseTitle = approvedCourse.course?.title || 'Enrolled Course';
+      if (statusPill) {
+        statusPill.className = 'sub-status-pill approved';
+        statusPill.textContent = 'COURSE ACCESS';
+      }
+      if (planNameEl) planNameEl.textContent = `Enrolled Pass: ${courseTitle}`;
+      if (durationEl) durationEl.textContent = 'Full Term Access';
+      if (countdownEl) {
+        countdownEl.textContent = 'Active (All Platform MCQs Unlocked)';
+        countdownEl.style.color = '#10b981';
+      }
+      if (expiresAtEl) expiresAtEl.textContent = 'Included with Course Enrollment';
+      if (actionBtn) {
+        actionBtn.textContent = 'Practice in Q-Bank (All Access) →';
+        actionBtn.href = 'qbank.html';
+      }
+      if (notesBox) notesBox.style.display = 'none';
     } else {
       if (statusPill) {
         statusPill.className = 'sub-status-pill expired';
@@ -313,6 +356,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (countdownEl) countdownEl.textContent = 'No active access';
       if (expiresAtEl) expiresAtEl.textContent = 'None';
       if (notesBox) notesBox.style.display = 'none';
+      if (actionBtn) {
+        actionBtn.textContent = 'Unlock Q-Bank Access →';
+        actionBtn.href = 'qbank.html#plans';
+      }
     }
 
     // Course Enrollments Table

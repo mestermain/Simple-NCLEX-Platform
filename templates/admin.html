@@ -56,14 +56,14 @@
         <a class="admin-nav-item" data-target="demoMcqsView">
           <div class="admin-nav-link-content">
             <span>📝</span>
-            <span>NCLEX Q-Bank DEMO MCQs</span>
+            <span>Homepage Demo MCQs (5 Items)</span>
           </div>
         </a>
 
         <a class="admin-nav-item" data-target="qbankQuestionsView">
           <div class="admin-nav-link-content">
             <span>🎯</span>
-            <span>Q-Bank Questions (All)</span>
+            <span>Question Bank: All MCQs (Full Bank)</span>
           </div>
         </a>
 
@@ -576,12 +576,15 @@
           <div class="admin-card">
             <div class="admin-card-header" style="flex-wrap:wrap;gap:1rem">
               <div>
-                <h2><span>📝</span> NCLEX Q-Bank DEMO MCQs</h2>
+                <h2><span>📝</span> Homepage Featured Demo MCQs (5 Items)</h2>
                 <p style="font-size:0.88rem;color:var(--admin-text-muted);margin-top:0.25rem">
-                  Manage the interactive clinical practice questions featured on the homepage. Edit question statements, options, rationales, and clinical pearls.
+                  Manage the 5 featured practice questions displayed on the public website homepage. To view, edit, or test all 40+ clinical questions in the full Question Bank, open the <a href="javascript:void(0)" onclick="window.adminNavigateTo('qbankQuestionsView')" style="color:var(--admin-primary);font-weight:700">Question Bank: All MCQs</a> section.
                 </p>
               </div>
-              <div style="display:flex;gap:0.75rem;align-items:center">
+              <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+                <button type="button" class="admin-btn admin-btn-secondary" onclick="window.adminNavigateTo('qbankQuestionsView')" style="background:#e0f2fe;color:#0369a1;border-color:#bae6fd;font-weight:600">
+                  <span>🎯 View Full Question Bank (All MCQs) →</span>
+                </button>
                 <button type="button" class="admin-btn admin-btn-secondary" id="resetDemoMcqsBtn">
                   <span>🔄 Reset to Defaults</span>
                 </button>
@@ -614,6 +617,9 @@
                 </p>
               </div>
               <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+                <a href="qbank.html" target="_blank" class="admin-btn admin-btn-secondary" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;font-weight:600;text-decoration:none">
+                  <span>👁️ Open Student Q-Bank (All Access)</span>
+                </a>
                 <button type="button" class="admin-btn admin-btn-secondary" id="reseedQBankBtn">
                   <span>🔄 Reseed Default Questions</span>
                 </button>
@@ -632,14 +638,14 @@
               
               <select id="qbankAdminCategory" style="padding:0.5rem 0.85rem;border:1px solid var(--admin-border);border-radius:6px;font-size:0.88rem">
                 <option value="all">All Categories</option>
-                <option value="Pharmacology & Parenteral Therapies">Pharmacology</option>
-                <option value="Physiological Adaptation (Med-Surg)">Med-Surg & Adaptation</option>
-                <option value="Reduction of Risk Potential">Reduction of Risk</option>
-                <option value="Management of Care & Delegation">Management of Care</option>
+                <option value="Pharmacology & Parenteral Therapies">Pharmacology & Parenteral</option>
+                <option value="Physiological Adaptation & Med-Surg">Med-Surg & Adaptation</option>
+                <option value="Reduction of Risk Potential & Cardiac">Reduction of Risk (Cardiac)</option>
+                <option value="Management of Care & Priority Triaging">Management of Care & Priority</option>
                 <option value="Maternal & Newborn Nursing">Maternal & Newborn (OB)</option>
                 <option value="Pediatric Nursing">Pediatric Nursing</option>
-                <option value="Psychosocial Integrity & Mental Health">Mental Health</option>
-                <option value="Safe & Effective Care Environment">Infection & Safety</option>
+                <option value="Safe & Effective Care Environment">Infection & Safety Environment</option>
+                <option value="Psychosocial Integrity & Mental Health">Mental Health & Integrity</option>
               </select>
 
               <select id="qbankAdminDifficulty" style="padding:0.5rem 0.85rem;border:1px solid var(--admin-border);border-radius:6px;font-size:0.88rem">
@@ -1123,13 +1129,13 @@
               <label>Clinical Category *</label>
               <select id="qbankCategory" required>
                 <option value="Pharmacology & Parenteral Therapies">Pharmacology & Parenteral Therapies</option>
-                <option value="Physiological Adaptation (Med-Surg)">Physiological Adaptation (Med-Surg)</option>
-                <option value="Reduction of Risk Potential">Reduction of Risk Potential</option>
-                <option value="Management of Care & Delegation">Management of Care & Delegation</option>
+                <option value="Physiological Adaptation & Med-Surg">Physiological Adaptation & Med-Surg</option>
+                <option value="Reduction of Risk Potential & Cardiac">Reduction of Risk Potential & Cardiac</option>
+                <option value="Management of Care & Priority Triaging">Management of Care & Priority Triaging</option>
                 <option value="Maternal & Newborn Nursing">Maternal & Newborn Nursing (OB)</option>
                 <option value="Pediatric Nursing">Pediatric Nursing</option>
-                <option value="Psychosocial Integrity & Mental Health">Psychosocial Integrity & Mental Health</option>
                 <option value="Safe & Effective Care Environment">Safe & Effective Care Environment</option>
+                <option value="Psychosocial Integrity & Mental Health">Psychosocial Integrity & Mental Health</option>
               </select>
             </div>
 
@@ -1418,13 +1424,13 @@
               <label style="font-size:0.8rem">Default Clinical Category</label>
               <select id="bulkDefaultCategory" style="font-size:0.85rem;padding:0.4rem 0.65rem">
                 <option value="Pharmacology &amp; Parenteral Therapies">Pharmacology &amp; Parenteral Therapies</option>
-                <option value="Physiological Adaptation (Med-Surg)">Physiological Adaptation (Med-Surg)</option>
-                <option value="Reduction of Risk Potential">Reduction of Risk Potential</option>
-                <option value="Management of Care &amp; Delegation">Management of Care &amp; Delegation</option>
+                <option value="Physiological Adaptation &amp; Med-Surg">Physiological Adaptation &amp; Med-Surg</option>
+                <option value="Reduction of Risk Potential &amp; Cardiac">Reduction of Risk Potential &amp; Cardiac</option>
+                <option value="Management of Care &amp; Priority Triaging">Management of Care &amp; Priority Triaging</option>
                 <option value="Maternal &amp; Newborn Nursing">Maternal &amp; Newborn Nursing (OB)</option>
                 <option value="Pediatric Nursing">Pediatric Nursing</option>
-                <option value="Psychosocial Integrity &amp; Mental Health">Psychosocial Integrity &amp; Mental Health</option>
                 <option value="Safe &amp; Effective Care Environment">Safe &amp; Effective Care Environment</option>
+                <option value="Psychosocial Integrity &amp; Mental Health">Psychosocial Integrity &amp; Mental Health</option>
               </select>
             </div>
             <div class="form-group" style="margin-bottom:0;flex:1">
