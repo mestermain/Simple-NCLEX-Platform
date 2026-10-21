@@ -21,7 +21,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password }),
+        body: JSON.stringify({ identifier, email: identifier, password }),
       });
 
       const data = await res.json();
@@ -35,7 +35,7 @@ export default function LoginPage() {
         setErrorMsg(data.message || 'Invalid email/phone or password.');
       }
     } catch (err: any) {
-      setErrorMsg('An error occurred during sign-in. Please try again.');
+      setErrorMsg(err.message || 'Connection error. Please refresh and try again.');
     } finally {
       setLoading(false);
     }
