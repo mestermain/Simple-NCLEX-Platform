@@ -1,7 +1,44 @@
 import path from 'path';
+import fs from 'fs';
 
 let pgPool: any = null;
 let sqliteDb: any = null;
+
+function getSqlitePath(): string {
+  const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+  const tmpDbPath = '/tmp/nclex.db';
+
+  if (isServerless && fs.existsSync(tmpDbPath)) {
+    return tmpDbPath;
+  }
+
+  // Look for nclex.db across candidate paths
+  const candidates = [
+    path.resolve(process.cwd(), 'nclex.db'),
+    path.join(__dirname, 'nclex.db'),
+    path.join(__dirname, '..', 'nclex.db'),
+    path.join(__dirname, '..', '..', 'nclex.db'),
+    path.join(process.cwd(), '.next', 'server', 'nclex.db'),
+    path.join(process.env.LAMBDA_TASK_ROOT || '', 'nclex.db'),
+  ];
+
+  let foundPath = candidates.find(p => p && fs.existsSync(p));
+
+  if (isServerless) {
+    if (foundPath) {
+      try {
+        fs.copyFileSync(foundPath, tmpDbPath);
+        return tmpDbPath;
+      } catch (err) {
+        console.error('Error copying nclex.db to /tmp:', err);
+        return foundPath;
+      }
+    }
+    return tmpDbPath;
+  }
+
+  return foundPath || path.resolve(process.cwd(), 'nclex.db');
+}
 
 function getDb() {
   const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
@@ -21,10 +58,10 @@ function getDb() {
     if (!sqliteDb) {
       try {
         const { DatabaseSync } = require('node:sqlite');
-        const dbPath = path.resolve(process.cwd(), 'nclex.db');
+        const dbPath = getSqlitePath();
         sqliteDb = new DatabaseSync(dbPath);
       } catch (err) {
-        console.error('Failed to initialize node:sqlite:', err);
+        console.error('Failed to initialize database:', err);
         throw err;
       }
     }

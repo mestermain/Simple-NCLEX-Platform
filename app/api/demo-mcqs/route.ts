@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const rows = await query('SELECT * FROM demo_mcqs ORDER BY sort_order ASC, id ASC');

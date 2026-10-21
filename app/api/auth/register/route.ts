@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { queryOne, execute } from '@/lib/db';
 import { hashPassword, signToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   try {
     const { firstName, lastName, email, password, examType } = await req.json();

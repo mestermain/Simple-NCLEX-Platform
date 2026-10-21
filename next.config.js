@@ -7,6 +7,7 @@ const nextConfig = {
   experimental: {
     outputFileTracingIncludes: {
       '/api/**/*': ['./nclex.db'],
+      '/api/**': ['./nclex.db'],
     },
   },
   webpack: (config) => {
