@@ -35,25 +35,38 @@ export default function RegisterPage() {
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = null;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        setErrorMsg(`Server returned non-JSON response (${res.status}). Please check server connection.`);
+        return;
+      }
+
+      if (data && data.success) {
         // Auto-login
         const loginRes = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ identifier: email, password }),
         });
-        const loginData = await loginRes.json();
-        if (loginData.success) {
+        const loginContentType = loginRes.headers.get('content-type') || '';
+        let loginData: any = null;
+        if (loginContentType.includes('application/json')) {
+          loginData = await loginRes.json();
+        }
+        if (loginData && loginData.success) {
           router.push('/profile');
         } else {
           router.push('/login');
         }
       } else {
-        setErrorMsg(data.message || 'Registration failed.');
+        setErrorMsg(data?.message || 'Registration failed.');
       }
     } catch (err: any) {
-      setErrorMsg('An error occurred during registration. Please try again.');
+      setErrorMsg(err.message || 'An error occurred during registration. Please try again.');
     } finally {
       setLoading(false);
     }

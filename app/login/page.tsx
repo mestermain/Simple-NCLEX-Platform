@@ -24,15 +24,26 @@ export default function LoginPage() {
         body: JSON.stringify({ identifier, email: identifier, password }),
       });
 
-      const data = await res.json();
-      if (data.success) {
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = null;
+
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error('Non-JSON login response:', res.status, text.slice(0, 150));
+        setErrorMsg(`Server returned non-JSON response (${res.status}). Please check server connection.`);
+        return;
+      }
+
+      if (data && data.success) {
         if (data.user?.role === 'admin') {
           router.push('/admin');
         } else {
           router.push('/profile');
         }
       } else {
-        setErrorMsg(data.message || 'Invalid email/phone or password.');
+        setErrorMsg(data?.message || 'Invalid email/phone or password.');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Connection error. Please refresh and try again.');

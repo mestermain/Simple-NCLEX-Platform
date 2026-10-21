@@ -248,6 +248,11 @@ function AdminContent() {
           router.push('/login');
           return;
         }
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          router.push('/login');
+          return;
+        }
         const data = await res.json();
         if (data.success) {
           setStats(data.stats);
