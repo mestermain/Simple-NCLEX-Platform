@@ -4,6 +4,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    outputFileTracingIncludes: {
+      '/api/**/*': ['./nclex.db'],
+    },
+  },
   webpack: (config) => {
     return config;
   },
