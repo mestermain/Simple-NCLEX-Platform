@@ -47,6 +47,7 @@ interface AdminStats {
 interface QBankItem {
   id: number;
   category: string;
+  organSystem?: string;
   difficulty: string;
   examType: string;
   clientNeed: string;
@@ -1070,14 +1071,14 @@ function AdminContent() {
                           <th className="p-3.5">ID</th>
                           <th className="p-3.5">Type</th>
                           <th className="p-3.5">Statement</th>
-                          <th className="p-3.5">Category</th>
+                          <th className="p-3.5">Organ System & Category</th>
                           <th className="p-3.5">Correct Answer(s)</th>
                           <th className="p-3.5 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
                         {questions
-                          .filter((q) => !qSearch || q.statement.toLowerCase().includes(qSearch.toLowerCase()) || q.category.toLowerCase().includes(qSearch.toLowerCase()))
+                          .filter((q) => !qSearch || q.statement.toLowerCase().includes(qSearch.toLowerCase()) || q.category.toLowerCase().includes(qSearch.toLowerCase()) || (q.organSystem && q.organSystem.toLowerCase().includes(qSearch.toLowerCase())))
                           .map((q) => (
                             <tr key={q.id} className="hover:bg-slate-50/80 transition-colors">
                               <td className="p-3.5 font-mono text-slate-500 font-bold">#{q.id}</td>
@@ -1093,7 +1094,10 @@ function AdminContent() {
                               <td className="p-3.5 max-w-md font-medium text-slate-900 truncate" title={q.statement}>
                                 {q.statement}
                               </td>
-                              <td className="p-3.5 text-slate-500 whitespace-nowrap">{q.category}</td>
+                              <td className="p-3.5 whitespace-nowrap">
+                                <div className="font-semibold text-slate-800">{q.organSystem || 'Clinical'}</div>
+                                <div className="text-[10px] text-slate-400">{q.category}</div>
+                              </td>
                               <td className="p-3.5">
                                 <span className="font-bold text-emerald-700">
                                   {q.questionType === 'multiple'

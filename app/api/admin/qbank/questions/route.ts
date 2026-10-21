@@ -49,6 +49,7 @@ export async function GET(req: Request) {
       return {
         id: r.id,
         category: r.category,
+        organSystem: r.organ_system || 'General Clinical',
         difficulty: r.difficulty,
         examType: r.exam_type,
         clientNeed: r.client_need,
@@ -81,6 +82,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const {
       category,
+      organSystem,
       difficulty,
       examType,
       clientNeed,
@@ -105,10 +107,11 @@ export async function POST(req: Request) {
 
     const result = await execute(
       `INSERT INTO qbank_questions 
-       (category, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, question_type, correct_indices_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+       (category, organ_system, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, question_type, correct_indices_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
       [
         category,
+        organSystem || body.organ_system || 'General Clinical',
         difficulty || 'High Yield',
         examType || 'NCLEX-RN',
         clientNeed || '',
@@ -142,6 +145,7 @@ export async function PUT(req: Request) {
     const {
       id,
       category,
+      organSystem,
       difficulty,
       examType,
       clientNeed,
@@ -167,6 +171,7 @@ export async function PUT(req: Request) {
     await execute(
       `UPDATE qbank_questions SET
          category = ?,
+         organ_system = COALESCE(?, organ_system),
          difficulty = ?,
          exam_type = ?,
          client_need = ?,
@@ -183,6 +188,7 @@ export async function PUT(req: Request) {
        WHERE id = ?`,
       [
         category,
+        organSystem || body.organ_system || null,
         difficulty || 'High Yield',
         examType || 'NCLEX-RN',
         clientNeed || '',

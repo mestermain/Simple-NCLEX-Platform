@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { 
   CheckCircle2, 
@@ -11,14 +11,11 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Sparkles, 
-  ShieldCheck, 
   Lock, 
-  AlertCircle, 
   Flame, 
   CheckSquare, 
   Square, 
   HelpCircle, 
-  Upload, 
   Check, 
   X, 
   Layers, 
@@ -28,19 +25,24 @@ import {
   Award,
   Target,
   BookOpen,
-  Zap
+  Filter,
+  CheckCheck,
+  AlertTriangle,
+  Bookmark,
+  RefreshCw
 } from 'lucide-react';
 
 interface Question {
   id: number;
   category: string;
+  organSystem: string;
   difficulty: string;
   examType: string;
   clientNeed: string;
   statement: string;
   options: string[];
   questionType: 'single' | 'multiple';
-  isMultipleResponse: boolean;
+  isMultipleResponse?: boolean;
   correctIndices?: number[];
   correctIndex?: number;
   correctRationale?: string;
@@ -58,6 +60,20 @@ interface AttemptResult {
   clinicalPearl: string;
 }
 
+const ORGAN_SYSTEMS = [
+  { id: 'all', name: 'All Organ Systems', icon: '🫀', count: 60 },
+  { id: 'Cardiovascular System', name: 'Cardiovascular System', icon: '❤️', count: 6 },
+  { id: 'Respiratory System', name: 'Respiratory System', icon: '🫁', count: 6 },
+  { id: 'Neurological & Sensory System', name: 'Neurological & Sensory System', icon: '🧠', count: 6 },
+  { id: 'Gastrointestinal & Hepatic System', name: 'Gastrointestinal & Hepatic System', icon: '🩺', count: 6 },
+  { id: 'Renal & Urinary System', name: 'Renal & Urinary System', icon: '💧', count: 6 },
+  { id: 'Endocrine System', name: 'Endocrine System', icon: '⚡', count: 6 },
+  { id: 'Musculoskeletal System', name: 'Musculoskeletal System', icon: '🦴', count: 6 },
+  { id: 'Hematologic & Immune System', name: 'Hematologic & Immune System', icon: '🛡️', count: 6 },
+  { id: 'Reproductive & Maternal-Newborn', name: 'Reproductive & Maternal-Newborn', icon: '👶', count: 6 },
+  { id: 'Mental Health & Psychosocial', name: 'Mental Health & Psychosocial', icon: '🧘', count: 6 },
+];
+
 export default function QBankPage() {
   // State
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -67,6 +83,12 @@ export default function QBankPage() {
   const [attemptResults, setAttemptResults] = useState<Record<number, AttemptResult>>({});
   const [flaggedQuestions, setFlaggedQuestions] = useState<Record<number, boolean>>({});
   
+  // Historical user progress from DB
+  const [dbCorrectIds, setDbCorrectIds] = useState<number[]>([]);
+  const [dbIncorrectIds, setDbIncorrectIds] = useState<number[]>([]);
+  const [dbFlaggedIds, setDbFlaggedIds] = useState<number[]>([]);
+  const [dbAttemptedIds, setDbAttemptedIds] = useState<number[]>([]);
+
   // Access state
   const [hasAccess, setHasAccess] = useState(false);
   const [accessType, setAccessType] = useState('demo');
@@ -75,9 +97,11 @@ export default function QBankPage() {
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
 
   // Filters & Modes
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [questionTypeFilter, setQuestionTypeFilter] = useState<'all' | 'single' | 'multiple'>('all');
-  const [examMode, setExamMode] = useState(false); // false = Practice Mode (instant feedback), true = Exam Mode
+  const [selectedOrganSystem, setSelectedOrganSystem] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'unanswered' | 'incorrect' | 'correct' | 'flagged'>('all');
+  const [paletteStatusFilter, setPaletteStatusFilter] = useState<'all' | 'unanswered' | 'incorrect' | 'correct' | 'flagged'>('all');
+  const [questionFormatFilter, setQuestionFormatFilter] = useState<'mixed' | 'single' | 'multiple'>('mixed');
+  const [examMode, setExamMode] = useState(false); // false = Practice Mode (instant rationales), true = Timed Exam Mode
   const [questionLimit, setQuestionLimit] = useState<number | 'all'>('all');
 
   // Session lifecycle
@@ -106,6 +130,15 @@ export default function QBankPage() {
       if (params.get('mode') === 'exam') {
         setExamMode(true);
       }
+      if (params.get('organ')) {
+        setSelectedOrganSystem(params.get('organ')!);
+      }
+      if (params.get('status')) {
+        const s = params.get('status') as any;
+        if (['all', 'unanswered', 'incorrect', 'correct', 'flagged'].includes(s)) {
+          setStatusFilter(s);
+        }
+      }
     }
   }, []);
 
@@ -125,12 +158,18 @@ export default function QBankPage() {
           setUserRole(statusData.role || 'guest');
         }
 
-        // 2. Fetch questions
+        // 2. Fetch questions and user progress
         const qRes = await fetch('/api/qbank/questions');
         const qData = await qRes.json();
 
         if (qData.success && qData.questions) {
           setQuestions(qData.questions);
+          if (qData.userProgress) {
+            setDbCorrectIds(qData.userProgress.correctIds || []);
+            setDbIncorrectIds(qData.userProgress.incorrectIds || []);
+            setDbFlaggedIds(qData.userProgress.flaggedIds || []);
+            setDbAttemptedIds(qData.userProgress.attemptedIds || []);
+          }
         }
       } catch (err) {
         console.error('Error loading QBank:', err);
@@ -158,17 +197,109 @@ export default function QBankPage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Filtered questions
-  const filteredQuestions = questions
-    .filter((q) => {
-      if (selectedCategory !== 'all' && !q.category.toLowerCase().includes(selectedCategory.toLowerCase())) {
-        return false;
+  // Helper functions for question status
+  const getQuestionStatus = (qId: number): 'correct' | 'incorrect' | 'unanswered' => {
+    if (attemptResults[qId] !== undefined) {
+      return attemptResults[qId].isCorrect ? 'correct' : 'incorrect';
+    }
+    if (dbCorrectIds.includes(qId)) return 'correct';
+    if (dbIncorrectIds.includes(qId)) return 'incorrect';
+    return 'unanswered';
+  };
+
+  const isQuestionFlagged = (qId: number): boolean => {
+    if (flaggedQuestions[qId] !== undefined) {
+      return flaggedQuestions[qId];
+    }
+    return dbFlaggedIds.includes(qId);
+  };
+
+  // Live Status Counts across the whole bank or current organ filter
+  const liveCounts = useMemo(() => {
+    const base = selectedOrganSystem === 'all'
+      ? questions
+      : questions.filter(q => (q.organSystem || '').toLowerCase().includes(selectedOrganSystem.toLowerCase()));
+
+    let correct = 0;
+    let incorrect = 0;
+    let unanswered = 0;
+    let flagged = 0;
+
+    for (const q of base) {
+      const st = getQuestionStatus(q.id);
+      if (st === 'correct') correct++;
+      else if (st === 'incorrect') incorrect++;
+      else unanswered++;
+
+      if (isQuestionFlagged(q.id)) flagged++;
+    }
+
+    return {
+      all: base.length,
+      unanswered,
+      incorrect,
+      correct,
+      flagged,
+    };
+  }, [questions, selectedOrganSystem, attemptResults, flaggedQuestions, dbCorrectIds, dbIncorrectIds, dbFlaggedIds]);
+
+  // Build the active practice session questions:
+  // 1. Organ System Filter
+  // 2. Status Filter (All, Unanswered, Incorrect, Correct, Flagged)
+  // 3. Mixed Question Logic: Smoothly interleave SATA and single MCQs!
+  const filteredQuestions = useMemo(() => {
+    // Step 1: Organ System
+    let pool = questions.filter((q) => {
+      if (selectedOrganSystem !== 'all') {
+        const qOrgan = (q.organSystem || '').toLowerCase();
+        if (!qOrgan.includes(selectedOrganSystem.toLowerCase())) {
+          return false;
+        }
       }
-      if (questionTypeFilter === 'single' && q.questionType !== 'single') return false;
-      if (questionTypeFilter === 'multiple' && q.questionType !== 'multiple') return false;
       return true;
-    })
-    .slice(0, questionLimit === 'all' ? undefined : questionLimit);
+    });
+
+    // Step 2: Status Filter (Correct, Incorrect, Flagged, Unanswered)
+    if (statusFilter !== 'all') {
+      pool = pool.filter((q) => {
+        if (statusFilter === 'flagged') {
+          return isQuestionFlagged(q.id);
+        }
+        return getQuestionStatus(q.id) === statusFilter;
+      });
+    }
+
+    // Step 3: Format Filter & SATA/MCQ Mixing
+    if (questionFormatFilter === 'single') {
+      pool = pool.filter(q => q.questionType === 'single');
+    } else if (questionFormatFilter === 'multiple') {
+      pool = pool.filter(q => q.questionType === 'multiple');
+    } else {
+      // 'mixed': Interleave Single MCQs and SATA (Multiple) items for authentic NCLEX feel!
+      const singles = pool.filter(q => q.questionType === 'single');
+      const multiples = pool.filter(q => q.questionType === 'multiple');
+      const mixed: Question[] = [];
+      const maxLen = Math.max(singles.length, multiples.length);
+      for (let i = 0; i < maxLen; i++) {
+        if (i < singles.length) mixed.push(singles[i]);
+        if (i < multiples.length) mixed.push(multiples[i]);
+      }
+      pool = mixed;
+    }
+
+    // Step 4: Batch Size Limit
+    return questionLimit === 'all' ? pool : pool.slice(0, questionLimit);
+  }, [questions, selectedOrganSystem, statusFilter, questionFormatFilter, questionLimit, attemptResults, flaggedQuestions, dbCorrectIds, dbIncorrectIds, dbFlaggedIds]);
+
+  // Sidebar Question Palette Items (filterable by status during testing)
+  const paletteItems = useMemo(() => {
+    return filteredQuestions.map((q, idx) => ({ q, originalIndex: idx }))
+      .filter(({ q }) => {
+        if (paletteStatusFilter === 'all') return true;
+        if (paletteStatusFilter === 'flagged') return isQuestionFlagged(q.id);
+        return getQuestionStatus(q.id) === paletteStatusFilter;
+      });
+  }, [filteredQuestions, paletteStatusFilter, attemptResults, flaggedQuestions, dbCorrectIds, dbIncorrectIds, dbFlaggedIds]);
 
   // Session lifecycle handlers
   const handleStartSession = () => {
@@ -209,7 +340,7 @@ export default function QBankPage() {
   const currentSelected = (currentQId && selectedAnswers[currentQId]) || [];
   const currentResult = currentQId ? attemptResults[currentQId] : undefined;
   const isAnswered = currentResult !== undefined;
-  const isFlagged = currentQId ? !!flaggedQuestions[currentQId] : false;
+  const isFlagged = currentQId ? isQuestionFlagged(currentQId) : false;
 
   // Answer selection handler
   const handleOptionToggle = (optionIndex: number) => {
@@ -258,36 +389,65 @@ export default function QBankPage() {
             score: data.score,
             correctIndices: data.correctIndices,
             selectedIndices: currentSelected,
-            correctRationale: data.evaluation?.correctRationale || '',
-            distractors: data.evaluation?.distractors || [],
-            clinicalPearl: data.evaluation?.clinicalPearl || '',
+            correctRationale: data.evaluation?.correctRationale || data.correctRationale || '',
+            distractors: data.evaluation?.distractors || data.distractors || [],
+            clinicalPearl: data.evaluation?.clinicalPearl || data.clinicalPearl || '',
           },
         }));
+
+        // Synchronize in-memory IDs for live counters
+        if (data.isCorrect) {
+          setDbCorrectIds((prev) => Array.from(new Set([...prev, currentQ.id])));
+          setDbIncorrectIds((prev) => prev.filter((id) => id !== currentQ.id));
+        } else {
+          setDbIncorrectIds((prev) => Array.from(new Set([...prev, currentQ.id])));
+          setDbCorrectIds((prev) => prev.filter((id) => id !== currentQ.id));
+        }
+        setDbAttemptedIds((prev) => Array.from(new Set([...prev, currentQ.id])));
       }
     } catch (err) {
       console.error('Error submitting answer:', err);
     }
   };
 
-  const handleToggleFlag = () => {
+  // Toggle flag with API synchronization
+  const handleToggleFlag = async () => {
     if (!currentQId) return;
+    const nextState = !isFlagged;
+
+    // Optimistic local update
     setFlaggedQuestions((prev) => ({
       ...prev,
-      [currentQId]: !prev[currentQId],
+      [currentQId]: nextState,
     }));
+
+    if (nextState) {
+      setDbFlaggedIds((prev) => Array.from(new Set([...prev, currentQId])));
+    } else {
+      setDbFlaggedIds((prev) => prev.filter((id) => id !== currentQId));
+    }
+
+    try {
+      await fetch('/api/qbank/flag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId: currentQId }),
+      });
+    } catch (err) {
+      console.warn('Flag API sync notice:', err);
+    }
   };
 
   const handleResetPractice = () => {
     if (confirm('Reset current practice session answers?')) {
       setSelectedAnswers({});
       setAttemptResults({});
-      setFlaggedQuestions({});
       setSecondsElapsed(0);
       setCurrentIndex(0);
     }
   };
 
-  // Calculate score stats
+  // Calculate score stats for active session
   const answeredKeys = Object.keys(attemptResults);
   const correctCount = answeredKeys.filter((k) => attemptResults[Number(k)]?.isCorrect).length;
   const accuracyPct = answeredKeys.length > 0 ? Math.round((correctCount / answeredKeys.length) * 100) : 0;
@@ -344,15 +504,6 @@ export default function QBankPage() {
     }
   };
 
-  const categories = [
-    { id: 'all', name: 'All Specialties' },
-    { id: 'pharmacology', name: 'Pharmacology' },
-    { id: 'management', name: 'Management of Care & Priority' },
-    { id: 'physiological', name: 'Physiological Adaptation & Med-Surg' },
-    { id: 'reduction', name: 'Reduction of Risk Potential' },
-    { id: 'infection', name: 'Safety & Infection Control' },
-  ];
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       
@@ -365,20 +516,20 @@ export default function QBankPage() {
             {hasAccess ? (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Full Q-Bank Access Active ({questions.length} Items)</span>
+                <span>Full Q-Bank Access Active ({questions.length} Items across 10 Organ Systems)</span>
                 {daysRemaining > 0 && <span className="text-slate-400 font-normal">• {daysRemaining} days remaining</span>}
               </div>
             ) : (
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-semibold">
                   <Lock className="w-4 h-4 text-amber-400" />
-                  <span>Free Demo Mode (5 High-Yield Sample Items)</span>
+                  <span>Free Demo Mode (High-Yield Sample Items)</span>
                 </div>
                 <button
                   onClick={() => setIsSubModalOpen(true)}
-                  className="px-3 py-1.5 text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-colors shadow-sm"
+                  className="px-3 py-1.5 text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-colors shadow-sm cursor-pointer"
                 >
-                  Unlock All 60+ Questions →
+                  Unlock All 60 Questions →
                 </button>
               </div>
             )}
@@ -481,56 +632,69 @@ export default function QBankPage() {
               )}
             </div>
 
-            {/* Filter Card */}
+            {/* Organ System & Format Filter Card */}
             <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200 space-y-4">
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                 <Layers className="w-4 h-4 text-sky-600" />
-                <span>Practice Filters</span>
+                <span>Organ System Filter</span>
               </h3>
 
-              {/* Specialty Filter */}
+              {/* Organ System Dropdown */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-600">Clinical Specialty</label>
+                <label className="text-xs font-semibold text-slate-600 flex items-center justify-between">
+                  <span>Target Organ Category</span>
+                  <span className="text-[11px] text-sky-600 font-bold">{filteredQuestions.length} Items</span>
+                </label>
                 <select
-                  value={selectedCategory}
+                  value={selectedOrganSystem}
                   onChange={(e) => {
-                    setSelectedCategory(e.target.value);
+                    setSelectedOrganSystem(e.target.value);
                     setCurrentIndex(0);
                   }}
                   className="w-full text-xs font-medium p-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                  {ORGAN_SYSTEMS.map((sys) => (
+                    <option key={sys.id} value={sys.id}>
+                      {sys.icon} {sys.name} {sys.id !== 'all' ? `(${sys.count})` : ''}
+                    </option>
                   ))}
                 </select>
               </div>
 
-              {/* Question Format */}
+              {/* Question Format with Mixed as Default */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-600">Question Format</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-600">Question Format</label>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700">
+                    SATA + MCQ Mixed
+                  </span>
+                </div>
                 <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-lg text-xs font-medium">
                   <button
-                    onClick={() => { setQuestionTypeFilter('all'); setCurrentIndex(0); }}
-                    className={`py-1.5 rounded-md transition-colors ${questionTypeFilter === 'all' ? 'bg-white font-bold text-sky-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                    onClick={() => { setQuestionFormatFilter('mixed'); setCurrentIndex(0); }}
+                    className={`py-1.5 rounded-md transition-colors ${questionFormatFilter === 'mixed' ? 'bg-white font-bold text-sky-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                    title="Mix Select All That Apply and Single-Choice MCQs"
                   >
-                    All
+                    Mixed
                   </button>
                   <button
-                    onClick={() => { setQuestionTypeFilter('single'); setCurrentIndex(0); }}
-                    className={`py-1.5 rounded-md transition-colors ${questionTypeFilter === 'single' ? 'bg-white font-bold text-sky-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                    onClick={() => { setQuestionFormatFilter('single'); setCurrentIndex(0); }}
+                    className={`py-1.5 rounded-md transition-colors ${questionFormatFilter === 'single' ? 'bg-white font-bold text-sky-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                    title="Single-choice MCQs only"
                   >
                     MCQ
                   </button>
                   <button
-                    onClick={() => { setQuestionTypeFilter('multiple'); setCurrentIndex(0); }}
-                    className={`py-1.5 rounded-md transition-colors ${questionTypeFilter === 'multiple' ? 'bg-white font-bold text-sky-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                    onClick={() => { setQuestionFormatFilter('multiple'); setCurrentIndex(0); }}
+                    className={`py-1.5 rounded-md transition-colors ${questionFormatFilter === 'multiple' ? 'bg-white font-bold text-sky-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                    title="Select All That Apply (SATA) only"
                   >
                     SATA
                   </button>
                 </div>
               </div>
 
-              {/* Mode Toggle */}
+              {/* Testing Mode Toggle */}
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                 <div>
                   <div className="font-semibold text-slate-800">Exam Mode</div>
@@ -546,51 +710,94 @@ export default function QBankPage() {
               </div>
             </div>
 
-            {/* Question Palette Matrix */}
+            {/* Question Palette Matrix with Status Filter Chips */}
             <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200 space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Question Palette ({filteredQuestions.length})
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Question Palette</span>
                 </h4>
-                <span className="text-[11px] text-slate-500">
-                  {answeredKeys.length} completed
+                <span className="text-[11px] text-slate-500 font-semibold">
+                  {answeredKeys.length} / {filteredQuestions.length} done
                 </span>
               </div>
 
+              {/* Palette Status Quick Filter Tabs */}
+              <div className="flex flex-wrap gap-1 pb-1 border-b border-slate-100 text-[10px] font-semibold">
+                <button
+                  onClick={() => setPaletteStatusFilter('all')}
+                  className={`px-2 py-1 rounded transition-colors ${paletteStatusFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                >
+                  All ({filteredQuestions.length})
+                </button>
+                <button
+                  onClick={() => setPaletteStatusFilter('unanswered')}
+                  className={`px-2 py-1 rounded transition-colors ${paletteStatusFilter === 'unanswered' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                >
+                  Unanswered ({filteredQuestions.filter(q => getQuestionStatus(q.id) === 'unanswered').length})
+                </button>
+                <button
+                  onClick={() => setPaletteStatusFilter('incorrect')}
+                  className={`px-2 py-1 rounded transition-colors ${paletteStatusFilter === 'incorrect' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-700 hover:bg-rose-100'}`}
+                >
+                  Incorrect ({filteredQuestions.filter(q => getQuestionStatus(q.id) === 'incorrect').length})
+                </button>
+                <button
+                  onClick={() => setPaletteStatusFilter('correct')}
+                  className={`px-2 py-1 rounded transition-colors ${paletteStatusFilter === 'correct' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                >
+                  Correct ({filteredQuestions.filter(q => getQuestionStatus(q.id) === 'correct').length})
+                </button>
+                <button
+                  onClick={() => setPaletteStatusFilter('flagged')}
+                  className={`px-2 py-1 rounded transition-colors ${paletteStatusFilter === 'flagged' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'}`}
+                >
+                  Flagged ({filteredQuestions.filter(q => isQuestionFlagged(q.id)).length})
+                </button>
+              </div>
+
+              {/* Palette Grid */}
               <div className="grid grid-cols-5 gap-2 max-h-56 overflow-y-auto custom-scrollbar p-1">
-                {filteredQuestions.map((q, idx) => {
-                  const isCurrent = idx === currentIndex;
+                {paletteItems.map(({ q, originalIndex }) => {
+                  const isCurrent = originalIndex === currentIndex;
                   const res = attemptResults[q.id];
-                  const flagged = flaggedQuestions[q.id];
+                  const qStatus = getQuestionStatus(q.id);
+                  const flagged = isQuestionFlagged(q.id);
 
                   let btnStyle = 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100';
 
-                  if (res) {
-                    if (res.isCorrect) {
+                  if (res || qStatus !== 'unanswered') {
+                    if (qStatus === 'correct') {
                       btnStyle = 'bg-emerald-100 border-emerald-300 text-emerald-800 font-bold';
-                    } else {
+                    } else if (qStatus === 'incorrect') {
                       btnStyle = 'bg-rose-100 border-rose-300 text-rose-800 font-bold';
                     }
-                  } else if (isCurrent) {
-                    btnStyle = 'border-sky-600 bg-sky-50 text-sky-700 font-bold ring-2 ring-sky-500/30';
+                  }
+                  
+                  if (isCurrent) {
+                    btnStyle += ' ring-2 ring-sky-500 border-sky-600';
                   }
 
                   return (
                     <button
                       key={q.id}
-                      onClick={() => setCurrentIndex(idx)}
-                      className={`relative h-9 rounded-lg border text-xs font-medium flex items-center justify-center transition-all ${btnStyle}`}
+                      onClick={() => {
+                        setCurrentIndex(originalIndex);
+                        if (!sessionStarted) setSessionStarted(true);
+                      }}
+                      className={`relative h-9 rounded-lg border text-xs font-medium flex items-center justify-center transition-all cursor-pointer ${btnStyle}`}
+                      title={`Item ${originalIndex + 1}: ${q.organSystem} (${q.questionType === 'multiple' ? 'SATA' : 'MCQ'})`}
                     >
-                      <span>{idx + 1}</span>
+                      <span>{originalIndex + 1}</span>
                       {flagged && (
-                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-500" />
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-white" />
                       )}
                     </button>
                   );
                 })}
               </div>
 
-              {/* Legend */}
+              {/* Palette Legend */}
               <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-[10px] text-slate-500">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-emerald-500" />
@@ -633,7 +840,7 @@ export default function QBankPage() {
             {loading ? (
               <div className="clinical-card bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-4">
                 <div className="w-10 h-10 border-4 border-sky-600 border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-sm text-slate-600 font-medium">Loading high-yield NCLEX test items...</p>
+                <p className="text-sm text-slate-600 font-medium">Loading high-yield NCLEX test items across 10 organ systems...</p>
               </div>
             ) : !sessionStarted && !sessionCompleted ? (
               /* ── PRE-SESSION SETUP & START SCREEN ── */
@@ -644,13 +851,13 @@ export default function QBankPage() {
                   <div className="space-y-1">
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-800 text-xs font-bold uppercase tracking-wider">
                       <Target className="w-3.5 h-3.5 text-sky-600" />
-                      <span>Ready for NCLEX-RN & SNLE Practice</span>
+                      <span>NextGen NCLEX-RN & SNLE Practice Bank</span>
                     </div>
                     <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                      Start Your Clinical Practice Session
+                      Build Your Custom Practice Session
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-600">
-                      Configure your exam preferences below or start testing immediately with Saunders 9th Edition distractor rationales.
+                      Filter questions by <strong>Organ Category</strong>, target <strong>Correct/Incorrect/Flagged/Unanswered</strong> items, and experience dynamic <strong>Mixed SATA & MCQ</strong> format.
                     </p>
                   </div>
 
@@ -660,31 +867,244 @@ export default function QBankPage() {
                     className="shrink-0 inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-sm shadow-lg shadow-sky-600/30 transition-all hover:scale-[1.02] active:scale-100 cursor-pointer disabled:opacity-50"
                   >
                     <Play className="w-4 h-4 fill-current" />
-                    <span>Start Questions Now</span>
+                    <span>Start Questions ({filteredQuestions.length})</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
 
-                {/* 3 Overview Stat Chips */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                    <div className="text-xs text-slate-500 font-semibold uppercase">Items In Batch</div>
-                    <div className="text-2xl font-black text-sky-600">{filteredQuestions.length} Questions</div>
-                    <div className="text-[11px] text-slate-500">Filtered from bank of {questions.length} items</div>
+                {/* 1. QUESTION STATUS FILTER: Correct, Incorrect, Flagged, Unanswered */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Bookmark className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Filter By Question Status</span>
+                    </label>
+                    <span className="text-[11px] text-slate-500">Target your weak areas or review mistakes</span>
                   </div>
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                    <div className="text-xs text-slate-500 font-semibold uppercase">Question Formats</div>
-                    <div className="text-2xl font-black text-indigo-600">MCQ & SATA</div>
-                    <div className="text-[11px] text-slate-500">Select All That Apply + Single Choice</div>
-                  </div>
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                    <div className="text-xs text-slate-500 font-semibold uppercase">Clinical Rationale</div>
-                    <div className="text-2xl font-black text-emerald-600">Saunders 9th</div>
-                    <div className="text-[11px] text-slate-500">Evidence-based distractor traps</div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                    {/* All */}
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('all')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        statusFilter === 'all'
+                          ? 'border-slate-900 bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/20'
+                          : 'border-slate-200 bg-white hover:border-slate-300 text-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold">All Items</span>
+                        <Layers className={`w-3.5 h-3.5 ${statusFilter === 'all' ? 'text-white' : 'text-slate-400'}`} />
+                      </div>
+                      <div className={`text-lg font-black ${statusFilter === 'all' ? 'text-white' : 'text-slate-900'}`}>
+                        {liveCounts.all}
+                      </div>
+                      <div className={`text-[10px] ${statusFilter === 'all' ? 'text-slate-300' : 'text-slate-500'}`}>Total in system</div>
+                    </button>
+
+                    {/* Unanswered */}
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('unanswered')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        statusFilter === 'unanswered'
+                          ? 'border-sky-600 bg-sky-600 text-white shadow-sm ring-2 ring-sky-600/20'
+                          : 'border-slate-200 bg-white hover:border-sky-300 text-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold">Unanswered</span>
+                        <HelpCircle className={`w-3.5 h-3.5 ${statusFilter === 'unanswered' ? 'text-white' : 'text-sky-500'}`} />
+                      </div>
+                      <div className={`text-lg font-black ${statusFilter === 'unanswered' ? 'text-white' : 'text-sky-700'}`}>
+                        {liveCounts.unanswered}
+                      </div>
+                      <div className={`text-[10px] ${statusFilter === 'unanswered' ? 'text-sky-100' : 'text-slate-500'}`}>Fresh test items</div>
+                    </button>
+
+                    {/* Incorrect */}
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('incorrect')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        statusFilter === 'incorrect'
+                          ? 'border-rose-600 bg-rose-600 text-white shadow-sm ring-2 ring-rose-600/20'
+                          : 'border-slate-200 bg-white hover:border-rose-300 text-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold">Incorrect</span>
+                        <XCircle className={`w-3.5 h-3.5 ${statusFilter === 'incorrect' ? 'text-white' : 'text-rose-500'}`} />
+                      </div>
+                      <div className={`text-lg font-black ${statusFilter === 'incorrect' ? 'text-white' : 'text-rose-600'}`}>
+                        {liveCounts.incorrect}
+                      </div>
+                      <div className={`text-[10px] ${statusFilter === 'incorrect' ? 'text-rose-100' : 'text-slate-500'}`}>Retest mistakes</div>
+                    </button>
+
+                    {/* Correct */}
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('correct')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        statusFilter === 'correct'
+                          ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-600/20'
+                          : 'border-slate-200 bg-white hover:border-emerald-300 text-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold">Correct</span>
+                        <CheckCheck className={`w-3.5 h-3.5 ${statusFilter === 'correct' ? 'text-white' : 'text-emerald-500'}`} />
+                      </div>
+                      <div className={`text-lg font-black ${statusFilter === 'correct' ? 'text-white' : 'text-emerald-600'}`}>
+                        {liveCounts.correct}
+                      </div>
+                      <div className={`text-[10px] ${statusFilter === 'correct' ? 'text-emerald-100' : 'text-slate-500'}`}>Reinforce mastery</div>
+                    </button>
+
+                    {/* Flagged */}
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('flagged')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        statusFilter === 'flagged'
+                          ? 'border-amber-500 bg-amber-500 text-white shadow-sm ring-2 ring-amber-500/20'
+                          : 'border-slate-200 bg-white hover:border-amber-300 text-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold">Flagged</span>
+                        <Flag className={`w-3.5 h-3.5 ${statusFilter === 'flagged' ? 'text-white' : 'text-amber-500'}`} />
+                      </div>
+                      <div className={`text-lg font-black ${statusFilter === 'flagged' ? 'text-white' : 'text-amber-600'}`}>
+                        {liveCounts.flagged}
+                      </div>
+                      <div className={`text-[10px] ${statusFilter === 'flagged' ? 'text-amber-100' : 'text-slate-500'}`}>Bookmarked items</div>
+                    </button>
                   </div>
                 </div>
 
-                {/* Session Mode Selector */}
+                {/* 2. ORGAN CATEGORIES: 10 Systems Grid */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <span className="text-base">🫀</span>
+                      <span>Select Organ System Category:</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOrganSystem('all')}
+                      className={`text-xs font-semibold hover:underline ${selectedOrganSystem === 'all' ? 'text-sky-600 font-bold' : 'text-slate-500'}`}
+                    >
+                      Reset to All Systems
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                    {ORGAN_SYSTEMS.map((sys) => {
+                      const isSelected = selectedOrganSystem === sys.id;
+                      return (
+                        <button
+                          key={sys.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedOrganSystem(sys.id);
+                            setCurrentIndex(0);
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                            isSelected 
+                              ? 'border-sky-600 bg-sky-50/80 ring-2 ring-sky-500/20 shadow-sm' 
+                              : 'border-slate-200 bg-slate-50/60 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-1 mb-1.5">
+                            <span className="text-xl">{sys.icon}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                              {sys.count} items
+                            </span>
+                          </div>
+                          <div className={`text-xs font-bold leading-tight ${isSelected ? 'text-sky-950 font-black' : 'text-slate-800'}`}>
+                            {sys.name}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. QUESTION FORMAT: MIXED SATA + MCQ, Single MCQ, or SATA Only */}
+                <div className="space-y-3 pt-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                    Question Format & Type:
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setQuestionFormatFilter('mixed')}
+                      className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        questionFormatFilter === 'mixed'
+                          ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-500/20 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-xs text-indigo-950 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Mixed (MCQ + SATA)</span>
+                        </span>
+                        <span className="text-[10px] font-extrabold uppercase bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded">
+                          Recommended
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        Smoothly alternates Select All That Apply and single-choice MCQs for true NCLEX simulation.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setQuestionFormatFilter('single')}
+                      className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        questionFormatFilter === 'single'
+                          ? 'border-sky-600 bg-sky-50/70 ring-2 ring-sky-500/20 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                          <span className="w-3.5 h-3.5 rounded-full border border-sky-600 flex items-center justify-center text-[8px] text-sky-600 font-bold">1</span>
+                          <span>Single-Choice MCQs</span>
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        Traditional 4-option single correct response items with clinical distractor traps.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setQuestionFormatFilter('multiple')}
+                      className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        questionFormatFilter === 'multiple'
+                          ? 'border-purple-600 bg-purple-50/70 ring-2 ring-purple-500/20 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                          <CheckSquare className="w-3.5 h-3.5 text-purple-600" />
+                          <span>SATA (Select All That Apply)</span>
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        High-difficulty multi-select items testing clinical priority, contraindications, and teaching.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4. Session Mode Selector (Practice vs Timed Mock) */}
                 <div className="space-y-3 pt-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
                     Choose Testing Mode:
@@ -734,17 +1154,17 @@ export default function QBankPage() {
                   </div>
                 </div>
 
-                {/* Question Set Size */}
+                {/* 5. Question Set Size */}
                 <div className="space-y-3 pt-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
-                    How Many Questions Do You Want To Practice?
+                    How Many Questions Do You Want In This Session?
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {[
                       { val: 5, label: '5 Questions (Quick Review)' },
                       { val: 10, label: '10 Questions (Standard)' },
                       { val: 25, label: '25 Questions (Intensive)' },
-                      { val: 'all', label: `All Available (${questions.length})` }
+                      { val: 'all', label: `All Available (${filteredQuestions.length})` }
                     ].map((opt) => (
                       <button
                         key={String(opt.val)}
@@ -765,8 +1185,12 @@ export default function QBankPage() {
                 {/* Primary Action Button Bar */}
                 <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="text-xs text-slate-500">
-                    <span>Clinical Judgment Measurement Model • </span>
-                    <span className="font-bold text-slate-800">{filteredQuestions.length} Questions Ready</span>
+                    <span>Target: </span>
+                    <strong className="text-slate-800">{selectedOrganSystem === 'all' ? 'All 10 Organ Systems' : selectedOrganSystem}</strong>
+                    <span> • Status: </span>
+                    <strong className="text-slate-800 capitalize">{statusFilter}</strong>
+                    <span> • Ready: </span>
+                    <strong className="text-sky-600">{filteredQuestions.length} Questions</strong>
                   </div>
 
                   <button
@@ -861,15 +1285,18 @@ export default function QBankPage() {
                 
                 {/* Stage Header */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="px-3 py-1 text-xs font-bold rounded-md bg-slate-900 text-white">
                       Item {currentIndex + 1} of {filteredQuestions.length}
                     </span>
-                    <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-sky-50 text-sky-700 border border-sky-200">
-                      {currentQ.category}
+                    {/* Organ System Badge */}
+                    <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-sky-50 text-sky-800 border border-sky-200 flex items-center gap-1">
+                      <span>🫀</span>
+                      <span>{currentQ.organSystem || 'General Clinical'}</span>
                     </span>
-                    <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-100 text-slate-700">
-                      {currentQ.examType}
+                    {/* Format Badge: SATA or MCQ */}
+                    <span className={`px-2 py-1 text-xs font-bold rounded-md uppercase ${currentQ.questionType === 'multiple' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-100 text-slate-700'}`}>
+                      {currentQ.questionType === 'multiple' ? 'SATA (Multi-Select)' : 'MCQ (Single)'}
                     </span>
                   </div>
 
@@ -878,7 +1305,7 @@ export default function QBankPage() {
                       onClick={handleToggleFlag}
                       className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
                         isFlagged 
-                          ? 'bg-amber-50 text-amber-800 border-amber-300' 
+                          ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold' 
                           : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                       }`}
                     >
@@ -1070,10 +1497,10 @@ export default function QBankPage() {
               <div className="clinical-card bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
                 <p className="text-slate-600 font-medium">No questions found matching your filter criteria.</p>
                 <button
-                  onClick={() => { setSelectedCategory('all'); setQuestionTypeFilter('all'); }}
-                  className="px-4 py-2 text-xs font-semibold bg-sky-600 text-white rounded-lg"
+                  onClick={() => { setSelectedOrganSystem('all'); setStatusFilter('all'); setQuestionFormatFilter('mixed'); }}
+                  className="px-4 py-2 text-xs font-semibold bg-sky-600 text-white rounded-lg cursor-pointer"
                 >
-                  Clear Filters
+                  Clear Filters & Reset
                 </button>
               </div>
             )}
@@ -1099,7 +1526,7 @@ export default function QBankPage() {
               </div>
               <button
                 onClick={() => setIsSubModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1114,7 +1541,7 @@ export default function QBankPage() {
                 <p className="text-sm text-slate-600 max-w-md mx-auto">{subSuccessMsg}</p>
                 <button
                   onClick={() => setIsSubModalOpen(false)}
-                  className="px-6 py-2.5 text-xs font-bold text-white bg-slate-900 rounded-lg"
+                  className="px-6 py-2.5 text-xs font-bold text-white bg-slate-900 rounded-lg cursor-pointer"
                 >
                   Close Window
                 </button>
@@ -1218,14 +1645,14 @@ export default function QBankPage() {
                   <button
                     type="button"
                     onClick={() => setIsSubModalOpen(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submittingSub}
-                    className="px-6 py-2.5 text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-lg shadow-sm disabled:opacity-50"
+                    className="px-6 py-2.5 text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-lg shadow-sm disabled:opacity-50 cursor-pointer"
                   >
                     {submittingSub ? 'Submitting...' : 'Confirm Subscription Request'}
                   </button>

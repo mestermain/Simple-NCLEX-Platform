@@ -8,6 +8,9 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get('category') || 'all';
+    const organSystem = searchParams.get('organ_system') || searchParams.get('organSystem') || 'all';
+    const status = searchParams.get('status') || 'all'; // 'all' | 'unanswered' | 'incorrect' | 'correct' | 'flagged'
+    const questionType = searchParams.get('question_type') || searchParams.get('questionType') || 'all';
     const difficulty = searchParams.get('difficulty') || 'all';
     const examType = searchParams.get('exam_type') || 'all';
     const search = searchParams.get('search') || '';
@@ -15,6 +18,46 @@ export async function GET(req: Request) {
     const session = getAuthFromRequest(req);
     const access = await checkUserPlatformAccess(session ? session.id : null);
     const isDemoOnly = !access.hasAccess;
+
+    // Retrieve user attempts & bookmarks for real-time status filtering
+    let userCorrectIds: number[] = [];
+    let userIncorrectIds: number[] = [];
+    let userFlaggedIds: number[] = [];
+    let userAttemptedIds: number[] = [];
+
+    if (session) {
+      try {
+        const attempts = await query(
+          `SELECT question_id, is_correct, attempted_at 
+           FROM student_qbank_attempts 
+           WHERE user_id = ? 
+           ORDER BY attempted_at DESC`,
+          [session.id]
+        );
+
+        const seen = new Set<number>();
+        for (const a of attempts) {
+          const qid = Number(a.question_id);
+          if (!seen.has(qid)) {
+            seen.add(qid);
+            userAttemptedIds.push(qid);
+            if (Number(a.is_correct) === 1) {
+              userCorrectIds.push(qid);
+            } else {
+              userIncorrectIds.push(qid);
+            }
+          }
+        }
+
+        const flags = await query(
+          `SELECT question_id FROM student_qbank_flags WHERE user_id = ?`,
+          [session.id]
+        );
+        userFlaggedIds = flags.map((f: any) => Number(f.question_id));
+      } catch (err) {
+        console.warn('Error fetching student progress in QBank questions route:', err);
+      }
+    }
 
     let sql = 'SELECT * FROM qbank_questions WHERE 1=1';
     const params: any[] = [];
@@ -31,6 +74,21 @@ export async function GET(req: Request) {
     if (examType && examType !== 'all') {
       sql += ' AND exam_type = ?';
       params.push(examType);
+    }
+
+    if (organSystem && organSystem !== 'all') {
+      sql += ' AND LOWER(organ_system) = LOWER(?)';
+      params.push(organSystem);
+    }
+
+    if (questionType && questionType !== 'all') {
+      if (questionType === 'single') {
+        sql += ' AND question_type = ?';
+        params.push('single');
+      } else if (questionType === 'multiple') {
+        sql += ' AND question_type = ?';
+        params.push('multiple');
+      }
     }
 
     if (category && category !== 'all') {
@@ -66,15 +124,15 @@ export async function GET(req: Request) {
     }
 
     if (search) {
-      sql += ' AND (LOWER(statement) LIKE ? OR LOWER(category) LIKE ?)';
-      params.push(`%${search.toLowerCase()}%`, `%${search.toLowerCase()}%`);
+      sql += ' AND (LOWER(statement) LIKE ? OR LOWER(category) LIKE ? OR LOWER(organ_system) LIKE ?)';
+      params.push(`%${search.toLowerCase()}%`, `%${search.toLowerCase()}%`, `%${search.toLowerCase()}%`);
     }
 
     sql += ' ORDER BY sort_order ASC, id ASC';
 
     const rows = await query(sql, params);
 
-    const questions = rows.map(r => {
+    let questions = rows.map((r: any) => {
       let options = [];
       let distractors = [];
       let correctIndices = [];
@@ -88,6 +146,7 @@ export async function GET(req: Request) {
       return {
         id: r.id,
         category: r.category,
+        organSystem: r.organ_system || 'General Clinical',
         difficulty: r.difficulty,
         examType: r.exam_type,
         clientNeed: r.client_need,
@@ -104,10 +163,44 @@ export async function GET(req: Request) {
       };
     });
 
+    // Optional status filter in query parameter
+    if (status && status !== 'all' && session) {
+      if (status === 'correct') {
+        questions = questions.filter(q => userCorrectIds.includes(q.id));
+      } else if (status === 'incorrect') {
+        questions = questions.filter(q => userIncorrectIds.includes(q.id));
+      } else if (status === 'flagged') {
+        questions = questions.filter(q => userFlaggedIds.includes(q.id));
+      } else if (status === 'unanswered') {
+        questions = questions.filter(q => !userAttemptedIds.includes(q.id));
+      }
+    }
+
+    // List of standard 10 organ systems
+    const organSystems = [
+      'Cardiovascular System',
+      'Respiratory System',
+      'Neurological & Sensory System',
+      'Gastrointestinal & Hepatic System',
+      'Renal & Urinary System',
+      'Endocrine System',
+      'Musculoskeletal System',
+      'Hematologic & Immune System',
+      'Reproductive & Maternal-Newborn',
+      'Mental Health & Psychosocial',
+    ];
+
     return NextResponse.json({
       success: true,
       questions,
       totalCount: questions.length,
+      organSystems,
+      userProgress: {
+        correctIds: userCorrectIds,
+        incorrectIds: userIncorrectIds,
+        flaggedIds: userFlaggedIds,
+        attemptedIds: userAttemptedIds,
+      },
       isDemoOnly,
       hasAccess: access.hasAccess,
       isAdmin: access.isAdmin,
