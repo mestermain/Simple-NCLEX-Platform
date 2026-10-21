@@ -18,7 +18,9 @@ import {
   Flame,
   Check,
   Zap,
-  Star
+  Star,
+  Play,
+  Target
 } from 'lucide-react';
 
 interface DemoMCQ {
@@ -37,6 +39,7 @@ interface DemoMCQ {
 export default function HomePage() {
   const [demoMcqs, setDemoMcqs] = useState<DemoMCQ[]>([]);
   const [loadingMcqs, setLoadingMcqs] = useState(true);
+  const [demoStarted, setDemoStarted] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -172,6 +175,41 @@ export default function HomePage() {
               <div className="py-16 text-center space-y-3">
                 <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin mx-auto" />
                 <p className="text-sm text-slate-500">Loading high-yield NCLEX vignette...</p>
+              </div>
+            ) : !demoStarted ? (
+              <div className="text-center py-10 sm:py-12 px-4 space-y-6">
+                <div className="w-16 h-16 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center mx-auto shadow-sm">
+                  <Target className="w-8 h-8" />
+                </div>
+                <div className="max-w-md mx-auto space-y-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-800 text-xs font-bold uppercase tracking-wider">
+                    Interactive Clinical Simulator
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    Practice High-Yield NCLEX Questions
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                    Test your pharmacology and physiological adaptation knowledge on 5 real examination vignettes with full Saunders 9th Edition distractor analyses.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => setDemoStarted(true)}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-sm shadow-lg shadow-sky-600/30 transition-all hover:scale-[1.02] cursor-pointer"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>Start Questions (Sample Vignette)</span>
+                  </button>
+
+                  <Link
+                    href="/qbank?start=true"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition-colors"
+                  >
+                    <span>Launch Full 60+ Q-Bank</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
               </div>
             ) : currentQ ? (
               <div className="space-y-6">

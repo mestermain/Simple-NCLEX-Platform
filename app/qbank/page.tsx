@@ -17,12 +17,18 @@ import {
   Flame, 
   CheckSquare, 
   Square, 
-  HelpCircle,
-  Upload,
-  Check,
-  X,
-  Layers,
-  ArrowRight
+  HelpCircle, 
+  Upload, 
+  Check, 
+  X, 
+  Layers, 
+  ArrowRight,
+  Play,
+  Pause,
+  Award,
+  Target,
+  BookOpen,
+  Zap
 } from 'lucide-react';
 
 interface Question {
@@ -72,10 +78,15 @@ export default function QBankPage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [questionTypeFilter, setQuestionTypeFilter] = useState<'all' | 'single' | 'multiple'>('all');
   const [examMode, setExamMode] = useState(false); // false = Practice Mode (instant feedback), true = Exam Mode
+  const [questionLimit, setQuestionLimit] = useState<number | 'all'>('all');
+
+  // Session lifecycle
+  const [sessionStarted, setSessionStarted] = useState(false);
+  const [sessionCompleted, setSessionCompleted] = useState(false);
 
   // Timer
   const [secondsElapsed, setSecondsElapsed] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(true);
+  const [timerRunning, setTimerRunning] = useState(false);
 
   // Subscription form
   const [subPlan, setSubPlan] = useState<'1m' | '3m' | '6m'>('1m');
@@ -83,6 +94,20 @@ export default function QBankPage() {
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [submittingSub, setSubmittingSub] = useState(false);
   const [subSuccessMsg, setSubSuccessMsg] = useState('');
+
+  // Check URL parameters for direct start
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('start') === 'true') {
+        setSessionStarted(true);
+        setTimerRunning(true);
+      }
+      if (params.get('mode') === 'exam') {
+        setExamMode(true);
+      }
+    }
+  }, []);
 
   // Fetch access & questions
   useEffect(() => {
@@ -116,16 +141,16 @@ export default function QBankPage() {
     loadData();
   }, []);
 
-  // Timer interval
+  // Timer interval: only runs during active session
   useEffect(() => {
     let interval: any = null;
-    if (timerRunning) {
+    if (sessionStarted && timerRunning && !sessionCompleted) {
       interval = setInterval(() => {
         setSecondsElapsed((prev) => prev + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [timerRunning]);
+  }, [sessionStarted, timerRunning, sessionCompleted]);
 
   const formatTimer = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -134,14 +159,50 @@ export default function QBankPage() {
   };
 
   // Filtered questions
-  const filteredQuestions = questions.filter((q) => {
-    if (selectedCategory !== 'all' && !q.category.toLowerCase().includes(selectedCategory.toLowerCase())) {
-      return false;
+  const filteredQuestions = questions
+    .filter((q) => {
+      if (selectedCategory !== 'all' && !q.category.toLowerCase().includes(selectedCategory.toLowerCase())) {
+        return false;
+      }
+      if (questionTypeFilter === 'single' && q.questionType !== 'single') return false;
+      if (questionTypeFilter === 'multiple' && q.questionType !== 'multiple') return false;
+      return true;
+    })
+    .slice(0, questionLimit === 'all' ? undefined : questionLimit);
+
+  // Session lifecycle handlers
+  const handleStartSession = () => {
+    if (filteredQuestions.length === 0) return;
+    setCurrentIndex(0);
+    setSessionStarted(true);
+    setSessionCompleted(false);
+    setTimerRunning(true);
+    if (typeof window !== 'undefined') {
+      const el = document.getElementById('qbankWorkspaceTop');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
     }
-    if (questionTypeFilter === 'single' && q.questionType !== 'single') return false;
-    if (questionTypeFilter === 'multiple' && q.questionType !== 'multiple') return false;
-    return true;
-  });
+  };
+
+  const handlePauseSession = () => {
+    setSessionStarted(false);
+    setTimerRunning(false);
+  };
+
+  const handleFinishSession = () => {
+    setSessionCompleted(true);
+    setTimerRunning(false);
+  };
+
+  const handleRestartNewSession = () => {
+    setSelectedAnswers({});
+    setAttemptResults({});
+    setFlaggedQuestions({});
+    setSecondsElapsed(0);
+    setCurrentIndex(0);
+    setSessionStarted(false);
+    setSessionCompleted(false);
+    setTimerRunning(false);
+  };
 
   const currentQ = filteredQuestions[currentIndex] || filteredQuestions[0];
   const currentQId = currentQ?.id;
@@ -323,44 +384,103 @@ export default function QBankPage() {
             )}
           </div>
 
-          {/* Practice Session Metrics */}
-          <div className="flex items-center gap-6 text-xs text-slate-300">
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-sky-400" />
-              <span className="font-mono font-semibold text-sm text-white">{formatTimer(secondsElapsed)}</span>
-            </div>
-            <div>
-              Answered:{' '}
-              <span className="font-bold text-white">
-                {answeredKeys.length} / {filteredQuestions.length}
-              </span>
-            </div>
-            <div>
-              Accuracy:{' '}
-              <span className={`font-bold ${accuracyPct >= 75 ? 'text-emerald-400' : accuracyPct >= 50 ? 'text-amber-400' : 'text-slate-200'}`}>
-                {accuracyPct}%
-              </span>
-            </div>
-            <button
-              onClick={handleResetPractice}
-              className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors"
-              title="Reset current session"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset</span>
-            </button>
+          {/* Practice Session Metrics & Controls */}
+          <div className="flex items-center gap-4 sm:gap-6 text-xs text-slate-300">
+            {!sessionStarted && !sessionCompleted ? (
+              <button
+                onClick={handleStartSession}
+                disabled={filteredQuestions.length === 0}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-xs shadow-md shadow-sky-600/30 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Start Questions ({filteredQuestions.length})</span>
+              </button>
+            ) : (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-sky-400" />
+                  <span className="font-mono font-semibold text-sm text-white">{formatTimer(secondsElapsed)}</span>
+                </div>
+                <div>
+                  Answered:{' '}
+                  <span className="font-bold text-white">
+                    {answeredKeys.length} / {filteredQuestions.length}
+                  </span>
+                </div>
+                <div>
+                  Accuracy:{' '}
+                  <span className={`font-bold ${accuracyPct >= 75 ? 'text-emerald-400' : accuracyPct >= 50 ? 'text-amber-400' : 'text-slate-200'}`}>
+                    {accuracyPct}%
+                  </span>
+                </div>
+                <button
+                  onClick={handlePauseSession}
+                  className="flex items-center gap-1 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
+                  title="Pause session and adjust settings"
+                >
+                  <Pause className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Pause</span>
+                </button>
+                <button
+                  onClick={handleResetPractice}
+                  className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  title="Reset current session"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset</span>
+                </button>
+              </>
+            )}
           </div>
 
         </div>
       </section>
 
       {/* ── 2. MAIN WORKSPACE ── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1" id="qbankWorkspaceTop">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           
           {/* ── SIDEBAR: FILTERS & QUESTION PALETTE ── */}
           <div className="lg:col-span-1 space-y-6">
             
+            {/* Start Button Card for Sidebar */}
+            <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold uppercase tracking-wider text-slate-500">Practice Session</span>
+                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${sessionStarted ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                  {sessionStarted ? 'In Progress' : 'Ready'}
+                </span>
+              </div>
+
+              {!sessionStarted ? (
+                <button
+                  onClick={handleStartSession}
+                  disabled={filteredQuestions.length === 0}
+                  className="w-full inline-flex items-center justify-center gap-2 p-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-xs shadow-md shadow-sky-600/25 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Start Questions ({filteredQuestions.length})</span>
+                </button>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handlePauseSession}
+                    className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                  >
+                    <Pause className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Pause</span>
+                  </button>
+                  <button
+                    onClick={handleFinishSession}
+                    className="inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-colors cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Finish</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Filter Card */}
             <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200 space-y-4">
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
@@ -515,6 +635,227 @@ export default function QBankPage() {
                 <div className="w-10 h-10 border-4 border-sky-600 border-t-transparent rounded-full animate-spin mx-auto" />
                 <p className="text-sm text-slate-600 font-medium">Loading high-yield NCLEX test items...</p>
               </div>
+            ) : !sessionStarted && !sessionCompleted ? (
+              /* ── PRE-SESSION SETUP & START SCREEN ── */
+              <div className="clinical-card bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 space-y-6 shadow-sm">
+                
+                {/* Header Banner */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-800 text-xs font-bold uppercase tracking-wider">
+                      <Target className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Ready for NCLEX-RN & SNLE Practice</span>
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                      Start Your Clinical Practice Session
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600">
+                      Configure your exam preferences below or start testing immediately with Saunders 9th Edition distractor rationales.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleStartSession}
+                    disabled={filteredQuestions.length === 0}
+                    className="shrink-0 inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-sm shadow-lg shadow-sky-600/30 transition-all hover:scale-[1.02] active:scale-100 cursor-pointer disabled:opacity-50"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>Start Questions Now</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* 3 Overview Stat Chips */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+                    <div className="text-xs text-slate-500 font-semibold uppercase">Items In Batch</div>
+                    <div className="text-2xl font-black text-sky-600">{filteredQuestions.length} Questions</div>
+                    <div className="text-[11px] text-slate-500">Filtered from bank of {questions.length} items</div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+                    <div className="text-xs text-slate-500 font-semibold uppercase">Question Formats</div>
+                    <div className="text-2xl font-black text-indigo-600">MCQ & SATA</div>
+                    <div className="text-[11px] text-slate-500">Select All That Apply + Single Choice</div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+                    <div className="text-xs text-slate-500 font-semibold uppercase">Clinical Rationale</div>
+                    <div className="text-2xl font-black text-emerald-600">Saunders 9th</div>
+                    <div className="text-[11px] text-slate-500">Evidence-based distractor traps</div>
+                  </div>
+                </div>
+
+                {/* Session Mode Selector */}
+                <div className="space-y-3 pt-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                    Choose Testing Mode:
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setExamMode(false)}
+                      className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                        !examMode 
+                          ? 'border-sky-500 bg-sky-50/50 ring-2 ring-sky-500/20' 
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                          <BookOpen className="w-4 h-4 text-sky-600" />
+                          <span>Practice / Tutor Mode</span>
+                        </span>
+                        {!examMode && <span className="w-2 h-2 rounded-full bg-sky-600" />}
+                      </div>
+                      <p className="text-xs text-slate-600">
+                        Instant Saunders rationales and clinical pearls display immediately after each question submit.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setExamMode(true)}
+                      className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                        examMode 
+                          ? 'border-sky-500 bg-sky-50/50 ring-2 ring-sky-500/20' 
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-amber-600" />
+                          <span>Timed Mock Exam Mode</span>
+                        </span>
+                        {examMode && <span className="w-2 h-2 rounded-full bg-sky-600" />}
+                      </div>
+                      <p className="text-xs text-slate-600">
+                        Simulates live CAT exam conditions. Rationales and scores are hidden until the entire test is submitted.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Question Set Size */}
+                <div className="space-y-3 pt-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                    How Many Questions Do You Want To Practice?
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { val: 5, label: '5 Questions (Quick Review)' },
+                      { val: 10, label: '10 Questions (Standard)' },
+                      { val: 25, label: '25 Questions (Intensive)' },
+                      { val: 'all', label: `All Available (${questions.length})` }
+                    ].map((opt) => (
+                      <button
+                        key={String(opt.val)}
+                        type="button"
+                        onClick={() => setQuestionLimit(opt.val as any)}
+                        className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                          questionLimit === opt.val
+                            ? 'bg-sky-600 text-white border-sky-600 shadow-sm'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Primary Action Button Bar */}
+                <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-xs text-slate-500">
+                    <span>Clinical Judgment Measurement Model • </span>
+                    <span className="font-bold text-slate-800">{filteredQuestions.length} Questions Ready</span>
+                  </div>
+
+                  <button
+                    onClick={handleStartSession}
+                    disabled={filteredQuestions.length === 0}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 text-base font-bold text-white bg-sky-600 hover:bg-sky-500 active:bg-sky-700 rounded-xl shadow-lg shadow-sky-600/30 transition-all hover:scale-[1.02] active:scale-100 cursor-pointer disabled:opacity-50"
+                  >
+                    <Play className="w-5 h-5 fill-current" />
+                    <span>Start Questions ({filteredQuestions.length} Items)</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+
+              </div>
+            ) : sessionCompleted ? (
+              /* ── SESSION COMPLETED SUMMARY SCREEN ── */
+              <div className="clinical-card bg-white p-6 sm:p-10 rounded-2xl border border-slate-200 text-center space-y-6 shadow-sm">
+                
+                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-sm">
+                  <Award className="w-8 h-8" />
+                </div>
+
+                <div className="space-y-2 max-w-md mx-auto">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold uppercase tracking-wider">
+                    Session Complete
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                    Practice Test Finished!
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600">
+                    Review your clinical decision metrics and distractor safety breakdown below.
+                  </p>
+                </div>
+
+                {/* Score Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto text-left">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-xs text-slate-500 font-semibold uppercase">Final Accuracy</div>
+                    <div className={`text-2xl font-black mt-1 ${accuracyPct >= 75 ? 'text-emerald-600' : accuracyPct >= 50 ? 'text-amber-600' : 'text-slate-800'}`}>
+                      {accuracyPct}%
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-xs text-slate-500 font-semibold uppercase">Correct Items</div>
+                    <div className="text-2xl font-black text-emerald-600 mt-1">
+                      {correctCount} / {answeredKeys.length}
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-xs text-slate-500 font-semibold uppercase">Time Spent</div>
+                    <div className="text-2xl font-black text-sky-600 mt-1">
+                      {formatTimer(secondsElapsed)}
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-xs text-slate-500 font-semibold uppercase">Flagged For Review</div>
+                    <div className="text-2xl font-black text-amber-600 mt-1">
+                      {Object.values(flaggedQuestions).filter(Boolean).length}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 border-t border-slate-100">
+                  <button
+                    onClick={handleRestartNewSession}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm shadow-md shadow-sky-600/30 transition-all cursor-pointer"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>Start Another Questions Session</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setSessionCompleted(false);
+                      setSessionStarted(true);
+                      setCurrentIndex(0);
+                    }}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition-colors cursor-pointer"
+                  >
+                    <span>Review Questions & Rationales</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+              </div>
             ) : currentQ ? (
               <div className="clinical-card bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 space-y-6">
                 
@@ -535,7 +876,7 @@ export default function QBankPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleToggleFlag}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
                         isFlagged 
                           ? 'bg-amber-50 text-amber-800 border-amber-300' 
                           : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
@@ -543,6 +884,14 @@ export default function QBankPage() {
                     >
                       <Flag className={`w-3.5 h-3.5 ${isFlagged ? 'fill-amber-500 text-amber-500' : 'text-slate-400'}`} />
                       <span>{isFlagged ? 'Flagged' : 'Flag Item'}</span>
+                    </button>
+
+                    <button
+                      onClick={handleFinishSession}
+                      className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                      title="Finish session and view results"
+                    >
+                      Finish Test
                     </button>
                   </div>
                 </div>
@@ -602,7 +951,7 @@ export default function QBankPage() {
                         key={optIdx}
                         onClick={() => handleOptionToggle(optIdx)}
                         disabled={isAnswered}
-                        className={`w-full text-left p-4 rounded-xl border transition-all flex items-start gap-3.5 ${itemStyle}`}
+                        className={`w-full text-left p-4 rounded-xl border transition-all flex items-start gap-3.5 cursor-pointer ${itemStyle}`}
                       >
                         <span className="pt-0.5 shrink-0">{boxIcon}</span>
                         <div className="flex items-center gap-2 text-xs font-bold text-slate-500 shrink-0 pt-0.5">
@@ -620,7 +969,7 @@ export default function QBankPage() {
                     <button
                       onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
                       disabled={currentIndex === 0}
-                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-4 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700"
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-4 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 cursor-pointer"
                     >
                       <ChevronLeft className="w-4 h-4" />
                       <span>Previous</span>
@@ -628,7 +977,7 @@ export default function QBankPage() {
                     <button
                       onClick={() => setCurrentIndex((prev) => Math.min(filteredQuestions.length - 1, prev + 1))}
                       disabled={currentIndex === filteredQuestions.length - 1}
-                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-4 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700"
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-4 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 cursor-pointer"
                     >
                       <span>Next</span>
                       <ChevronRight className="w-4 h-4" />
@@ -639,7 +988,7 @@ export default function QBankPage() {
                     <button
                       onClick={handleSubmitAnswer}
                       disabled={currentSelected.length === 0}
-                      className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed text-white shadow-sm transition-all"
+                      className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed text-white shadow-sm transition-all cursor-pointer"
                     >
                       Submit Answer
                     </button>
@@ -648,10 +997,18 @@ export default function QBankPage() {
                       <span className={`text-xs font-bold px-3 py-1.5 rounded-lg ${currentResult?.isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
                         {currentResult?.isCorrect ? '✓ Correct Answer' : '✗ Incorrect Response'}
                       </span>
-                      {currentIndex < filteredQuestions.length - 1 && (
+                      {currentIndex === filteredQuestions.length - 1 ? (
+                        <button
+                          onClick={handleFinishSession}
+                          className="px-5 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Finish & View Score</span>
+                        </button>
+                      ) : (
                         <button
                           onClick={() => setCurrentIndex((prev) => prev + 1)}
-                          className="px-5 py-2 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+                          className="px-5 py-2 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm cursor-pointer"
                         >
                           Next Question →
                         </button>

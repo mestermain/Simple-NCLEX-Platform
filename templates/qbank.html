@@ -141,8 +141,25 @@
         </div>
       </aside>
 
+      <!-- Pre-Session Start Card -->
+      <section class="qbank-card" id="sessionSetupCard" style="padding:3rem 2rem;text-align:center">
+        <div style="width:64px;height:64px;border-radius:16px;background:#e0f2fe;color:#0284c7;display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;font-size:2rem">
+          🎯
+        </div>
+        <span class="qbank-eyebrow" style="display:inline-block;margin-bottom:0.75rem">Ready For Clinical Practice</span>
+        <h2 style="font-size:1.6rem;font-weight:800;color:var(--text-main);margin-bottom:0.75rem">
+          Start Your Question Practice Session
+        </h2>
+        <p style="color:var(--text-muted);max-width:540px;margin:0 auto 2rem;font-size:0.95rem;line-height:1.6">
+          Choose your clinical category and difficulty on the left, then click Start Questions to begin testing your judgment with Saunders 9th Edition distractor rationales.
+        </p>
+        <button type="button" class="qbank-btn qbank-btn-primary" id="startQuestionsBtn" style="font-size:1.05rem;padding:0.9rem 2.25rem;font-weight:700;border-radius:12px;box-shadow:0 10px 20px -5px rgba(2,132,199,0.35);cursor:pointer">
+          ▶ Start Questions Now
+        </button>
+      </section>
+
       <!-- Right Main: Question Item Card -->
-      <section class="qbank-card" id="questionCard">
+      <section class="qbank-card" id="questionCard" style="display:none">
         <div class="qbank-card-header">
           <div class="qbank-tags">
             <span class="qbank-tag category" id="questionCategoryTag">Pharmacology</span>

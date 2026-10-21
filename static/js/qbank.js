@@ -651,6 +651,28 @@
   }
 
   function setupEventListeners() {
+    // Start Questions button
+    const startQuestionsBtn = document.getElementById('startQuestionsBtn');
+    const sessionSetupCard = document.getElementById('sessionSetupCard');
+    if (startQuestionsBtn) {
+      startQuestionsBtn.addEventListener('click', () => {
+        if (sessionSetupCard) sessionSetupCard.style.display = 'none';
+        if (questionCard) {
+          questionCard.style.display = 'block';
+          questionCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+
+    // Direct start check from URL (?start=true)
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('start') === 'true') {
+        if (sessionSetupCard) sessionSetupCard.style.display = 'none';
+        if (questionCard) questionCard.style.display = 'block';
+      }
+    } catch (_) {}
+
     // Answer button
     if (submitAnswerBtn) {
       submitAnswerBtn.addEventListener('click', checkAnswer);
