@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getAuthFromRequest } from '@/lib/auth';
 import { query, queryOne, execute } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   try {
     const session = getAuthFromRequest(req);
@@ -31,9 +33,9 @@ export async function GET(req: Request) {
 
     const items = await query(sql, params);
 
-    const pendingCount = (await queryOne('SELECT count(*) as count FROM qbank_subscriptions WHERE status = "pending"'))?.count || 0;
-    const approvedCount = (await queryOne('SELECT count(*) as count FROM qbank_subscriptions WHERE status = "approved"'))?.count || 0;
-    const rejectedCount = (await queryOne('SELECT count(*) as count FROM qbank_subscriptions WHERE status = "rejected"'))?.count || 0;
+    const pendingCount = (await queryOne("SELECT count(*) as count FROM qbank_subscriptions WHERE status = 'pending'"))?.count || 0;
+    const approvedCount = (await queryOne("SELECT count(*) as count FROM qbank_subscriptions WHERE status = 'approved'"))?.count || 0;
+    const rejectedCount = (await queryOne("SELECT count(*) as count FROM qbank_subscriptions WHERE status = 'rejected'"))?.count || 0;
 
     return NextResponse.json({
       success: true,
