@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { GraduationCap, Lock, Mail, User, Phone, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
+import { GraduationCap, Lock, Mail, User, Phone, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -41,7 +41,7 @@ export default function RegisterPage() {
         const loginRes = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ identifier: email, password }),
         });
         const loginData = await loginRes.json();
         if (loginData.success) {
@@ -88,7 +88,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
             
             {/* Name Fields */}
             <div className="grid grid-cols-2 gap-3">
@@ -100,6 +100,8 @@ export default function RegisterPage() {
                   <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                   <input
                     type="text"
+                    name="firstName"
+                    autoComplete="given-name"
                     required
                     placeholder="Fatima"
                     value={firstName}
@@ -115,6 +117,8 @@ export default function RegisterPage() {
                 </label>
                 <input
                   type="text"
+                  name="lastName"
+                  autoComplete="family-name"
                   required
                   placeholder="Zahra"
                   value={lastName}
@@ -133,6 +137,8 @@ export default function RegisterPage() {
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
                   type="email"
+                  name="email"
+                  autoComplete="email"
                   required
                   placeholder="nurse@hospital.org"
                   value={email}
@@ -151,6 +157,8 @@ export default function RegisterPage() {
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
                   type="tel"
+                  name="phone"
+                  autoComplete="tel"
                   required
                   placeholder="+92 300 1234567"
                   value={phone}
@@ -166,6 +174,7 @@ export default function RegisterPage() {
                 Target Licensure Track
               </label>
               <select
+                name="examType"
                 value={examType}
                 onChange={(e) => setExamType(e.target.value)}
                 className="w-full text-sm p-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -188,6 +197,8 @@ export default function RegisterPage() {
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
                   type="password"
+                  name="password"
+                  autoComplete="new-password"
                   required
                   placeholder="••••••••••••"
                   value={password}
@@ -203,7 +214,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 text-sm font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 rounded-xl shadow-md shadow-sky-600/20 disabled:opacity-50 transition-all flex items-center justify-center gap-2 mt-2"
+              className="w-full py-3 px-4 text-sm font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 rounded-xl shadow-md shadow-sky-600/20 disabled:opacity-50 transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer"
             >
               <span>{loading ? 'Creating Account...' : 'Complete Free Registration'}</span>
               <ArrowRight className="w-4 h-4" />

@@ -4,22 +4,33 @@ import { verifyPassword, signToken } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
-    const { email, password } = await req.json();
+    const body = await req.json();
+    const identifier = (body.identifier || body.email || '').trim();
+    const password = body.password;
 
-    if (!email || !password) {
-      return NextResponse.json({ success: false, message: 'Email and password are required' }, { status: 400 });
+    if (!identifier || !password) {
+      return NextResponse.json({ success: false, message: 'Email/Phone and password are required' }, { status: 400 });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const user = await queryOne('SELECT * FROM users WHERE LOWER(email) = ?', [normalizedEmail]);
+    const normalizedLower = identifier.toLowerCase();
+    const cleanDigits = identifier.replace(/[\s\-\+\(\)]/g, '');
+
+    // Allow sign-in with either Email Address or Registered Phone/WhatsApp Number
+    const user = await queryOne(
+      `SELECT * FROM users 
+       WHERE LOWER(email) = ? 
+          OR phone = ? 
+          OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', '') = ?`,
+      [normalizedLower, identifier, cleanDigits]
+    );
 
     if (!user) {
-      return NextResponse.json({ success: false, message: 'Invalid email or password' }, { status: 401 });
+      return NextResponse.json({ success: false, message: 'Invalid credentials. Please check your email/phone and password.' }, { status: 401 });
     }
 
     const isValid = verifyPassword(password, user.password_hash, user.plain_password);
     if (!isValid) {
-      return NextResponse.json({ success: false, message: 'Invalid email or password' }, { status: 401 });
+      return NextResponse.json({ success: false, message: 'Invalid credentials. Please check your email/phone and password.' }, { status: 401 });
     }
 
     const token = signToken({
@@ -34,6 +45,7 @@ export async function POST(req: Request) {
     const safeUser = {
       id: user.id,
       email: user.email,
+      phone: user.phone || '',
       firstName: user.first_name,
       lastName: user.last_name,
       role: user.role,

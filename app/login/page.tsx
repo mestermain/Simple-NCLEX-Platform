@@ -3,11 +3,11 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { GraduationCap, Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
+import { GraduationCap, Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -21,7 +21,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier, password }),
       });
 
       const data = await res.json();
@@ -32,18 +32,13 @@ export default function LoginPage() {
           router.push('/profile');
         }
       } else {
-        setErrorMsg(data.message || 'Invalid email or password.');
+        setErrorMsg(data.message || 'Invalid email/phone or password.');
       }
     } catch (err: any) {
       setErrorMsg('An error occurred during sign-in. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFillDemo = (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
   };
 
   return (
@@ -78,16 +73,18 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-1">
-                Email Address
+                Email Address or Phone Number
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
-                  type="email"
+                  type="text"
+                  name="identifier"
+                  autoComplete="username"
                   required
-                  placeholder="nurse@hospital.org"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="nurse@hospital.org or +92 300 1234567"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   className="w-full text-sm pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
@@ -103,6 +100,8 @@ export default function LoginPage() {
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
                   type="password"
+                  name="password"
+                  autoComplete="current-password"
                   required
                   placeholder="••••••••••••"
                   value={password}
@@ -115,40 +114,15 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 text-sm font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 rounded-xl shadow-md shadow-sky-600/20 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 px-4 text-sm font-bold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 rounded-xl shadow-md shadow-sky-600/20 disabled:opacity-50 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>{loading ? 'Authenticating...' : 'Sign In To Portal'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
 
-          {/* Quick Demo Credentials Assistant */}
-          <div className="pt-4 border-t border-slate-100 space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-              Quick Review Credentials:
-            </span>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => handleFillDemo('admin@simplenclex.com', 'Admin123!')}
-                className="p-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-left transition-colors"
-              >
-                <div className="font-bold">Faculty Admin</div>
-                <div className="text-[10px] text-indigo-600 truncate">admin@simplenclex.com</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleFillDemo('student@example.com', 'Student123!')}
-                className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-left transition-colors"
-              >
-                <div className="font-bold">Nurse Student</div>
-                <div className="text-[10px] text-slate-500 truncate">student@example.com</div>
-              </button>
-            </div>
-          </div>
-
           {/* Trust Banner */}
-          <div className="flex items-center justify-center gap-2 text-xs text-slate-400 pt-2">
+          <div className="flex items-center justify-center gap-2 text-xs text-slate-400 pt-2 border-t border-slate-100">
             <ShieldCheck className="w-4 h-4 text-slate-400" />
             <span>256-Bit SSL Secure Nursing Licensure Portal</span>
           </div>
