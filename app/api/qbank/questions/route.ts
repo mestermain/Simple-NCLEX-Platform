@@ -67,7 +67,10 @@ export async function GET(req: Request) {
     let sql = 'SELECT * FROM qbank_questions WHERE (is_published = 1 OR is_published IS NULL)';
     const params: any[] = [];
 
-    if (isDemoOnly) {
+    // In DEMO_MODE or with full access, allow full question bank
+    const allowAllQuestions = access.hasAccess || process.env.DEMO_MODE === 'true';
+
+    if (!allowAllQuestions) {
       sql += ' AND is_demo = 1';
     }
 

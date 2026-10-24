@@ -46,6 +46,7 @@ import DragDropQuestion from '@/components/ngn/DragDropQuestion';
 import BowtieQuestion from '@/components/ngn/BowtieQuestion';
 import CaseStudyQuestion from '@/components/ngn/CaseStudyQuestion';
 import CatSimulationBanner from '@/components/ngn/CatSimulationBanner';
+import SubscriptionModal from '@/components/qbank/SubscriptionModal';
 
 interface Question {
   id: number;
@@ -97,7 +98,23 @@ const ORGAN_SYSTEMS = [
   { id: 'Mental Health & Psychosocial', name: 'Mental Health & Psychosocial', icon: '🧘', count: 6 },
 ];
 
-export default function QBankPage() {
+export interface PracticeSimulatorProps {
+  initialMode?: 'tutor' | 'exam' | 'cat';
+  initialCount?: number;
+  initialSystem?: string;
+  initialStatus?: string;
+  autoStart?: boolean;
+  onExit?: () => void;
+}
+
+export default function PracticeSimulator({
+  initialMode,
+  initialCount,
+  initialSystem,
+  initialStatus,
+  autoStart = false,
+  onExit,
+}: PracticeSimulatorProps = {}) {
   // State
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,27 +159,27 @@ export default function QBankPage() {
   const [selectedTrack, setSelectedTrack] = useState<string>('all'); // 'all' | 'RN' | 'PN' | 'DHA' | 'HAAD' | 'SNLE'
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all'); // 'all' | 'easy' | 'medium' | 'hard'
   const [selectedQuestionType, setSelectedQuestionType] = useState<string>('all');
-  const [selectedOrganSystem, setSelectedOrganSystem] = useState<string>('all');
+  const [selectedOrganSystem, setSelectedOrganSystem] = useState<string>(initialSystem || 'all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'unanswered' | 'incorrect' | 'correct' | 'flagged'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'unanswered' | 'incorrect' | 'correct' | 'flagged'>((initialStatus as any) || 'all');
   const [paletteStatusFilter, setPaletteStatusFilter] = useState<'all' | 'unanswered' | 'incorrect' | 'correct' | 'flagged'>('all');
   const [questionFormatFilter, setQuestionFormatFilter] = useState<'mixed' | 'single' | 'multiple'>('mixed');
-  const [examMode, setExamMode] = useState(false); // false = Practice Mode (instant rationales), true = Timed Exam Mode
-  const [questionLimit, setQuestionLimit] = useState<number | 'all'>('all');
+  const [examMode, setExamMode] = useState(initialMode === 'exam' || initialMode === 'cat'); // false = Practice Mode (instant rationales), true = Timed Exam Mode
+  const [questionLimit, setQuestionLimit] = useState<number | 'all'>(initialCount || 'all');
 
   // Phase 7: CAT (Computerized Adaptive Testing) Simulation State
-  const [isCatMode, setIsCatMode] = useState(false);
+  const [isCatMode, setIsCatMode] = useState(initialMode === 'cat');
   const [catTheta, setCatTheta] = useState(0.0);
   const [catConfidenceMargin, setCatConfidenceMargin] = useState(0.80);
   const [catEarlyPassed, setCatEarlyPassed] = useState(false);
 
   // Session lifecycle
-  const [sessionStarted, setSessionStarted] = useState(false);
+  const [sessionStarted, setSessionStarted] = useState(autoStart);
   const [sessionCompleted, setSessionCompleted] = useState(false);
 
   // Timer
   const [secondsElapsed, setSecondsElapsed] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerRunning, setTimerRunning] = useState(autoStart);
 
   // Subscription form
   const [subPlan, setSubPlan] = useState<'1m' | '3m' | '6m'>('1m');
@@ -181,8 +198,15 @@ export default function QBankPage() {
       }
       if (params.get('mode') === 'exam') {
         setExamMode(true);
+      } else if (params.get('mode') === 'cat') {
+        setIsCatMode(true);
+        setExamMode(true);
       } else if (params.get('mode') === 'sata') {
         setQuestionFormatFilter('multiple');
+      }
+      if (params.get('count') || params.get('limit')) {
+        const cnt = parseInt(params.get('count') || params.get('limit') || '0', 10);
+        if (cnt > 0) setQuestionLimit(cnt);
       }
       if (params.get('track')) {
         setSelectedTrack(params.get('track')!);
@@ -193,11 +217,7 @@ export default function QBankPage() {
       if (params.get('organ')) {
         setSelectedOrganSystem(params.get('organ')!);
       }
-      if (params.get('subscribe')) {
-        const subId = params.get('subscribe');
-        if (subId === 'plan-30' || subId === '1m') setSubPlan('1m');
-        else if (subId === 'plan-90' || subId === '3m') setSubPlan('3m');
-        else if (subId === 'plan-180' || subId === '6m') setSubPlan('6m');
+      if (params.get('subscribe') === 'true' || params.get('subscribe')) {
         setIsSubModalOpen(true);
       }
       if (params.get('status')) {
@@ -210,51 +230,52 @@ export default function QBankPage() {
   }, []);
 
   // Fetch access, questions & active session check
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      try {
-        // 1. Check access status
-        const statusRes = await fetch('/api/qbank/status');
-        const statusData = await statusRes.json();
-        
-        if (statusData.success) {
-          setHasAccess(statusData.hasAccess);
-          setAccessType(statusData.accessType);
-          setDaysRemaining(statusData.daysRemaining || 0);
-          setUserRole(statusData.role || 'guest');
-        }
-
-        // 2. Check for active in-progress session
-        try {
-          const activeRes = await fetch('/api/qbank/sessions?active=true');
-          const activeData = await activeRes.json();
-          if (activeData.success && activeData.session) {
-            setActiveDbSession(activeData.session);
-          }
-        } catch (_) {}
-
-        // 3. Fetch questions and user progress
-        const qRes = await fetch('/api/qbank/questions');
-        const qData = await qRes.json();
-
-        if (qData.success && qData.questions) {
-          setQuestions(qData.questions);
-          if (qData.userProgress) {
-            setDbCorrectIds(qData.userProgress.correctIds || []);
-            setDbIncorrectIds(qData.userProgress.incorrectIds || []);
-            setDbFlaggedIds(qData.userProgress.flaggedIds || []);
-            setDbAttemptedIds(qData.userProgress.attemptedIds || []);
-          }
-        }
-      } catch (err) {
-        console.error('Error loading QBank:', err);
-      } finally {
-        setLoading(false);
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      // 1. Check access status
+      const statusRes = await fetch('/api/qbank/status');
+      const statusData = await statusRes.json();
+      
+      if (statusData.success) {
+        setHasAccess(statusData.hasAccess);
+        setAccessType(statusData.accessType);
+        setDaysRemaining(statusData.daysRemaining || 0);
+        setUserRole(statusData.role || 'guest');
       }
+
+      // 2. Check for active in-progress session
+      try {
+        const activeRes = await fetch('/api/qbank/sessions?active=true');
+        const activeData = await activeRes.json();
+        if (activeData.success && activeData.session) {
+          setActiveDbSession(activeData.session);
+        }
+      } catch (_) {}
+
+      // 3. Fetch questions and user progress
+      const qRes = await fetch('/api/qbank/questions');
+      const qData = await qRes.json();
+
+      if (qData.success && qData.questions) {
+        setQuestions(qData.questions);
+        if (qData.userProgress) {
+          setDbCorrectIds(qData.userProgress.correctIds || []);
+          setDbIncorrectIds(qData.userProgress.incorrectIds || []);
+          setDbFlaggedIds(qData.userProgress.flaggedIds || []);
+          setDbAttemptedIds(qData.userProgress.attemptedIds || []);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading QBank:', err);
+    } finally {
+      setLoading(false);
     }
-    loadData();
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Timer interval: only runs during active session
   useEffect(() => {
@@ -915,92 +936,173 @@ export default function QBankPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       
-      {/* ── 1. TOP ACCESS & CONTROLS BAR ── */}
-      <section className="bg-slate-900 text-white border-b border-slate-800 py-3 sm:py-4 px-3 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
-          
-          {/* Access Status Pill */}
-          <div className="w-full md:w-auto flex items-center justify-between md:justify-start gap-2">
-            {hasAccess ? (
-              <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] sm:text-xs font-semibold">
-                <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
-                <span className="truncate">Full Access ({questions.length} Items)</span>
-                {daysRemaining > 0 && <span className="text-slate-400 font-normal hidden sm:inline">• {daysRemaining}d left</span>}
-              </div>
-            ) : (
+      {/* ── 1. TOP ACCESS & EXAM ENVIRONMENT BAR ── */}
+      {sessionStarted && !sessionCompleted ? (
+        <section className="bg-slate-900 text-white border-b border-slate-800 py-2.5 px-3 sm:px-6 lg:px-8 sticky top-0 z-40 shadow-md">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+            {/* Left: Exam Mode & Progress */}
+            <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 sm:py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] sm:text-xs font-semibold">
-                  <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>Free Demo</span>
-                </div>
-                <button
-                  onClick={() => setIsSubModalOpen(true)}
-                  className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-colors shadow-sm cursor-pointer whitespace-nowrap"
-                >
-                  Unlock 60 Qs →
-                </button>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-xs font-bold uppercase tracking-wider text-sky-400">
+                  {isCatMode ? 'Adaptive CAT Simulation' : examMode ? 'Timed Mock Exam' : 'Clinical Practice Drill'}
+                </span>
               </div>
-            )}
-          </div>
+              <div className="h-4 w-px bg-slate-700 hidden sm:block" />
+              <div className="text-xs text-slate-300 font-medium">
+                Item <strong className="text-white font-bold">{currentIndex + 1}</strong> of {filteredQuestions.length}
+                <span className="text-slate-400 text-[11px] ml-1.5 hidden sm:inline">
+                  ({answeredKeys.length} solved)
+                </span>
+              </div>
+            </div>
 
-          {/* Practice Session Metrics & Controls */}
-          <div className="w-full md:w-auto flex flex-wrap items-center justify-between md:justify-end gap-2.5 sm:gap-4 text-xs text-slate-300 border-t border-slate-800/80 pt-2 md:pt-0 md:border-0">
-            {!sessionStarted && !sessionCompleted ? (
+            {/* Center: Peaceful Timer */}
+            <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1 rounded-xl border border-slate-700/80">
+              <Clock className="w-3.5 h-3.5 text-sky-400" />
+              <span className="font-mono font-bold text-xs sm:text-sm text-white tracking-wider">
+                {formatTimer(secondsElapsed)}
+              </span>
+              <button
+                onClick={handlePauseSession}
+                className="text-slate-400 hover:text-white ml-1 p-0.5 cursor-pointer"
+                title="Pause Exam"
+              >
+                <Pause className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* Right: Peaceful Exam Toolbar & Prominent Calculator */}
+            <div className="flex items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-end">
+              {/* PROMINENT CALCULATOR BUTTON */}
+              <button
+                type="button"
+                onClick={() => setIsCalcOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer ring-1 ring-sky-400/30"
+                title="NCLEX Clinical Calculator (Alt+C)"
+              >
+                <Calculator className="w-4 h-4 text-white shrink-0" />
+                <span>Calculator</span>
+                <kbd className="hidden lg:inline-block px-1 py-0.2 text-[9px] bg-sky-700 rounded font-mono">Alt+C</kbd>
+              </button>
+
+              {/* Strikethrough Distractors */}
+              <button
+                type="button"
+                onClick={() => setStrikethroughMode((prev) => !prev)}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                  strikethroughMode
+                    ? 'bg-amber-500 text-slate-900 border-amber-400 font-bold'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+                title="Strikethrough Distractors"
+              >
+                <Strikethrough className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Strike</span>
+              </button>
+
+              {/* Flag Question */}
+              <button
+                type="button"
+                onClick={handleToggleFlag}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                  isFlagged
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-400 font-bold'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+                title="Flag for Review (Alt+F)"
+              >
+                <Flag className={`w-3.5 h-3.5 ${isFlagged ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
+                <span className="hidden sm:inline">{isFlagged ? 'Flagged' : 'Flag'}</span>
+              </button>
+
+              {/* Palette / Jump */}
+              <button
+                type="button"
+                onClick={() => setMobilePaletteOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                title="Question Grid & Jump"
+              >
+                <Layers className="w-3.5 h-3.5 text-sky-400" />
+                <span className="hidden md:inline">Grid</span>
+              </button>
+
+              {/* Finish Test */}
+              <button
+                type="button"
+                onClick={handleFinishSession}
+                className="px-3 py-1.5 rounded-lg bg-rose-600/90 hover:bg-rose-600 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                title="Finish Test and view score"
+              >
+                Finish
+              </button>
+            </div>
+          </div>
+          {/* Subtle Progress Bar */}
+          <div className="w-full bg-slate-800 h-1 mt-2.5 rounded-full overflow-hidden">
+            <div 
+              className="bg-sky-500 h-full transition-all duration-300 rounded-full"
+              style={{ width: `${Math.round(((currentIndex + 1) / Math.max(filteredQuestions.length, 1)) * 100)}%` }}
+            />
+          </div>
+        </section>
+      ) : (
+        <section className="bg-slate-900 text-white border-b border-slate-800 py-3 sm:py-4 px-3 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
+            
+            {/* Access Status Pill */}
+            <div className="w-full md:w-auto flex items-center justify-between md:justify-start gap-2">
+              {hasAccess ? (
+                <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] sm:text-xs font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
+                  <span className="truncate">Full Access ({questions.length} Items)</span>
+                  {daysRemaining > 0 && <span className="text-slate-400 font-normal hidden sm:inline">• {daysRemaining}d left</span>}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 sm:py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] sm:text-xs font-semibold">
+                    <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>Free Demo</span>
+                  </div>
+                  <button
+                    onClick={() => setIsSubModalOpen(true)}
+                    className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+                  >
+                    Unlock All Access →
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Pre-Session Start Button */}
+            <div className="w-full md:w-auto flex flex-wrap items-center justify-between md:justify-end gap-2.5 sm:gap-4 text-xs text-slate-300 border-t border-slate-800/80 pt-2 md:pt-0 md:border-0">
               <button
                 onClick={handleStartSession}
-                disabled={filteredQuestions.length === 0}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-xs shadow-md shadow-sky-600/30 transition-all cursor-pointer disabled:opacity-50"
+                disabled={filteredQuestions.length === 0 || loading}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-xs shadow-md shadow-sky-600/30 transition-all cursor-pointer disabled:opacity-50"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Start Questions ({filteredQuestions.length})</span>
+                <span>Start Practice Drill ({filteredQuestions.length})</span>
               </button>
-            ) : (
-              <>
-                <div className="flex items-center gap-1.5 bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-700/60">
-                  <Clock className="w-3.5 h-3.5 text-sky-400" />
-                  <span className="font-mono font-bold text-xs sm:text-sm text-white">{formatTimer(secondsElapsed)}</span>
-                </div>
-                <div className="text-[11px] sm:text-xs">
-                  Done:{' '}
-                  <span className="font-bold text-white">
-                    {answeredKeys.length}/{filteredQuestions.length}
-                  </span>
-                </div>
-                <div className="text-[11px] sm:text-xs">
-                  Score:{' '}
-                  <span className={`font-bold ${accuracyPct >= 75 ? 'text-emerald-400' : accuracyPct >= 50 ? 'text-amber-400' : 'text-slate-200'}`}>
-                    {accuracyPct}%
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 ml-auto md:ml-0">
-                  <button
-                    onClick={handlePauseSession}
-                    className="flex items-center gap-1 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg border border-slate-700 text-xs transition-colors cursor-pointer"
-                    title="Pause session and adjust settings"
-                  >
-                    <Pause className="w-3.5 h-3.5 text-sky-400" />
-                    <span className="hidden sm:inline">Pause</span>
-                  </button>
-                  <button
-                    onClick={handleResetPractice}
-                    className="flex items-center gap-1 text-slate-400 hover:text-white bg-slate-800/40 hover:bg-slate-800 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-xs transition-colors cursor-pointer"
-                    title="Reset current session"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Reset</span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+              {onExit && (
+                <button
+                  type="button"
+                  onClick={onExit}
+                  className="px-3 py-2 text-xs font-medium text-slate-400 hover:text-white cursor-pointer"
+                >
+                  Exit Generator
+                </button>
+              )}
+            </div>
 
-        </div>
-      </section>
+          </div>
+        </section>
+      )}
 
       {/* ── 2. MAIN WORKSPACE ── */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 w-full flex-1" id="qbankWorkspaceTop">
+      <div className={`mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 w-full flex-1 ${sessionStarted && !sessionCompleted ? 'max-w-4xl' : 'max-w-7xl'}`} id="qbankWorkspaceTop">
         
-        {/* Mobile & Tablet Quick Palette Trigger during active test */}
+        {/* Mobile Quick Palette & Calculator Trigger during active test */}
         {sessionStarted && !sessionCompleted && (
           <div className="lg:hidden flex items-center justify-between p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm mb-4">
             <div className="flex items-center gap-2">
@@ -1012,20 +1114,32 @@ export default function QBankPage() {
                 ({answeredKeys.length} solved)
               </span>
             </div>
-            <button
-              onClick={() => setMobilePaletteOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-700 border border-sky-200 text-xs font-bold transition-all cursor-pointer shadow-xs"
-            >
-              <Layers className="w-3.5 h-3.5 text-sky-600" />
-              <span>Palette & Jump ({answeredKeys.length}/{filteredQuestions.length})</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCalcOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold transition-all cursor-pointer"
+              >
+                <Calculator className="w-3.5 h-3.5 text-sky-600" />
+                <span>Calc</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobilePaletteOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all cursor-pointer"
+              >
+                <Layers className="w-3.5 h-3.5 text-slate-600" />
+                <span>Grid</span>
+              </button>
+            </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
+        <div className={`grid grid-cols-1 ${sessionStarted && !sessionCompleted ? '' : 'lg:grid-cols-4 gap-6 lg:gap-8'}`}>
           
-          {/* ── SIDEBAR: FILTERS & QUESTION PALETTE (Persistent on desktop, hidden during active test on mobile/tablet) ── */}
-          <div className={`space-y-6 lg:col-span-1 ${sessionStarted && !sessionCompleted ? 'hidden lg:block' : 'block'}`}>
+          {/* ── SIDEBAR: FILTERS & QUESTION PALETTE (Hidden during active test for peaceful exam mode) ── */}
+          {(!sessionStarted || sessionCompleted) && (
+            <div className="space-y-6 lg:col-span-1 block">
             
             {/* Start Button Card for Sidebar */}
             <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200 space-y-3">
@@ -1274,9 +1388,10 @@ export default function QBankPage() {
             </div>
 
           </div>
+          )}
 
           {/* ── MAIN TESTING STAGE ── */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className={`${sessionStarted && !sessionCompleted ? 'w-full space-y-6' : 'lg:col-span-3 space-y-6'}`}>
             
             {loading ? (
               <div className="clinical-card bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-4">
@@ -2521,151 +2636,11 @@ export default function QBankPage() {
       )}
 
       {/* ── 3. SUBSCRIPTION / UPGRADE MODAL ── */}
-      {isSubModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-5 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
-            
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-sky-600 text-white flex items-center justify-center">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                  Unlock Full Q-Bank Access
-                </h3>
-              </div>
-              <button
-                onClick={() => setIsSubModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {subSuccessMsg ? (
-              <div className="py-8 text-center space-y-4">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-                  <Check className="w-6 h-6" />
-                </div>
-                <h4 className="text-lg font-bold text-slate-900">Request Submitted!</h4>
-                <p className="text-sm text-slate-600 max-w-md mx-auto">{subSuccessMsg}</p>
-                <button
-                  onClick={() => setIsSubModalOpen(false)}
-                  className="px-6 py-2.5 text-xs font-bold text-white bg-slate-900 rounded-lg cursor-pointer"
-                >
-                  Close Window
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleSubscribeSubmit} className="space-y-5 pt-4">
-                
-                {/* Plan Selection */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Select Access Duration
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
-                    {siteConfig.qbankPlans.map((plan) => (
-                      <label
-                        key={plan.id}
-                        className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${
-                          subPlan === plan.id
-                            ? 'border-sky-600 bg-sky-50/70 ring-2 ring-sky-500/20'
-                            : 'border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="plan"
-                          value={plan.id}
-                          checked={subPlan === plan.id}
-                          onChange={() => setSubPlan(plan.id as any)}
-                          className="sr-only"
-                        />
-                        <div className="text-xs font-bold text-slate-900">{plan.name.split(' ')[0]} {plan.durationDays}d</div>
-                        <div className="text-sm font-black text-sky-600 mt-1">
-                          PKR {plan.pricePkr.toLocaleString()}
-                        </div>
-                        <div className="text-[10px] text-slate-400 line-through">
-                          PKR {plan.originalPricePkr.toLocaleString()}
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Payment Instructions */}
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2 text-slate-700">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-900">Direct Deposit / Transfer Details:</span>
-                    <DemoBadge label="Sample Account" />
-                  </div>
-                  <div className="font-mono bg-white p-2 rounded border border-slate-200 space-y-1">
-                    <div>Bank: {siteConfig.banking.bankName}</div>
-                    <div>Account Title: {siteConfig.banking.accountTitle}</div>
-                    <div>Account / IBAN: {siteConfig.banking.iban}</div>
-                    <div>EasyPaisa: {siteConfig.banking.easypaisaNumber} ({siteConfig.banking.easypaisaName})</div>
-                    <div>JazzCash: {siteConfig.banking.jazzcashNumber} ({siteConfig.banking.jazzcashName})</div>
-                  </div>
-                </div>
-
-                {/* WhatsApp & Proof */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
-                      WhatsApp Number (for instant activation)
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="+92 300 1234567"
-                      value={whatsapp}
-                      onChange={(e) => setWhatsapp(e.target.value)}
-                      className="w-full text-sm p-3 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
-                      Upload Payment Screenshot / Receipt
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setScreenshotFile(e.target.files ? e.target.files[0] : null)}
-                      className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"
-                    />
-                  </div>
-                </div>
-
-                {/* Notice for Course Students */}
-                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100 text-[11px] text-emerald-900">
-                  💡 Note: Enrolled students in any of our Live Courses receive 100% full Q-Bank access for free automatically.
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsSubModalOpen(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submittingSub}
-                    className="px-6 py-2.5 text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-lg shadow-sm disabled:opacity-50 cursor-pointer"
-                  >
-                    {submittingSub ? 'Submitting...' : 'Confirm Subscription Request'}
-                  </button>
-                </div>
-
-              </form>
-            )}
-
-          </div>
-        </div>
-      )}
+      <SubscriptionModal
+        isOpen={isSubModalOpen}
+        onClose={() => setIsSubModalOpen(false)}
+        onSuccess={loadData}
+      />
 
       {/* ── 3. PHASE 6 CLINICAL EXAM MODALS ── */}
       {/* Dosage Calculator Modal */}
@@ -2684,6 +2659,20 @@ export default function QBankPage() {
           setReportQuestionTarget(null);
         }}
       />
+
+      {/* Floating Quick Calculator Trigger in Peaceful Exam Mode */}
+      {sessionStarted && !sessionCompleted && (
+        <button
+          type="button"
+          onClick={() => setIsCalcOpen(true)}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-2.5 rounded-full bg-slate-900/90 hover:bg-sky-600 text-white shadow-xl border border-slate-700/80 backdrop-blur-sm text-xs font-bold transition-all cursor-pointer hover:scale-105 active:scale-95"
+          title="Open Dosage Calculator (Alt+C)"
+        >
+          <Calculator className="w-4 h-4 text-sky-400" />
+          <span>Calculator</span>
+          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] bg-slate-800 rounded text-slate-300 font-mono">Alt+C</kbd>
+        </button>
+      )}
 
     </div>
   );

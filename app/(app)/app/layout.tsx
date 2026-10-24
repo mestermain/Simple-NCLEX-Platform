@@ -5,6 +5,9 @@ import { redirect } from 'next/navigation';
 import { verifyToken } from '@/lib/auth';
 import AppShell from './components/AppShell';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: 'Q-Bank Candidate Portal | Simple NCLEX Platform',
   description: 'Candidate practice tests, CAT simulations, and clinical review dashboard.',

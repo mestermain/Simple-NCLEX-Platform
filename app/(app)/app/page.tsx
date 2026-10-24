@@ -19,12 +19,13 @@ import {
   Zap
 } from 'lucide-react';
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken, checkUserPlatformAccess } from '@/lib/auth';
 
-export default function QBankDashboardPage() {
+export default async function QBankDashboardPage() {
   const cookieStore = cookies();
   const token = cookieStore.get('nclex_token')?.value || cookieStore.get('token')?.value || '';
   const user = token ? verifyToken(token) : null;
+  const access = await checkUserPlatformAccess(user?.id || null);
 
   const candidateName = user?.firstName || 'Candidate';
   const examTrack = user?.examType || 'NCLEX-RN';
@@ -103,9 +104,25 @@ export default function QBankDashboardPage() {
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 text-white p-6 sm:p-8 border border-slate-800 shadow-lg relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 text-xs font-bold border border-sky-400/30">
-              <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-              <span>{examTrack} Candidate Dashboard</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 text-xs font-bold border border-sky-400/30">
+                <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                <span>{examTrack} Candidate Dashboard</span>
+              </div>
+              {access.hasAccess ? (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold border border-emerald-400/30">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Full Access Pass {access.daysRemaining > 0 ? `• ${access.daysRemaining}d left` : ''}</span>
+                </div>
+              ) : (
+                <Link
+                  href="/app/create-test?subscribe=true"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-400/40 hover:bg-amber-500/30 transition-colors"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Free Preview · Activate All-Access Pass →</span>
+                </Link>
+              )}
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               Welcome back, {candidateName}!
@@ -238,21 +255,21 @@ export default function QBankDashboardPage() {
             </p>
             <div className="space-y-2.5 pt-1">
               <Link
-                href="/app/create-test?mode=tutor&count=10"
+                href="/app/create-test?start=true&mode=tutor&count=10"
                 className="w-full p-3 rounded-xl border border-slate-200 hover:border-sky-300 hover:bg-sky-50/40 text-left text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors block"
               >
                 <span>⚡ 10-Question Quick Drill (Tutor)</span>
                 <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
               </Link>
               <Link
-                href="/app/create-test?mode=exam&count=75"
+                href="/app/create-test?start=true&mode=exam&count=75"
                 className="w-full p-3 rounded-xl border border-slate-200 hover:border-sky-300 hover:bg-sky-50/40 text-left text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors block"
               >
                 <span>⏱️ Full Timed Mock Exam (75 Items)</span>
                 <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
               </Link>
               <Link
-                href="/app/create-test?mode=cat"
+                href="/app/create-test?start=true&mode=cat"
                 className="w-full p-3 rounded-xl border border-slate-200 hover:border-sky-300 hover:bg-sky-50/40 text-left text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors block"
               >
                 <span>🎯 Adaptive CAT Simulation</span>

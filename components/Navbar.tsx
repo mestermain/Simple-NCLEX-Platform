@@ -151,6 +151,14 @@ export default function Navbar() {
               <div className="w-20 lg:w-24 h-8 bg-slate-100 animate-pulse rounded-lg" />
             ) : user ? (
               <div className="flex items-center gap-1.5 lg:gap-2">
+                {/* Direct Q-Bank App Launcher */}
+                <Link
+                  href="/app"
+                  className="inline-flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 text-xs font-bold rounded-lg bg-sky-600 hover:bg-sky-500 text-white shadow-xs transition-colors"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Open Q-Bank</span>
+                </Link>
 
                 {/* Admin Button */}
                 {user.role === 'admin' && (

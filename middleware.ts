@@ -85,7 +85,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Extract auth token from cookie or Authorization header
-  let token = req.cookies.get('nclex_token')?.value || '';
+  let token = req.cookies.get('nclex_token')?.value || req.cookies.get('token')?.value || '';
   if (!token) {
     const authHeader = req.headers.get('authorization');
     if (authHeader && authHeader.startsWith('Bearer ')) {

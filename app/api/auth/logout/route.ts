@@ -4,12 +4,15 @@ export const dynamic = 'force-dynamic';
 
 export async function POST() {
   const response = NextResponse.json({ success: true, message: 'Logged out successfully' });
-  response.cookies.set('auth_token', '', {
+  const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'lax' as const,
     maxAge: 0,
     path: '/',
-  });
+  };
+  response.cookies.set('nclex_token', '', cookieOptions);
+  response.cookies.set('token', '', cookieOptions);
+  response.cookies.set('auth_token', '', cookieOptions);
   return response;
 }

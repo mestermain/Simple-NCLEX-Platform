@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { 
   PlusCircle, 
   Play, 
@@ -15,6 +16,7 @@ import {
   Activity,
   AlertCircle
 } from 'lucide-react';
+import PracticeSimulator from '@/components/qbank/PracticeSimulator';
 
 const SYSTEMS = [
   'Cardiovascular System',
@@ -29,12 +31,25 @@ const SYSTEMS = [
 ];
 
 export default function CreateTestPage() {
-  const [testMode, setTestMode] = useState<'tutor' | 'timed' | 'cat'>('tutor');
-  const [questionCount, setQuestionCount] = useState<number>(25);
+  const searchParams = useSearchParams();
+  const initialStart = searchParams.get('start') === 'true';
+  const paramMode = searchParams.get('mode');
+  const paramCount = parseInt(searchParams.get('count') || searchParams.get('limit') || '0', 10);
+
+  const [testMode, setTestMode] = useState<'tutor' | 'timed' | 'cat'>(
+    paramMode === 'cat' ? 'cat' : paramMode === 'exam' || paramMode === 'timed' ? 'timed' : 'tutor'
+  );
+  const [questionCount, setQuestionCount] = useState<number>(paramCount > 0 ? paramCount : 25);
   const [questionStatus, setQuestionStatus] = useState<'all' | 'unused' | 'incorrect' | 'flagged'>('unused');
   const [selectedSystems, setSelectedSystems] = useState<string[]>(['all']);
+  const [testStarted, setTestStarted] = useState<boolean>(initialStart);
   const [isLaunching, setIsLaunching] = useState(false);
-  const [launchMessage, setLaunchMessage] = useState('');
+
+  useEffect(() => {
+    if (initialStart) {
+      setTestStarted(true);
+    }
+  }, [initialStart]);
 
   const toggleSystem = (sys: string) => {
     if (sys === 'all') {
@@ -52,12 +67,48 @@ export default function CreateTestPage() {
 
   const handleLaunchTest = () => {
     setIsLaunching(true);
-    setLaunchMessage(`Configuring ${questionCount}-question ${testMode.toUpperCase()} test session...`);
     setTimeout(() => {
       setIsLaunching(false);
-      setLaunchMessage(`Test session configured successfully! Initializing clinical scenario pool.`);
-    }, 1200);
+      setTestStarted(true);
+    }, 400);
   };
+
+  // ── ACTIVE PEACEFUL MOCK TEST RUNNER ──
+  if (testStarted) {
+    return (
+      <div className="space-y-4">
+        {/* Navigation Action Bar */}
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+          <button
+            type="button"
+            onClick={() => setTestStarted(false)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl cursor-pointer shadow-2xs transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Configure Another Test</span>
+          </button>
+
+          <Link
+            href="/"
+            className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 font-medium"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to website</span>
+          </Link>
+        </div>
+
+        {/* Live Interactive Simulator in Peaceful Exam Mode */}
+        <PracticeSimulator
+          initialMode={testMode === 'timed' ? 'exam' : testMode}
+          initialCount={questionCount}
+          initialSystem={selectedSystems[0] !== 'all' ? selectedSystems[0] : undefined}
+          initialStatus={questionStatus === 'unused' ? 'unanswered' : questionStatus}
+          autoStart={true}
+          onExit={() => setTestStarted(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -234,43 +285,34 @@ export default function CreateTestPage() {
           </div>
         </div>
 
-        {/* Action Button & Confirmation Message */}
-        <div className="pt-4 border-t border-slate-100 space-y-4">
-          {launchMessage && (
-            <div className="p-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 text-xs sm:text-sm font-medium flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
-              <span>{launchMessage}</span>
-            </div>
-          )}
+        {/* Action Button */}
+        <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
+          <button
+            type="button"
+            onClick={handleLaunchTest}
+            disabled={isLaunching}
+            className="px-8 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-sm shadow-md shadow-sky-600/30 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {isLaunching ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Initializing Mock Test...</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4 fill-current" />
+                <span>Launch Practice Test</span>
+              </>
+            )}
+          </button>
 
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <button
-              type="button"
-              onClick={handleLaunchTest}
-              disabled={isLaunching}
-              className="px-8 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-sm shadow-md shadow-sky-600/30 transition-all flex items-center gap-2 cursor-pointer"
-            >
-              {isLaunching ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Preparing Session...</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>Launch Practice Test</span>
-                </>
-              )}
-            </button>
-
-            <Link
-              href="/"
-              className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 font-medium"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to website</span>
-            </Link>
-          </div>
+          <Link
+            href="/"
+            className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 font-medium"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to website</span>
+          </Link>
         </div>
       </div>
     </div>

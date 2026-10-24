@@ -123,14 +123,21 @@ export function getAuthFromRequest(req: Request): UserSession | null {
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.substring(7).trim();
   } else {
-    // Check cookies
+    // Check cookies safely
     const cookieHeader = req.headers.get('cookie') || '';
-    const cookies = Object.fromEntries(
-      cookieHeader.split(';').map(c => {
-        const [k, ...v] = c.trim().split('=');
-        return [k, decodeURIComponent(v.join('='))];
-      })
-    );
+    const cookies: Record<string, string> = {};
+    if (cookieHeader) {
+      for (const pair of cookieHeader.split(';')) {
+        const [rawK, ...rawV] = pair.trim().split('=');
+        if (!rawK) continue;
+        const valStr = rawV.join('=');
+        try {
+          cookies[rawK] = decodeURIComponent(valStr);
+        } catch (_) {
+          cookies[rawK] = valStr;
+        }
+      }
+    }
     token = cookies['nclex_token'] || cookies['token'] || cookies['access_token'] || '';
   }
 

@@ -16,9 +16,11 @@ import {
   Sparkles,
   BookOpen,
   User,
-  Layers
+  Layers,
+  Zap
 } from 'lucide-react';
 import type { UserSession } from '@/lib/auth';
+import SubscriptionModal from '@/components/qbank/SubscriptionModal';
 
 interface AppShellProps {
   user: UserSession;
@@ -29,6 +31,7 @@ export default function AppShell({ user, children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isSubModalOpen, setIsSubModalOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -146,6 +149,23 @@ export default function AppShell({ user, children }: AppShellProps) {
             <span>Student Profile</span>
           </Link>
 
+          {/* Subscription Access Pass Trigger */}
+          <div className="pt-2 px-1">
+            <button
+              type="button"
+              onClick={() => setIsSubModalOpen(true)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all cursor-pointer group"
+            >
+              <div className="flex items-center gap-2">
+                <Zap className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+                <span>Q-Bank Access Pass</span>
+              </div>
+              <span className="text-[10px] bg-amber-400/20 px-1.5 py-0.5 rounded text-amber-200">
+                Plans
+              </span>
+            </button>
+          </div>
+
           {/* "Back to website" Link in sidebar */}
           <div className="pt-4 mt-4 border-t border-slate-800/80">
             <Link
@@ -208,6 +228,15 @@ export default function AppShell({ user, children }: AppShellProps) {
 
           {/* Right: "Back to website" Link + User Info */}
           <div className="flex items-center gap-3 sm:gap-4">
+            <button
+              type="button"
+              onClick={() => setIsSubModalOpen(true)}
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-600" />
+              <span>Access Pass</span>
+            </button>
+
             <Link
               href="/"
               className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-600 hover:text-sky-600 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-sky-200 hover:bg-sky-50/50 transition-colors"
@@ -314,6 +343,17 @@ export default function AppShell({ user, children }: AppShellProps) {
           {children}
         </main>
       </div>
+
+      {/* Standalone All-Access Subscription Modal */}
+      <SubscriptionModal
+        isOpen={isSubModalOpen}
+        onClose={() => setIsSubModalOpen(false)}
+        onSuccess={() => {
+          if (typeof window !== 'undefined') {
+            window.location.reload();
+          }
+        }}
+      />
     </div>
   );
 }
