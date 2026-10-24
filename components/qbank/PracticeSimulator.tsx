@@ -149,6 +149,7 @@ export default function PracticeSimulator({
   const [currentNote, setCurrentNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [noteToast, setNoteToast] = useState('');
+  const [isExamPaused, setIsExamPaused] = useState(false);
 
   // Active DB Session (for resume & autosave)
   const [activeDbSession, setActiveDbSession] = useState<any>(null);
@@ -484,8 +485,8 @@ export default function PracticeSimulator({
     }
   };
 
-  const handlePauseSession = () => {
-    setSessionStarted(false);
+  const handlePauseExam = () => {
+    setIsExamPaused(true);
     setTimerRunning(false);
     if (sessionId) {
       fetch('/api/qbank/sessions', {
@@ -501,9 +502,34 @@ export default function PracticeSimulator({
     }
   };
 
+  const handleResumeExam = () => {
+    setIsExamPaused(false);
+    setTimerRunning(true);
+  };
+
+  const handleExitFromPause = () => {
+    setIsExamPaused(false);
+    setSessionStarted(false);
+    setTimerRunning(false);
+    if (onExit) {
+      onExit();
+    } else if (typeof window !== 'undefined') {
+      window.location.href = '/app';
+    }
+  };
+
+  const handlePauseSession = () => {
+    handlePauseExam();
+  };
+
   const handleFinishSession = () => {
+    // If candidate has an unsubmitted selected answer on current item, record it
+    if (currentQ && hasAnswerSelected && !attemptResults[currentQ.id] && !submittingAnswer) {
+      handleSubmitAnswer(false);
+    }
     setSessionCompleted(true);
     setTimerRunning(false);
+    setIsExamPaused(false);
     setReviewFilter('incorrect');
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -717,6 +743,21 @@ export default function PracticeSimulator({
     }
   };
 
+  // Next in Exam Mode: works completely like Submit (saves, counts +1, auto-advances or finishes)
+  const handleExamNext = async () => {
+    if (submittingAnswer) return;
+
+    if (hasAnswerSelected && !attemptResults[currentQ?.id]) {
+      await handleSubmitAnswer(true);
+    } else {
+      if (currentIndex === filteredQuestions.length - 1) {
+        handleFinishSession();
+      } else {
+        handleNavigateQuestion(currentIndex + 1);
+      }
+    }
+  };
+
   // Strikethrough & Answer selection handler
   const handleOptionClick = (optionIndex: number) => {
     if (!currentQ || isAnswered) return;
@@ -827,14 +868,15 @@ export default function PracticeSimulator({
         handleToggleFlag();
       } else if (e.altKey && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault();
-        if (currentIndex < filteredQuestions.length - 1) {
-          handleNavigateQuestion(currentIndex + 1);
-        }
+        handleExamNext();
       } else if (e.altKey && (e.key === 'p' || e.key === 'P')) {
         e.preventDefault();
         if (currentIndex > 0) {
           handleNavigateQuestion(currentIndex - 1);
         }
+      } else if (e.altKey && (e.key === ' ' || e.key === 'Spacebar')) {
+        e.preventDefault();
+        handlePauseExam();
       }
     }
     window.addEventListener('keydown', handleKeyDown);
@@ -993,19 +1035,21 @@ export default function PracticeSimulator({
               </div>
             </div>
 
-            {/* Center: Peaceful Timer */}
-            <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1 rounded-xl border border-slate-700/80">
-              <Clock className="w-3.5 h-3.5 text-sky-400" />
+            {/* Center: Peaceful Timer & Pause Button */}
+            <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80">
+              <Clock className="w-3.5 h-3.5 text-sky-400 shrink-0" />
               <span className="font-mono font-bold text-xs sm:text-sm text-white tracking-wider">
                 {loading || !currentQ ? '00:00' : formatTimer(secondsElapsed)}
               </span>
               <button
-                onClick={handlePauseSession}
+                type="button"
+                onClick={handlePauseExam}
                 disabled={loading || !currentQ}
-                className="text-slate-400 hover:text-white ml-1 p-0.5 cursor-pointer disabled:opacity-30"
-                title="Pause Exam"
+                className="flex items-center gap-1 ml-1.5 px-2.5 py-1 rounded-md bg-slate-700/80 hover:bg-slate-600 active:bg-slate-800 text-slate-200 hover:text-white text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-30"
+                title="Pause Mock Exam (Alt+Space)"
               >
-                <Pause className="w-3 h-3" />
+                <Pause className="w-3 h-3 text-amber-400" />
+                <span>Pause</span>
               </button>
             </div>
 
@@ -1151,7 +1195,16 @@ export default function PracticeSimulator({
                 ({answeredKeys.length} solved)
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <button
+                type="button"
+                onClick={handlePauseExam}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition-all cursor-pointer"
+                title="Pause Mock Exam"
+              >
+                <Pause className="w-3.5 h-3.5 text-amber-600" />
+                <span>Pause</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setIsCalcOpen(true)}
@@ -1163,7 +1216,7 @@ export default function PracticeSimulator({
               <button
                 type="button"
                 onClick={() => setMobilePaletteOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all cursor-pointer"
               >
                 <Layers className="w-3.5 h-3.5 text-slate-600" />
                 <span>Grid</span>
@@ -2650,10 +2703,11 @@ export default function PracticeSimulator({
                   </div>
                 )}
 
-                {/* Action Buttons: Submit / Prev / Next */}
+                {/* Action Buttons: Prev / Pause / Next (Next works completely like Submit) */}
                 <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border-t border-slate-100">
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <button
+                      type="button"
                       onClick={() => handleNavigateQuestion(Math.max(0, currentIndex - 1))}
                       disabled={currentIndex === 0}
                       className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 cursor-pointer transition-colors"
@@ -2662,27 +2716,23 @@ export default function PracticeSimulator({
                       <span>Previous</span>
                     </button>
                     <button
-                      onClick={() => {
-                        if (hasAnswerSelected && !attemptResults[currentQ?.id]) {
-                          handleSubmitAnswer(true);
-                        } else {
-                          handleNavigateQuestion(Math.min(filteredQuestions.length - 1, currentIndex + 1));
-                        }
-                      }}
-                      disabled={currentIndex === filteredQuestions.length - 1}
-                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 cursor-pointer transition-colors"
+                      type="button"
+                      onClick={handlePauseExam}
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 sm:py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors"
+                      title="Pause Mock Exam"
                     >
-                      <span>Next</span>
-                      <ChevronRight className="w-4 h-4" />
+                      <Pause className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Pause</span>
                     </button>
                   </div>
 
                   {examMode ? (
-                    /* ── EXAM MODE: 1-Click Submit & Auto-Advance ── */
+                    /* ── EXAM MODE: "Next Question" works completely like Submit (saves, increments +1, advances/finishes) ── */
                     <button
-                      onClick={() => handleSubmitAnswer(true)}
-                      disabled={!hasAnswerSelected || submittingAnswer}
-                      className="w-full sm:w-auto px-7 py-3 sm:py-2.5 text-sm font-bold rounded-xl sm:rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 disabled:opacity-40 disabled:cursor-not-allowed text-white shadow-sm transition-all cursor-pointer text-center flex items-center justify-center gap-2"
+                      type="button"
+                      onClick={handleExamNext}
+                      disabled={submittingAnswer}
+                      className="w-full sm:w-auto px-7 py-3 sm:py-2.5 text-sm font-bold rounded-xl sm:rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-sm transition-all cursor-pointer text-center flex items-center justify-center gap-2"
                     >
                       {submittingAnswer ? (
                         <span>Saving & Advancing...</span>
@@ -2693,13 +2743,13 @@ export default function PracticeSimulator({
                         </>
                       ) : (
                         <>
-                          <span>Submit & Next Question</span>
+                          <span>Next Question</span>
                           <ChevronRight className="w-4 h-4" />
                         </>
                       )}
                     </button>
                   ) : !isAnswered ? (
-                    /* ── TUTOR MODE (Unanswered): Options for 1-click advance or view rationale ── */
+                    /* ── TUTOR MODE (Unanswered): Check Rationale or Next Question ── */
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                       <button
                         type="button"
@@ -2711,12 +2761,18 @@ export default function PracticeSimulator({
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleSubmitAnswer(true)}
-                        disabled={!hasAnswerSelected || submittingAnswer}
+                        onClick={handleExamNext}
+                        disabled={submittingAnswer}
                         className="px-6 py-2.5 sm:py-2 text-xs font-bold rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                       >
-                        <span>Submit & Next</span>
-                        <ChevronRight className="w-4 h-4" />
+                        {submittingAnswer ? (
+                          <span>Saving...</span>
+                        ) : (
+                          <>
+                            <span>Next Question</span>
+                            <ChevronRight className="w-4 h-4" />
+                          </>
+                        )}
                       </button>
                     </div>
                   ) : (
@@ -2727,6 +2783,7 @@ export default function PracticeSimulator({
                       </span>
                       {currentIndex === filteredQuestions.length - 1 ? (
                         <button
+                          type="button"
                           onClick={handleFinishSession}
                           className="w-full sm:w-auto px-5 py-2.5 sm:py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
                         >
@@ -2735,6 +2792,7 @@ export default function PracticeSimulator({
                         </button>
                       ) : (
                         <button
+                          type="button"
                           onClick={() => handleNavigateQuestion(currentIndex + 1)}
                           className="w-full sm:w-auto px-5 py-2.5 sm:py-2 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm cursor-pointer text-center flex items-center justify-center gap-1.5"
                         >
@@ -2991,6 +3049,62 @@ export default function PracticeSimulator({
           <span>Calculator</span>
           <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] bg-slate-800 rounded text-slate-300 font-mono">Alt+C</kbd>
         </button>
+      )}
+
+      {/* ── 4. DEDICATED MOCK EXAM PAUSE MODAL ── */}
+      {isExamPaused && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 sm:p-8 space-y-6 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-inner">
+              <Pause className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-slate-900">
+                Mock Exam Paused
+              </h3>
+              <p className="text-sm text-slate-600">
+                Your exam timer is stopped and your progress is securely saved. Take a breath and resume when you are ready.
+              </p>
+            </div>
+
+            {/* Quick Stats Summary */}
+            <div className="grid grid-cols-3 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+              <div>
+                <span className="block text-slate-400 font-medium">Question</span>
+                <span className="font-bold text-slate-800 text-sm">{currentIndex + 1} / {filteredQuestions.length}</span>
+              </div>
+              <div>
+                <span className="block text-slate-400 font-medium">Answered</span>
+                <span className="font-bold text-emerald-600 text-sm">{answeredKeys.length}</span>
+              </div>
+              <div>
+                <span className="block text-slate-400 font-medium">Time</span>
+                <span className="font-bold font-mono text-slate-800 text-sm">{formatTimer(secondsElapsed)}</span>
+              </div>
+            </div>
+
+            {/* Modal Action Buttons */}
+            <div className="space-y-2.5 pt-2">
+              <button
+                type="button"
+                onClick={handleResumeExam}
+                className="w-full py-3 px-5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-sm shadow-md shadow-sky-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.01]"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>Resume Mock Exam</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExitFromPause}
+                className="w-full py-2.5 px-4 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Save & Exit to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
