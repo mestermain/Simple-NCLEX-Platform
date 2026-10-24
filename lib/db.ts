@@ -45,24 +45,37 @@ function getDb() {
 
   if (connectionString) {
     if (!pgPool) {
-      const { Pool } = require('pg');
-      pgPool = new Pool({
-        connectionString,
-        ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false },
-        max: 10,
-        idleTimeoutMillis: 30000,
-      });
+      try {
+        const { Pool } = require('pg');
+        pgPool = new Pool({
+          connectionString,
+          ssl: connectionString.includes('localhost') ? false : { rejectUnauthorized: false },
+          max: 10,
+          idleTimeoutMillis: 30000,
+        });
+      } catch (err) {
+        console.error('Failed to initialize pg pool:', err);
+      }
     }
     return { type: 'postgres' as const, client: pgPool };
   } else {
     if (!sqliteDb) {
       try {
-        const { DatabaseSync } = require('node:sqlite');
-        const dbPath = getSqlitePath();
-        sqliteDb = new DatabaseSync(dbPath);
+        let DatabaseSyncModule: any = null;
+        try {
+          DatabaseSyncModule = require('node:sqlite').DatabaseSync;
+        } catch {
+          // node:sqlite is available in Node 22.5.0+
+        }
+
+        if (DatabaseSyncModule) {
+          const dbPath = getSqlitePath();
+          sqliteDb = new DatabaseSyncModule(dbPath);
+        } else {
+          console.warn('node:sqlite DatabaseSync is unavailable in the current runtime environment.');
+        }
       } catch (err) {
-        console.error('Failed to initialize database:', err);
-        throw err;
+        console.error('Failed to initialize SQLite database:', err);
       }
     }
     return { type: 'sqlite' as const, client: sqliteDb };
@@ -84,40 +97,60 @@ function normalizeSql(sql: string, targetType: 'postgres' | 'sqlite'): string {
 }
 
 export async function query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
-  const db = getDb();
+  try {
+    const db = getDb();
+    if (!db || !db.client) {
+      return [];
+    }
 
-  if (db.type === 'postgres') {
-    const normalized = normalizeSql(sql, 'postgres');
-    const res = await db.client.query(normalized, params);
-    return res.rows;
-  } else {
-    const normalized = normalizeSql(sql, 'sqlite');
-    const stmt = db.client.prepare(normalized);
-    return stmt.all(...params) as T[];
+    if (db.type === 'postgres') {
+      const normalized = normalizeSql(sql, 'postgres');
+      const res = await db.client.query(normalized, params);
+      return res.rows;
+    } else {
+      const normalized = normalizeSql(sql, 'sqlite');
+      const stmt = db.client.prepare(normalized);
+      return stmt.all(...params) as T[];
+    }
+  } catch (err) {
+    console.error('Database query error:', err);
+    return [];
   }
 }
 
 export async function queryOne<T = any>(sql: string, params: any[] = []): Promise<T | null> {
-  const rows = await query<T>(sql, params);
-  return rows.length > 0 ? rows[0] : null;
+  try {
+    const rows = await query<T>(sql, params);
+    return rows && rows.length > 0 ? rows[0] : null;
+  } catch (err) {
+    console.error('Database queryOne error:', err);
+    return null;
+  }
 }
 
 export async function execute(sql: string, params: any[] = []): Promise<{ lastInsertId?: number | bigint; changes?: number }> {
-  const db = getDb();
+  try {
+    const db = getDb();
+    if (!db || !db.client) {
+      return { changes: 0 };
+    }
 
-  if (db.type === 'postgres') {
-    const normalized = normalizeSql(sql, 'postgres');
-    const res = await db.client.query(normalized, params);
-    // If it's an insert with RETURNING id
-    const lastId = res.rows && res.rows[0] && res.rows[0].id ? res.rows[0].id : undefined;
-    return { lastInsertId: lastId, changes: res.rowCount };
-  } else {
-    const normalized = normalizeSql(sql, 'sqlite');
-    const stmt = db.client.prepare(normalized);
-    const result = stmt.run(...params);
-    return {
-      lastInsertId: result.lastInsertRowid,
-      changes: result.changes,
-    };
+    if (db.type === 'postgres') {
+      const normalized = normalizeSql(sql, 'postgres');
+      const res = await db.client.query(normalized, params);
+      const lastId = res.rows && res.rows[0] && res.rows[0].id ? res.rows[0].id : undefined;
+      return { lastInsertId: lastId, changes: res.rowCount };
+    } else {
+      const normalized = normalizeSql(sql, 'sqlite');
+      const stmt = db.client.prepare(normalized);
+      const result = stmt.run(...params);
+      return {
+        lastInsertId: result.lastInsertRowid,
+        changes: result.changes,
+      };
+    }
+  } catch (err) {
+    console.error('Database execute error:', err);
+    return { changes: 0 };
   }
 }

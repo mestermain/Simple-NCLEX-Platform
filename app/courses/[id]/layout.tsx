@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import JsonLd from '@/components/JsonLd';
 import { queryOne } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 interface Props {
   params: { id: string };
   children: React.ReactNode;

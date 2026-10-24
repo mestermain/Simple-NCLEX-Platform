@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const rows = await query('SELECT * FROM qbank_plans WHERE is_active = 1 ORDER BY duration_days ASC');

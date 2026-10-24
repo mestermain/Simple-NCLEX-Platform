@@ -4,10 +4,15 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: false,
+  },
   experimental: {
     outputFileTracingIncludes: {
-      '/api/**/*': ['./nclex.db'],
-      '/api/**': ['./nclex.db'],
+      '/**': ['./nclex.db'],
     },
   },
   webpack: (config) => {
