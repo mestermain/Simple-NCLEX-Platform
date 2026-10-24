@@ -175,10 +175,11 @@ export default function PracticeSimulator({
   // Session lifecycle
   const [sessionStarted, setSessionStarted] = useState(autoStart);
   const [sessionCompleted, setSessionCompleted] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState<'incorrect' | 'all' | 'flagged'>('incorrect');
 
-  // Timer
+  // Timer: strictly begins when questions finish loading and first item renders
   const [secondsElapsed, setSecondsElapsed] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(autoStart);
+  const [timerRunning, setTimerRunning] = useState(false);
 
   // Subscription form
   const [subPlan, setSubPlan] = useState<'1m' | '3m' | '6m'>('1m');
@@ -193,7 +194,6 @@ export default function PracticeSimulator({
       const params = new URLSearchParams(window.location.search);
       if (params.get('start') === 'true') {
         setSessionStarted(true);
-        setTimerRunning(true);
       }
       if (params.get('mode') === 'exam') {
         setExamMode(true);
@@ -269,23 +269,17 @@ export default function PracticeSimulator({
       console.error('Error loading QBank:', err);
     } finally {
       setLoading(false);
+      // Once questions are downloaded, if a session was requested to start, begin timer cleanly at 0
+      if (autoStart || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('start') === 'true')) {
+        setSecondsElapsed(0);
+        setTimerRunning(true);
+      }
     }
-  }, []);
+  }, [autoStart]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  // Timer interval: only runs during active session
-  useEffect(() => {
-    let interval: any = null;
-    if (sessionStarted && timerRunning && !sessionCompleted) {
-      interval = setInterval(() => {
-        setSecondsElapsed((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [sessionStarted, timerRunning, sessionCompleted]);
 
   const formatTimer = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -436,9 +430,12 @@ export default function PracticeSimulator({
   const handleStartSession = async () => {
     if (filteredQuestions.length === 0) return;
     setCurrentIndex(0);
+    setSecondsElapsed(0);
     setSessionStarted(true);
     setSessionCompleted(false);
-    setTimerRunning(true);
+    if (!loading && currentQ) {
+      setTimerRunning(true);
+    }
     if (typeof window !== 'undefined') {
       const el = document.getElementById('qbankWorkspaceTop');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -522,6 +519,10 @@ export default function PracticeSimulator({
   const handleFinishSession = () => {
     setSessionCompleted(true);
     setTimerRunning(false);
+    setReviewFilter('incorrect');
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     if (sessionId) {
       const answeredKeys = Object.keys(attemptResults);
       const correct = answeredKeys.filter((k) => attemptResults[Number(k)]?.isCorrect).length;
@@ -559,6 +560,17 @@ export default function PracticeSimulator({
   const currentResult = currentQId ? attemptResults[currentQId] : undefined;
   const isAnswered = currentResult !== undefined;
   const isFlagged = currentQId ? isQuestionFlagged(currentQId) : false;
+
+  // Timer interval: strictly ticks only when question has arrived, session is active, and test is not loading/finished
+  useEffect(() => {
+    let interval: any = null;
+    if (sessionStarted && timerRunning && !sessionCompleted && !loading && Boolean(currentQ)) {
+      interval = setInterval(() => {
+        setSecondsElapsed((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [sessionStarted, timerRunning, sessionCompleted, loading, currentQ]);
 
   const hasAnswerSelected = useMemo(() => {
     if (currentSelected === undefined || currentSelected === null) return false;
@@ -937,11 +949,12 @@ export default function PracticeSimulator({
             <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1 rounded-xl border border-slate-700/80">
               <Clock className="w-3.5 h-3.5 text-sky-400" />
               <span className="font-mono font-bold text-xs sm:text-sm text-white tracking-wider">
-                {formatTimer(secondsElapsed)}
+                {loading || !currentQ ? '00:00' : formatTimer(secondsElapsed)}
               </span>
               <button
                 onClick={handlePauseSession}
-                className="text-slate-400 hover:text-white ml-1 p-0.5 cursor-pointer"
+                disabled={loading || !currentQ}
+                className="text-slate-400 hover:text-white ml-1 p-0.5 cursor-pointer disabled:opacity-30"
                 title="Pause Exam"
               >
                 <Pause className="w-3 h-3" />
@@ -2040,7 +2053,7 @@ export default function PracticeSimulator({
                     }}
                     className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition-colors cursor-pointer"
                   >
-                    <span>Review Questions & Rationales</span>
+                    <span>Retake & Review Exam</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
 
@@ -2052,6 +2065,261 @@ export default function PracticeSimulator({
                     <span>View Analytics on Profile</span>
                   </Link>
                 </div>
+
+                {/* ── ALL MISSED QUESTIONS & CLINICAL EXPLANATIONS BREAKDOWN ── */}
+                {(() => {
+                  const missedList = filteredQuestions.filter((q) => {
+                    const res = attemptResults[q.id];
+                    if (res !== undefined) {
+                      return !res.isCorrect;
+                    }
+                    return selectedAnswers[q.id] === undefined;
+                  });
+
+                  const flaggedList = filteredQuestions.filter(
+                    (q) => flaggedQuestions[q.id] || dbFlaggedIds.includes(q.id)
+                  );
+
+                  const displayList = reviewFilter === 'all'
+                    ? filteredQuestions
+                    : reviewFilter === 'flagged'
+                    ? flaggedList
+                    : missedList;
+
+                  return (
+                    <div className="text-left space-y-6 pt-8 border-t border-slate-200">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" />
+                            <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                              Missed Questions & Evidence-Based Rationales
+                            </h3>
+                          </div>
+                          <p className="text-xs sm:text-sm text-slate-600">
+                            Detailed pathophysiology explanations, correct choices, and high-yield clinical pearls for your review.
+                          </p>
+                        </div>
+
+                        {/* Filter Tabs */}
+                        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-semibold">
+                          <button
+                            type="button"
+                            onClick={() => setReviewFilter('incorrect')}
+                            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                              reviewFilter === 'incorrect'
+                                ? 'bg-rose-600 text-white shadow-xs font-bold'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            Missed Items ({missedList.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setReviewFilter('all')}
+                            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                              reviewFilter === 'all'
+                                ? 'bg-slate-900 text-white shadow-xs font-bold'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            All Exam Items ({filteredQuestions.length})
+                          </button>
+                          {flaggedList.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setReviewFilter('flagged')}
+                              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                                reviewFilter === 'flagged'
+                                  ? 'bg-amber-600 text-white shadow-xs font-bold'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              Flagged ({flaggedList.length})
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {displayList.length === 0 ? (
+                        <div className="p-8 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
+                          <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
+                          <h4 className="text-base font-bold text-emerald-900">
+                            {reviewFilter === 'incorrect'
+                              ? '100% Correct Score — No Missed Items!'
+                              : 'No items in this selection.'}
+                          </h4>
+                          <p className="text-xs text-emerald-800">
+                            {reviewFilter === 'incorrect'
+                              ? 'You answered all test items correctly! Click "All Exam Items" above to review all rationales.'
+                              : 'Try switching filters to inspect your test questions.'}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          {displayList.map((q, dIdx) => {
+                            const res = attemptResults[q.id];
+                            const isCorrect = res?.isCorrect;
+                            const isUnanswered = res === undefined && selectedAnswers[q.id] === undefined;
+                            const originalIndex = filteredQuestions.findIndex((item) => item.id === q.id);
+                            const itemNum = originalIndex >= 0 ? originalIndex + 1 : dIdx + 1;
+
+                            const userAns = res?.selectedIndices !== undefined ? res.selectedIndices : selectedAnswers[q.id];
+                            const userSelectedArr = Array.isArray(userAns)
+                              ? userAns
+                              : userAns !== undefined
+                              ? [Number(userAns)]
+                              : [];
+                            const correctIndices =
+                              res?.correctIndices ||
+                              q.correctIndices ||
+                              (q.correctIndex !== undefined ? [q.correctIndex] : []);
+                            const rationaleText =
+                              res?.correctRationale || q.correctRationale || 'Detailed clinical rationale unavailable.';
+                            const pearlText = res?.clinicalPearl || q.clinicalPearl;
+                            const distractorList = res?.distractors || q.distractors;
+
+                            return (
+                              <div
+                                key={q.id}
+                                className="p-5 sm:p-7 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-5"
+                              >
+                                {/* Header */}
+                                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="px-3 py-1 rounded-md text-xs font-black bg-slate-900 text-white">
+                                      Item #{itemNum}
+                                    </span>
+                                    <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                                      {q.organSystem || 'Clinical Practice'}
+                                    </span>
+                                    <span className="px-2 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700">
+                                      {q.questionType === 'multiple' ? 'SATA (Multi-Select)' : (q.type || 'MCQ')}
+                                    </span>
+                                  </div>
+
+                                  <div>
+                                    {isCorrect ? (
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>Correct</span>
+                                      </span>
+                                    ) : isUnanswered ? (
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                                        <span>Unanswered / Missed</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                        <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                        <span>Incorrect Response</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Question Stem Vignette */}
+                                <div className="text-sm sm:text-base font-medium text-slate-900 leading-relaxed">
+                                  {q.statement}
+                                </div>
+
+                                {/* Options Review */}
+                                {Array.isArray(q.options) && (
+                                  <div className="space-y-2.5 pt-1">
+                                    {q.options.map((opt: string, optIdx: number) => {
+                                      const wasChosen = userSelectedArr.includes(optIdx);
+                                      const isRight = correctIndices.includes(optIdx);
+
+                                      let optStyle = 'border-slate-200 bg-slate-50/50 text-slate-700';
+                                      let statusBadge = null;
+
+                                      if (isRight) {
+                                        optStyle =
+                                          'border-emerald-500 bg-emerald-50 text-emerald-950 font-semibold ring-1 ring-emerald-500';
+                                        statusBadge = (
+                                          <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded shrink-0">
+                                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                            <span>
+                                              {wasChosen ? 'Your Choice (Correct)' : 'Correct Answer'}
+                                            </span>
+                                          </span>
+                                        );
+                                      } else if (wasChosen && !isRight) {
+                                        optStyle = 'border-rose-400 bg-rose-50 text-rose-950 font-medium';
+                                        statusBadge = (
+                                          <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded shrink-0">
+                                            <XCircle className="w-3 h-3 text-rose-600" />
+                                            <span>Your Answer (Incorrect)</span>
+                                          </span>
+                                        );
+                                      }
+
+                                      return (
+                                        <div
+                                          key={optIdx}
+                                          className={`p-3.5 rounded-xl border flex items-start gap-3 transition-colors ${optStyle}`}
+                                        >
+                                          <span className="w-5 h-5 rounded-full border border-current/30 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                                            {String.fromCharCode(65 + optIdx)}
+                                          </span>
+                                          <span className="text-xs sm:text-sm leading-relaxed flex-1">
+                                            {opt}
+                                          </span>
+                                          {statusBadge}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {/* Evidence-Based Clinical Rationale */}
+                                <div className="p-5 rounded-xl bg-emerald-50/80 border border-emerald-200 space-y-2">
+                                  <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    <span>Evidence-Based Clinical Rationale</span>
+                                  </div>
+                                  <p className="text-xs sm:text-sm text-emerald-950 leading-relaxed">
+                                    {rationaleText}
+                                  </p>
+                                </div>
+
+                                {/* High-Yield Clinical Pearl */}
+                                {pearlText && (
+                                  <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200 space-y-1.5">
+                                    <div className="flex items-center gap-2 text-amber-900 font-bold text-xs sm:text-sm">
+                                      <Flame className="w-4 h-4 text-amber-600 shrink-0" />
+                                      <span>Saunders High-Yield Clinical Pearl</span>
+                                    </div>
+                                    <p className="text-xs sm:text-sm text-amber-950 leading-relaxed">
+                                      {pearlText}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Distractor Traps & Patient Safety */}
+                                {Array.isArray(distractorList) && distractorList.length > 0 && (
+                                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                                    <div className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                      Distractor Clinical Traps & Patient Safety:
+                                    </div>
+                                    <ul className="space-y-1.5 text-xs text-slate-600">
+                                      {distractorList.map((d: any, dIndex: number) => (
+                                        <li key={dIndex} className="flex items-start gap-2">
+                                          <span className="text-rose-500 font-bold mt-0.5">•</span>
+                                          <span className="leading-relaxed">{String(d)}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
               </div>
             ) : currentQ ? (
