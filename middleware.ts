@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const JWT_SECRET = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET || 'simple-nclex-platform-dev-secret-key-change-in-prod-2026';
+const JWT_SECRET = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET || 'simple-nclex-platform-jwt-secret-key-default-2026';
 
 interface DecodedToken {
   id: number;

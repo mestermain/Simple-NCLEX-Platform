@@ -60,9 +60,9 @@ function LoginForm() {
         const safeReturnUrl = returnUrl && returnUrl.startsWith('/') && !returnUrl.startsWith('//') ? returnUrl : null;
         
         if (data.user?.role === 'admin') {
-          router.push(safeReturnUrl || '/admin');
+          window.location.href = safeReturnUrl || '/admin';
         } else {
-          router.push(safeReturnUrl || '/profile');
+          window.location.href = safeReturnUrl || '/profile';
         }
       } else {
         setErrorMsg(data?.message || 'Invalid email/phone or password. Please verify your credentials.');
