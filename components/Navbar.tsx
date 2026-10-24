@@ -9,14 +9,11 @@ import {
   HelpCircle, 
   User, 
   ShieldCheck, 
-  Bell, 
   LogOut, 
   Menu, 
   X, 
   Sparkles,
   ChevronDown,
-  CheckCircle2,
-  Lock,
   Layers
 } from 'lucide-react';
 
@@ -37,7 +34,6 @@ export default function Navbar() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     async function checkAuth() {
@@ -46,15 +42,6 @@ export default function Navbar() {
         const data = await res.json();
         if (data.authenticated && data.user) {
           setUser(data.user);
-          // Fetch notifications count
-          try {
-            const notifRes = await fetch('/api/student/profile');
-            const profileData = await notifRes.json();
-            if (profileData.success && profileData.notifications) {
-              const unread = profileData.notifications.filter((n: any) => !n.isRead).length;
-              setUnreadNotifications(unread);
-            }
-          } catch (_) {}
         } else {
           setUser(null);
         }
@@ -159,35 +146,6 @@ export default function Navbar() {
               <div className="w-20 lg:w-24 h-8 bg-slate-100 animate-pulse rounded-lg" />
             ) : user ? (
               <div className="flex items-center gap-1.5 lg:gap-2">
-                
-                {/* Platform Access Badge */}
-                {user.hasAccess ? (
-                  <span className="inline-flex items-center gap-1 px-2 lg:px-2.5 py-1 text-[11px] lg:text-xs font-semibold text-emerald-800 bg-emerald-50 rounded-full border border-emerald-200/80 whitespace-nowrap" title="Full Unrestricted Q-Bank Access Active">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span className="hidden sm:inline">Full Access</span>
-                  </span>
-                ) : (
-                  <Link
-                    href="/courses"
-                    className="inline-flex items-center gap-1 px-2 lg:px-2.5 py-1 text-[11px] lg:text-xs font-semibold text-amber-800 bg-amber-50 rounded-full border border-amber-200/80 hover:bg-amber-100 transition-colors whitespace-nowrap"
-                    title="You currently have 5 demo questions. Enroll in a course or subscribe for 100% full Q-Bank access."
-                  >
-                    <Lock className="w-3 h-3 text-amber-600 shrink-0" />
-                    <span>Demo <span className="hidden xl:inline">(Upgrade)</span></span>
-                  </Link>
-                )}
-
-                {/* Notifications Link */}
-                <Link
-                  href="/profile#notifications"
-                  className="relative p-1.5 lg:p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                  title="Notifications"
-                >
-                  <Bell className="w-4 h-4" />
-                  {unreadNotifications > 0 && (
-                    <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                  )}
-                </Link>
 
                 {/* Admin Button */}
                 {user.role === 'admin' && (
@@ -251,25 +209,13 @@ export default function Navbar() {
           {/* Mobile Menu Button & Quick Icons */}
           <div className="flex md:hidden items-center gap-1.5">
             {user && (
-              <>
-                <Link
-                  href="/profile#notifications"
-                  className="relative p-2 text-slate-500 hover:text-slate-700 rounded-lg"
-                  aria-label="View notifications"
-                >
-                  <Bell className="w-5 h-5" />
-                  {unreadNotifications > 0 && (
-                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500" />
-                  )}
-                </Link>
-                <Link
-                  href="/profile"
-                  className="w-8 h-8 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-bold shadow-sm"
-                  aria-label="Student profile"
-                >
-                  {user.firstName ? user.firstName[0].toUpperCase() : 'U'}
-                </Link>
-              </>
+              <Link
+                href="/profile"
+                className="w-8 h-8 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-bold shadow-sm"
+                aria-label="Student profile"
+              >
+                {user.firstName ? user.firstName[0].toUpperCase() : 'U'}
+              </Link>
             )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -327,15 +273,6 @@ export default function Navbar() {
                     <User className="w-4 h-4 text-sky-600" />
                     <span>My Student Profile & Scores</span>
                   </span>
-                  {user.hasAccess ? (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                      Full Access
-                    </span>
-                  ) : (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">
-                      Demo Mode
-                    </span>
-                  )}
                 </Link>
 
                 {user.role === 'admin' && (
