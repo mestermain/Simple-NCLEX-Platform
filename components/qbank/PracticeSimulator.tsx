@@ -180,6 +180,7 @@ export default function PracticeSimulator({
   // Timer: strictly begins when questions finish loading and first item renders
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
 
   // Subscription form
   const [subPlan, setSubPlan] = useState<'1m' | '3m' | '6m'>('1m');
@@ -483,22 +484,6 @@ export default function PracticeSimulator({
     }
   };
 
-  const handleNavigateQuestion = (newIndex: number) => {
-    setCurrentIndex(newIndex);
-    if (sessionId) {
-      fetch('/api/qbank/sessions', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          currentIndex: newIndex,
-          timeSpentSeconds: secondsElapsed,
-          status: 'in_progress',
-        }),
-      }).catch(() => {});
-    }
-  };
-
   const handlePauseSession = () => {
     setSessionStarted(false);
     setTimerRunning(false);
@@ -598,6 +583,139 @@ export default function PracticeSimulator({
     }
     return Boolean(currentSelected);
   }, [currentSelected, currentQ]);
+
+  // Submit Answer to API & optionally auto-advance
+  const handleSubmitAnswer = async (autoAdvance = false) => {
+    if (!currentQ || !hasAnswerSelected || submittingAnswer) return;
+
+    const qToSubmit = currentQ;
+    const qIndexAtSubmit = currentIndex;
+    const answersToSend = qToSubmit.type === 'DRAG_DROP' && (!currentSelected || (Array.isArray(currentSelected) && currentSelected.length === 0))
+      ? (Array.isArray(qToSubmit.options) ? qToSubmit.options.map((_, i) => i) : [])
+      : currentSelected;
+
+    // Immediately record selection locally
+    setSelectedAnswers((prev) => ({ ...prev, [qToSubmit.id]: answersToSend }));
+
+    // Instant optimistic attempt recording so the solved count immediately increments
+    setAttemptResults((prev) => {
+      if (prev[qToSubmit.id]) return prev;
+      return {
+        ...prev,
+        [qToSubmit.id]: {
+          isCorrect: false,
+          score: 0,
+          correctIndices: qToSubmit.correctIndices || [],
+          selectedIndices: answersToSend,
+          correctAnswers: qToSubmit.correctAnswers,
+          correctRationale: qToSubmit.correctRationale || '',
+          distractors: qToSubmit.distractors || [],
+          clinicalPearl: qToSubmit.clinicalPearl || '',
+        },
+      };
+    });
+
+    setSubmittingAnswer(true);
+
+    // If autoAdvance is requested, advance immediately without waiting for network response!
+    if (autoAdvance) {
+      if (qIndexAtSubmit === filteredQuestions.length - 1) {
+        handleFinishSession();
+      } else {
+        setCurrentIndex(qIndexAtSubmit + 1);
+        if (typeof window !== 'undefined') {
+          const el = document.getElementById('qbankWorkspaceTop');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+    }
+
+    try {
+      const res = await fetch('/api/qbank/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionId: qToSubmit.id,
+          selectedIndices: Array.isArray(answersToSend) ? answersToSend : undefined,
+          userAnswers: answersToSend,
+          timeSpentSeconds: 30,
+          sessionId: sessionId || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setAttemptResults((prev) => ({
+          ...prev,
+          [qToSubmit.id]: {
+            isCorrect: data.isCorrect,
+            score: data.score !== undefined ? data.score : (data.isCorrect ? 1.0 : 0.0),
+            correctIndices: data.correctIndices || [],
+            selectedIndices: answersToSend,
+            correctAnswers: data.correctAnswers,
+            correctRationale: data.evaluation?.correctRationale || data.correctRationale || '',
+            distractors: data.evaluation?.distractors || data.distractors || [],
+            clinicalPearl: data.evaluation?.clinicalPearl || data.clinicalPearl || '',
+            rationalePerOption: data.rationalePerOption,
+          },
+        }));
+
+        if (data.isCorrect) {
+          setDbCorrectIds((prev) => Array.from(new Set([...prev, qToSubmit.id])));
+          setDbIncorrectIds((prev) => prev.filter((id) => id !== qToSubmit.id));
+        } else {
+          setDbIncorrectIds((prev) => Array.from(new Set([...prev, qToSubmit.id])));
+          setDbCorrectIds((prev) => prev.filter((id) => id !== qToSubmit.id));
+        }
+        setDbAttemptedIds((prev) => Array.from(new Set([...prev, qToSubmit.id])));
+
+        // Phase 7: CAT Adaptive Engine Theta Adjustment & 95% Stopping Rule
+        if (isCatMode) {
+          const scoreVal = data.score !== undefined ? data.score : (data.isCorrect ? 1.0 : 0.0);
+          const nextTheta = scoreVal >= 0.7
+            ? Math.min(2.5, catTheta + 0.35 * scoreVal)
+            : Math.max(-2.5, catTheta - 0.35 * (1 - scoreVal));
+          const nextMargin = Math.max(0.15, catConfidenceMargin - 0.015);
+          setCatTheta(nextTheta);
+          setCatConfidenceMargin(nextMargin);
+
+          const totalSolved = Object.keys(attemptResults).length + 1;
+          if (totalSolved >= 75 && (nextTheta - nextMargin) > 0.05) {
+            setCatEarlyPassed(true);
+            handleFinishSession();
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error submitting answer:', err);
+    } finally {
+      setSubmittingAnswer(false);
+    }
+  };
+
+  const handleNavigateQuestion = (newIndex: number) => {
+    // If candidate has an unsubmitted selected answer on current item, submit it so it's never lost!
+    if (currentQ && hasAnswerSelected && !attemptResults[currentQ.id] && !submittingAnswer) {
+      handleSubmitAnswer(false);
+    }
+    setCurrentIndex(newIndex);
+    if (sessionId) {
+      fetch('/api/qbank/sessions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          currentIndex: newIndex,
+          timeSpentSeconds: secondsElapsed,
+          status: 'in_progress',
+        }),
+      }).catch(() => {});
+    }
+    if (typeof window !== 'undefined') {
+      const el = document.getElementById('qbankWorkspaceTop');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   // Strikethrough & Answer selection handler
   const handleOptionClick = (optionIndex: number) => {
@@ -754,76 +872,6 @@ export default function PracticeSimulator({
     } catch (_) {}
     finally {
       setSavingNote(false);
-    }
-  };
-
-  // Submit Answer to API
-  const handleSubmitAnswer = async () => {
-    if (!currentQ || !hasAnswerSelected || isAnswered) return;
-
-    try {
-      const answersToSend = currentQ.type === 'DRAG_DROP' && (!currentSelected || (Array.isArray(currentSelected) && currentSelected.length === 0))
-        ? (Array.isArray(currentQ.options) ? currentQ.options.map((_, i) => i) : [])
-        : currentSelected;
-
-      const res = await fetch('/api/qbank/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionId: currentQ.id,
-          selectedIndices: Array.isArray(answersToSend) ? answersToSend : undefined,
-          userAnswers: answersToSend,
-          timeSpentSeconds: 30,
-          sessionId: sessionId || undefined,
-        }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setAttemptResults((prev) => ({
-          ...prev,
-          [currentQ.id]: {
-            isCorrect: data.isCorrect,
-            score: data.score !== undefined ? data.score : (data.isCorrect ? 1.0 : 0.0),
-            correctIndices: data.correctIndices || [],
-            selectedIndices: answersToSend,
-            correctAnswers: data.correctAnswers,
-            correctRationale: data.evaluation?.correctRationale || data.correctRationale || '',
-            distractors: data.evaluation?.distractors || data.distractors || [],
-            clinicalPearl: data.evaluation?.clinicalPearl || data.clinicalPearl || '',
-            rationalePerOption: data.rationalePerOption,
-          },
-        }));
-
-        if (data.isCorrect) {
-          setDbCorrectIds((prev) => Array.from(new Set([...prev, currentQ.id])));
-          setDbIncorrectIds((prev) => prev.filter((id) => id !== currentQ.id));
-        } else {
-          setDbIncorrectIds((prev) => Array.from(new Set([...prev, currentQ.id])));
-          setDbCorrectIds((prev) => prev.filter((id) => id !== currentQ.id));
-        }
-        setDbAttemptedIds((prev) => Array.from(new Set([...prev, currentQ.id])));
-
-        // Phase 7: CAT Adaptive Engine Theta Adjustment & 95% Stopping Rule
-        if (isCatMode) {
-          const scoreVal = data.score !== undefined ? data.score : (data.isCorrect ? 1.0 : 0.0);
-          const nextTheta = scoreVal >= 0.7
-            ? Math.min(2.5, catTheta + 0.35 * scoreVal)
-            : Math.max(-2.5, catTheta - 0.35 * (1 - scoreVal));
-          const nextMargin = Math.max(0.15, catConfidenceMargin - 0.015);
-          setCatTheta(nextTheta);
-          setCatConfidenceMargin(nextMargin);
-
-          const totalSolved = Object.keys(attemptResults).length + 1;
-          // NCSBN 95% Confidence Interval Stopping Rule (Minimum 75 questions)
-          if (totalSolved >= 75 && (nextTheta - nextMargin) > 0.05) {
-            setCatEarlyPassed(true);
-            handleFinishSession();
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error submitting answer:', err);
     }
   };
 
@@ -2614,7 +2662,13 @@ export default function PracticeSimulator({
                       <span>Previous</span>
                     </button>
                     <button
-                      onClick={() => handleNavigateQuestion(Math.min(filteredQuestions.length - 1, currentIndex + 1))}
+                      onClick={() => {
+                        if (hasAnswerSelected && !attemptResults[currentQ?.id]) {
+                          handleSubmitAnswer(true);
+                        } else {
+                          handleNavigateQuestion(Math.min(filteredQuestions.length - 1, currentIndex + 1));
+                        }
+                      }}
                       disabled={currentIndex === filteredQuestions.length - 1}
                       className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 cursor-pointer transition-colors"
                     >
@@ -2623,15 +2677,50 @@ export default function PracticeSimulator({
                     </button>
                   </div>
 
-                  {!isAnswered ? (
+                  {examMode ? (
+                    /* ── EXAM MODE: 1-Click Submit & Auto-Advance ── */
                     <button
-                      onClick={handleSubmitAnswer}
-                      disabled={!hasAnswerSelected}
-                      className="w-full sm:w-auto px-7 py-3 sm:py-2.5 text-sm font-bold rounded-xl sm:rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed text-white shadow-sm transition-all cursor-pointer text-center"
+                      onClick={() => handleSubmitAnswer(true)}
+                      disabled={!hasAnswerSelected || submittingAnswer}
+                      className="w-full sm:w-auto px-7 py-3 sm:py-2.5 text-sm font-bold rounded-xl sm:rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 disabled:opacity-40 disabled:cursor-not-allowed text-white shadow-sm transition-all cursor-pointer text-center flex items-center justify-center gap-2"
                     >
-                      Submit Answer
+                      {submittingAnswer ? (
+                        <span>Saving & Advancing...</span>
+                      ) : currentIndex === filteredQuestions.length - 1 ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Submit & Finish Exam</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Submit & Next Question</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </>
+                      )}
                     </button>
+                  ) : !isAnswered ? (
+                    /* ── TUTOR MODE (Unanswered): Options for 1-click advance or view rationale ── */
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => handleSubmitAnswer(false)}
+                        disabled={!hasAnswerSelected || submittingAnswer}
+                        className="px-4 py-2 text-xs font-bold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Check Rationale
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSubmitAnswer(true)}
+                        disabled={!hasAnswerSelected || submittingAnswer}
+                        className="px-6 py-2.5 sm:py-2 text-xs font-bold rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                      >
+                        <span>Submit & Next</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
                   ) : (
+                    /* ── TUTOR MODE (Answered): Display status and next question ── */
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
                       <span className={`text-xs font-bold px-3 py-2 rounded-lg text-center ${currentResult?.isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
                         {currentResult?.isCorrect ? '✓ Correct Answer' : '✗ Incorrect Response'}
@@ -2647,9 +2736,10 @@ export default function PracticeSimulator({
                       ) : (
                         <button
                           onClick={() => handleNavigateQuestion(currentIndex + 1)}
-                          className="w-full sm:w-auto px-5 py-2.5 sm:py-2 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm cursor-pointer text-center"
+                          className="w-full sm:w-auto px-5 py-2.5 sm:py-2 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm cursor-pointer text-center flex items-center justify-center gap-1.5"
                         >
-                          Next Question →
+                          <span>Next Question</span>
+                          <ChevronRight className="w-4 h-4" />
                         </button>
                       )}
                     </div>
