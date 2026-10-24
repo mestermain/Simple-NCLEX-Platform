@@ -80,9 +80,14 @@ export default function Navbar() {
     };
   }, [mobileMenuOpen]);
 
+  // Suppress marketing navbar on /app routes (Q-bank app has its own topbar & sidebar)
+  if (pathname?.startsWith('/app')) {
+    return null;
+  }
+
   const navLinks: { name: string; href: string; badge?: string }[] = [
     { name: 'Home', href: '/' },
-    { name: 'NCLEX Q-Bank', href: '/qbank' },
+    { name: 'Q-Bank', href: '/qbank' },
     { name: 'About Platform', href: '/about' },
   ];
 

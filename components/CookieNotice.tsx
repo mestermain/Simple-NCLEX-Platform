@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Cookie, X, ShieldCheck } from 'lucide-react';
 
 export default function CookieNotice() {
+  const pathname = usePathname();
   const [acknowledged, setAcknowledged] = useState(true);
 
   useEffect(() => {
@@ -23,7 +25,7 @@ export default function CookieNotice() {
     setAcknowledged(true);
   };
 
-  if (acknowledged) return null;
+  if (pathname?.startsWith('/app') || acknowledged) return null;
 
   return (
     <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 bg-slate-900/95 backdrop-blur-md text-white p-4 sm:p-5 rounded-2xl border border-slate-700 shadow-2xl animate-in fade-in slide-in-from-bottom-5 duration-300">

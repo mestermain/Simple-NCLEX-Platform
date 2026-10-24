@@ -17,6 +17,8 @@ export default function robots(): MetadataRoute.Robots {
           '/api/student/*',
           '/profile',
           '/profile/*',
+          '/app',
+          '/app/*',
         ],
       },
     ],

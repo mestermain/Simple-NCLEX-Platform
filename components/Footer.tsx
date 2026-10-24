@@ -1,10 +1,19 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { ShieldCheck, PhoneCall, Mail, BookOpen, ExternalLink, Award } from 'lucide-react';
 import { siteConfig } from '@/lib/siteConfig';
 import DemoBadge from '@/components/DemoBadge';
 
 export default function Footer() {
+  const pathname = usePathname();
+
+  // Suppress marketing footer on /app routes
+  if (pathname?.startsWith('/app')) {
+    return null;
+  }
   return (
     <footer className="bg-slate-900 text-slate-300 border-t border-slate-800">
       {/* Top Banner: Clinical Commitment */}
