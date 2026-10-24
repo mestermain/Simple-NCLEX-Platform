@@ -213,7 +213,7 @@ export default function ReadinessEstimatorPage() {
   const tier = getTier(passingProbability);
 
   const handleCopyShare = () => {
-    const text = `I just scored an estimated ${passingProbability}% NCLEX Passing Probability on Simple NCLEX Academy's free clinical diagnostic test! Check yours: https://simplenclexplatform.vercel.app/readiness-estimator`;
+    const text = `I just scored an estimated ${passingProbability}% NCLEX Passing Probability on Simple NCLEX Platform's free clinical diagnostic test! Check yours: https://simplenclexplatform.vercel.app/readiness-estimator`;
     navigator.clipboard.writeText(text);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
@@ -443,7 +443,7 @@ export default function ReadinessEstimatorPage() {
                     <Award className="w-4 h-4 text-indigo-600" />
                     <span>Official NCLEX Diagnostic Card</span>
                   </span>
-                  <span className="text-[10px] font-semibold text-indigo-700">Simple NCLEX Academy</span>
+                  <span className="text-[10px] font-semibold text-indigo-700">Simple NCLEX Platform</span>
                 </div>
                 <div className="p-3 rounded-xl bg-white border border-indigo-100 text-center space-y-1">
                   <span className="text-[10px] uppercase font-bold text-slate-400">Predicted NCLEX-RN Pass Rate</span>

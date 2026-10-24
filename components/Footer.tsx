@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { GraduationCap, ShieldCheck, PhoneCall, Mail, BookOpen, ExternalLink, Award } from 'lucide-react';
+import { ShieldCheck, PhoneCall, Mail, BookOpen, ExternalLink, Award } from 'lucide-react';
 import { siteConfig } from '@/lib/siteConfig';
 import DemoBadge from '@/components/DemoBadge';
 
@@ -36,11 +36,15 @@ export default function Footer() {
           {/* Brand & Mission */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-md">
-                <GraduationCap className="w-6 h-6" />
+              <div className="relative w-11 h-11 rounded-full overflow-hidden shadow-md shrink-0 border border-slate-700">
+                <img
+                  src="/images/logo.png"
+                  alt="Simple NCLEX Platform Logo"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <span className="text-xl font-bold tracking-tight text-white">
-                Simple<span className="text-sky-400">NCLEX</span> Academy
+                Simple<span className="text-sky-400">NCLEX</span> Platform
               </span>
             </div>
             <p className="text-sm text-slate-400 leading-relaxed max-w-sm">
@@ -139,10 +143,10 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Academy & Support */}
+          {/* Platform & Support */}
           <div>
             <h4 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">
-              Academy & Support
+              Platform & Support
             </h4>
             <ul className="space-y-2.5 text-sm">
               <li>

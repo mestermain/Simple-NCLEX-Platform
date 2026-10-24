@@ -18,8 +18,8 @@ const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simplenclexplatform.
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
   title: {
-    default: 'Simple NCLEX Academy | Next Generation Q-Bank & Clinical Review',
-    template: '%s | Simple NCLEX Academy',
+    default: 'Simple NCLEX Platform | Next Generation Q-Bank & Clinical Review',
+    template: '%s | Simple NCLEX Platform',
   },
   description: 'Master Next Generation NCLEX-RN, NCLEX-PN, Saudi SNLE, and DHA exams with interactive high-yield clinical MCQs & SATA scenarios, evidence-based rationales, and live classes.',
   keywords: [
@@ -35,9 +35,9 @@ export const metadata: Metadata = {
     'HAAD Nursing',
     'Prometric Nursing Prep',
   ],
-  authors: [{ name: 'Simple NCLEX Academic Faculty' }],
-  creator: 'Simple NCLEX Academy',
-  publisher: 'Simple NCLEX Academy',
+  authors: [{ name: 'Simple NCLEX Platform Faculty' }],
+  creator: 'Simple NCLEX Platform',
+  publisher: 'Simple NCLEX Platform',
   formatDetection: {
     email: false,
     address: false,
@@ -47,16 +47,16 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: 'Simple NCLEX Academy | NextGen NCLEX Review & Clinical Q-Bank',
+    title: 'Simple NCLEX Platform | NextGen NCLEX Review & Clinical Q-Bank',
     description: 'Evidence-based NCLEX-RN, NCLEX-PN, and Gulf Prometric exam preparation. Practice interactive clinical judgment case studies with in-depth rationales.',
     url: baseUrl,
-    siteName: 'Simple NCLEX Academy',
+    siteName: 'Simple NCLEX Platform',
     images: [
       {
         url: '/images/logo.png',
         width: 800,
         height: 600,
-        alt: 'Simple NCLEX Academy Logo & Clinical Review',
+        alt: 'Simple NCLEX Platform Logo & Clinical Review',
       },
     ],
     locale: 'en_US',
@@ -64,7 +64,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Simple NCLEX Academy | NextGen NCLEX Review',
+    title: 'Simple NCLEX Platform | NextGen NCLEX Review',
     description: 'Practice high-yield NextGen NCLEX questions with option-by-option clinical rationales.',
     images: ['/images/logo.png'],
   },

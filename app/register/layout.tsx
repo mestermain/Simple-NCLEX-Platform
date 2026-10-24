@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     canonical: '/register',
   },
   openGraph: {
-    title: 'Create Free Student Account | Simple NCLEX Academy',
+    title: 'Create Free Student Account | Simple NCLEX Platform',
     description: 'Start practicing high-yield NCLEX clinical scenarios and track your readiness.',
     url: 'https://simplenclexplatform.vercel.app/register',
   },

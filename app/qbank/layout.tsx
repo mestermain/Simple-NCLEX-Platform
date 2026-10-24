@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     canonical: '/qbank',
   },
   openGraph: {
-    title: 'Interactive NCLEX Question Bank | Simple NCLEX Academy',
+    title: 'Interactive NCLEX Question Bank | Simple NCLEX Platform',
     description: 'Master clinical decision-making with high-yield NGN items and detailed rationales.',
     url: 'https://simplenclexplatform.vercel.app/qbank',
   },

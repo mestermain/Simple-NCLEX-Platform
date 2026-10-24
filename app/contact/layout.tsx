@@ -4,12 +4,12 @@ import { siteConfig } from '@/lib/siteConfig';
 
 export const metadata: Metadata = {
   title: 'Admissions Desk & Academic Counseling Contact',
-  description: 'Connect with Simple NCLEX Academy student advisors for transcript assessments, Dataflow guidance, and course enrollment assistance.',
+  description: 'Connect with Simple NCLEX Platform student advisors for transcript assessments, Dataflow guidance, and course enrollment assistance.',
   alternates: {
     canonical: '/contact',
   },
   openGraph: {
-    title: 'Contact Admissions Desk | Simple NCLEX Academy',
+    title: 'Contact Admissions Desk | Simple NCLEX Platform',
     description: 'Speak with an academic counselor on WhatsApp or email.',
     url: 'https://simplenclexplatform.vercel.app/contact',
   },
@@ -19,7 +19,7 @@ export default function ContactLayout({ children }: { children: React.ReactNode 
   const contactSchema = {
     '@context': 'https://schema.org',
     '@type': 'ContactPage',
-    name: 'Simple NCLEX Academy Admissions Desk',
+    name: 'Simple NCLEX Platform Admissions Desk',
     description: 'Academic counseling and admissions support for nursing licensure candidates.',
     url: 'https://simplenclexplatform.vercel.app/contact',
     mainEntity: {

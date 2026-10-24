@@ -124,7 +124,7 @@ export async function middleware(req: NextRequest) {
         `<!DOCTYPE html>
         <html lang="en">
           <head>
-            <title>403 Forbidden | Simple NCLEX Academy</title>
+            <title>403 Forbidden | Simple NCLEX Platform</title>
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <style>
               body { font-family: system-ui, sans-serif; background: #0f172a; color: white; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }

@@ -533,7 +533,7 @@ async function runSeed() {
     ['contact_whatsapp', process.env.NEXT_PUBLIC_CONTACT_WHATSAPP || '923001234567'],
     ['payment_bank_name', process.env.NEXT_PUBLIC_BANK_NAME || 'Meezan Bank Islamic'],
     ['payment_bank_iban', process.env.NEXT_PUBLIC_BANK_IBAN || 'PK42MEZN0001020304050607'],
-    ['payment_easypaisa_name', process.env.NEXT_PUBLIC_EASYPAISA_NAME || 'Simple NCLEX Academy'],
+    ['payment_easypaisa_name', process.env.NEXT_PUBLIC_EASYPAISA_NAME || 'Simple NCLEX Platform'],
     ['payment_easypaisa_number', process.env.NEXT_PUBLIC_EASYPAISA_NUMBER || '0300-1234567'],
     ['pass_rate', '99.2%'],
     ['students_helped', '4,800+'],

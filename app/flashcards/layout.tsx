@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Clinical Flashcards & Spaced Repetition | Simple NCLEX Academy',
+  title: 'Clinical Flashcards & Spaced Repetition | Simple NCLEX Platform',
   description: 'Master high-yield NCLEX pharmacology, nursing interventions, and clinical pearls using the scientifically proven Leitner 5-box and SM-2 spaced repetition algorithms.',
   keywords: [
     'NCLEX flashcards',
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     'high-yield nursing pearls'
   ],
   openGraph: {
-    title: 'Clinical Flashcards & Spaced Repetition | Simple NCLEX Academy',
+    title: 'Clinical Flashcards & Spaced Repetition | Simple NCLEX Platform',
     description: 'Scientifically spaced review of high-yield NCLEX clinical pearls, lab ranges, and nursing interventions.',
     type: 'website',
   },

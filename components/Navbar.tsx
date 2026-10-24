@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
-  GraduationCap, 
   BookOpen, 
   HelpCircle, 
   User, 
@@ -84,10 +83,7 @@ export default function Navbar() {
   const navLinks: { name: string; href: string; badge?: string }[] = [
     { name: 'Home', href: '/' },
     { name: 'NCLEX Q-Bank', href: '/qbank' },
-    { name: 'Flashcards', href: '/flashcards', badge: 'Spaced Rep' },
-    { name: 'Passing Calculator', href: '/readiness-estimator', badge: 'Free Quiz' },
-    { name: 'Live Courses', href: '/courses' },
-    { name: 'About Academy', href: '/about' },
+    { name: 'About Platform', href: '/about' },
   ];
 
   return (
@@ -97,8 +93,12 @@ export default function Navbar() {
           
           {/* Logo & Brand */}
           <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group shrink-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-700 flex items-center justify-center text-white shadow-md shadow-sky-500/20 group-hover:scale-105 transition-transform">
-              <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
+            <div className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-full overflow-hidden shadow-md shadow-sky-950/20 group-hover:scale-105 transition-transform shrink-0 border border-slate-200">
+              <img
+                src="/images/logo.png"
+                alt="Simple NCLEX Platform Logo"
+                className="w-full h-full object-cover"
+              />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -106,11 +106,11 @@ export default function Navbar() {
                   Simple<span className="text-sky-600">NCLEX</span>
                 </span>
                 <span className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase bg-sky-50 text-sky-700 rounded border border-sky-200">
-                  Academy
+                  Platform
                 </span>
               </div>
               <p className="text-[10px] sm:text-[11px] text-slate-500 -mt-0.5 hidden md:block font-medium">
-                High-Yield RN, PN & Prometric Prep
+                High-Yield RN, PN & Prometric Licensure
               </p>
             </div>
           </Link>

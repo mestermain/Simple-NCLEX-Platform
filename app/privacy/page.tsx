@@ -7,7 +7,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy & Student Data Protection',
-  description: 'How Simple NCLEX Academy collects, encrypts, and protects nursing student records, test performance analytics, and payment verifications.',
+  description: 'How Simple NCLEX Platform collects, encrypts, and protects nursing student records, test performance analytics, and payment verifications.',
   alternates: {
     canonical: '/privacy',
   },

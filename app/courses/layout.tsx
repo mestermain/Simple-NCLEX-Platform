@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     canonical: '/courses',
   },
   openGraph: {
-    title: 'Live NCLEX & Licensure Prep Courses | Simple NCLEX Academy',
+    title: 'Live NCLEX & Licensure Prep Courses | Simple NCLEX Platform',
     description: 'Explore live preparatory batches for RN, PN, DHA, and SNLE candidates.',
     url: 'https://simplenclexplatform.vercel.app/courses',
   },
@@ -25,7 +25,7 @@ export default function CoursesLayout({ children }: { children: React.ReactNode 
         description: 'Complete 12-week clinical review covering all 8 NCSBN client-needs categories, unfolding case studies, and pharmacology.',
         provider: {
           '@type': 'EducationalOrganization',
-          name: 'Simple NCLEX Academy',
+          name: 'Simple NCLEX Platform',
         },
       },
       {
@@ -34,7 +34,7 @@ export default function CoursesLayout({ children }: { children: React.ReactNode 
         description: 'Focus exclusively on cardiac, psych, antimicrobial, and autonomic medications, antidotes, and pediatric dosing formulas.',
         provider: {
           '@type': 'EducationalOrganization',
-          name: 'Simple NCLEX Academy',
+          name: 'Simple NCLEX Platform',
         },
       },
       {
@@ -43,7 +43,7 @@ export default function CoursesLayout({ children }: { children: React.ReactNode 
         description: 'Master the 6 cognitive steps of the Clinical Judgment Measurement Model (CJMM) with interactive patient charts.',
         provider: {
           '@type': 'EducationalOrganization',
-          name: 'Simple NCLEX Academy',
+          name: 'Simple NCLEX Platform',
         },
       },
       {
@@ -52,7 +52,7 @@ export default function CoursesLayout({ children }: { children: React.ReactNode 
         description: 'Targeted preparation for Practical Nursing candidates covering scope of practice, delegation, and safety.',
         provider: {
           '@type': 'EducationalOrganization',
-          name: 'Simple NCLEX Academy',
+          name: 'Simple NCLEX Platform',
         },
       },
       {
@@ -61,7 +61,7 @@ export default function CoursesLayout({ children }: { children: React.ReactNode 
         description: 'Focused review for nurses relocating to the United Arab Emirates and Saudi Arabia.',
         provider: {
           '@type': 'EducationalOrganization',
-          name: 'Simple NCLEX Academy',
+          name: 'Simple NCLEX Platform',
         },
       },
     ],

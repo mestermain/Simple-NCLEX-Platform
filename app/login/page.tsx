@@ -80,8 +80,12 @@ function LoginForm() {
       {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-3">
         <Link href="/" className="inline-flex items-center gap-2 group">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-700 flex items-center justify-center text-white shadow-lg shadow-sky-600/20 group-hover:scale-105 transition-transform">
-            <GraduationCap className="w-7 h-7" />
+          <div className="w-16 h-16 rounded-full overflow-hidden shadow-lg shadow-sky-600/20 group-hover:scale-105 transition-transform border-2 border-white ring-2 ring-sky-500/20">
+            <img
+              src="/images/logo.png"
+              alt="Simple NCLEX Platform Logo"
+              className="w-full h-full object-cover"
+            />
           </div>
         </Link>
         <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -214,7 +218,7 @@ function LoginForm() {
 
             <div className="space-y-3 text-sm text-slate-600">
               <p>
-                To protect student exam data and performance metrics, Simple NCLEX Academy accounts can be securely reset through our student administration desk.
+                To protect student exam data and performance metrics, Simple NCLEX Platform accounts can be securely reset through our student administration desk.
               </p>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
                 <div className="flex items-center gap-2 text-slate-800 font-bold">

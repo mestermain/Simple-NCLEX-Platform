@@ -7,7 +7,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
-  description: 'Terms and conditions governing candidate enrollment, intellectual property, and platform usage at Simple NCLEX Academy.',
+  description: 'Terms and conditions governing candidate enrollment, intellectual property, and platform usage at Simple NCLEX Platform.',
   alternates: {
     canonical: '/terms',
   },

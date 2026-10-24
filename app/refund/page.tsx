@@ -7,7 +7,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: '100% Pass Guarantee & Refund Policy',
-  description: 'Policy regarding subscription cancellations, lecture batch refunds, and 100% pass guarantee qualification criteria at Simple NCLEX Academy.',
+  description: 'Policy regarding subscription cancellations, lecture batch refunds, and 100% pass guarantee qualification criteria at Simple NCLEX Platform.',
   alternates: {
     canonical: '/refund',
   },

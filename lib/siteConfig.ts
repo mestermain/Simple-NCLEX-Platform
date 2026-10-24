@@ -114,11 +114,11 @@ export const siteConfig: SiteConfig = {
 
   banking: {
     bankName: process.env.NEXT_PUBLIC_BANK_NAME || 'Meezan Bank Islamic',
-    accountTitle: process.env.NEXT_PUBLIC_BANK_ACCOUNT_TITLE || 'Simple NCLEX Academy',
+    accountTitle: process.env.NEXT_PUBLIC_BANK_ACCOUNT_TITLE || 'Simple NCLEX Platform',
     iban: process.env.NEXT_PUBLIC_BANK_IBAN || 'PK42MEZN0001020304050607',
-    easypaisaName: process.env.NEXT_PUBLIC_EASYPAISA_NAME || 'Simple NCLEX Academy',
+    easypaisaName: process.env.NEXT_PUBLIC_EASYPAISA_NAME || 'Simple NCLEX Platform',
     easypaisaNumber: process.env.NEXT_PUBLIC_EASYPAISA_NUMBER || '0300-1234567',
-    jazzcashName: process.env.NEXT_PUBLIC_JAZZCASH_NAME || 'Simple NCLEX Academy',
+    jazzcashName: process.env.NEXT_PUBLIC_JAZZCASH_NAME || 'Simple NCLEX Platform',
     jazzcashNumber: process.env.NEXT_PUBLIC_JAZZCASH_NUMBER || '0300-1234567',
     whatsappGroupLink: process.env.NEXT_PUBLIC_WHATSAPP_GROUP_LINK || 'https://chat.whatsapp.com/sample-class-link',
   },

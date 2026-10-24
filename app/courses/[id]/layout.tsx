@@ -12,7 +12,7 @@ interface Props {
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const courseId = parseInt(params.id, 10);
   let courseTitle = 'NCLEX Preparatory Course';
-  let courseDesc = 'Detailed syllabus, clinical schedule, and enrollment details for Simple NCLEX Academy preparatory batches.';
+  let courseDesc = 'Detailed syllabus, clinical schedule, and enrollment details for Simple NCLEX Platform preparatory batches.';
 
   try {
     const course = await queryOne('SELECT title, description FROM courses WHERE id = ?', [courseId]);
@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
       canonical: `/courses/${params.id}`,
     },
     openGraph: {
-      title: `${courseTitle} | Simple NCLEX Academy`,
+      title: `${courseTitle} | Simple NCLEX Platform`,
       description: courseDesc,
       url: `https://simplenclexplatform.vercel.app/courses/${params.id}`,
     },
@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 export default async function CourseDetailLayout({ params, children }: Props) {
   const courseId = parseInt(params.id, 10);
   let courseTitle = 'NCLEX Preparatory Course';
-  let courseDesc = 'Detailed syllabus, clinical schedule, and enrollment details for Simple NCLEX Academy preparatory batches.';
+  let courseDesc = 'Detailed syllabus, clinical schedule, and enrollment details for Simple NCLEX Platform preparatory batches.';
   let coursePrice = '149';
 
   try {
@@ -58,7 +58,7 @@ export default async function CourseDetailLayout({ params, children }: Props) {
     description: courseDesc,
     provider: {
       '@type': 'EducationalOrganization',
-      name: 'Simple NCLEX Academy',
+      name: 'Simple NCLEX Platform',
       sameAs: 'https://simplenclexplatform.vercel.app',
     },
     offers: {

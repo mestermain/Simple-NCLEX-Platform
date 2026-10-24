@@ -129,8 +129,12 @@ function RegisterForm() {
       {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-3">
         <Link href="/" className="inline-flex items-center gap-2 group">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-700 flex items-center justify-center text-white shadow-lg shadow-sky-600/20 group-hover:scale-105 transition-transform">
-            <GraduationCap className="w-7 h-7" />
+          <div className="w-16 h-16 rounded-full overflow-hidden shadow-lg shadow-sky-600/20 group-hover:scale-105 transition-transform border-2 border-white ring-2 ring-sky-500/20">
+            <img
+              src="/images/logo.png"
+              alt="Simple NCLEX Platform Logo"
+              className="w-full h-full object-cover"
+            />
           </div>
         </Link>
         <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">

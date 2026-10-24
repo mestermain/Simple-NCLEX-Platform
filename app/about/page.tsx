@@ -8,12 +8,12 @@ import JsonLd from '@/components/JsonLd';
 
 export const metadata: Metadata = {
   title: 'About Our Clinical Faculty & NextGen Mission',
-  description: 'Learn about Simple NCLEX Academy clinical educators, our evidence-based clinical judgment model, and our commitment to international nurse licensure.',
+  description: 'Learn about Simple NCLEX Platform clinical educators, our evidence-based clinical judgment model, and our commitment to international nurse licensure.',
   alternates: {
     canonical: '/about',
   },
   openGraph: {
-    title: 'About Simple NCLEX Academy | Clinical Faculty & Mission',
+    title: 'About Simple NCLEX Platform | Clinical Faculty & Mission',
     description: 'Dedicated to empowering future Registered Nurses and Practical Nurses worldwide with clinical judgment frameworks.',
     url: 'https://simplenclexplatform.vercel.app/about',
   },
@@ -23,7 +23,7 @@ export default function AboutPage() {
   const aboutSchema = {
     '@context': 'https://schema.org',
     '@type': 'AboutPage',
-    name: 'About Simple NCLEX Academy',
+    name: 'About Simple NCLEX Platform',
     description: 'Our educational philosophy, clinical faculty, and NextGen test preparation methodology.',
     url: 'https://simplenclexplatform.vercel.app/about',
   };
@@ -41,7 +41,7 @@ export default function AboutPage() {
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white">
-            About Simple NCLEX Academy
+            About Simple NCLEX Platform
           </h1>
 
           <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">

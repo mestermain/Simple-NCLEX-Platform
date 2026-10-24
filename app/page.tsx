@@ -10,10 +10,10 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: 'Simple NCLEX Academy | Next Generation Q-Bank & Clinical Review',
+    title: 'Simple NCLEX Platform | Next Generation Q-Bank & Clinical Review',
     description: 'Evidence-based nursing licensure preparation with interactive NextGen NCLEX case studies, clinical rationales, and live classes.',
     url: 'https://simplenclexplatform.vercel.app',
-    siteName: 'Simple NCLEX Academy',
+    siteName: 'Simple NCLEX Platform',
     type: 'website',
   },
 };
@@ -44,7 +44,7 @@ export default function HomePage() {
       mainEntity: [
         {
           '@type': 'Question',
-          name: 'How does Simple NCLEX Academy prepare nurses for Next Generation NCLEX (NGN)?',
+          name: 'How does Simple NCLEX Platform prepare nurses for Next Generation NCLEX (NGN)?',
           acceptedAnswer: {
             '@type': 'Answer',
             text: 'Our simulator incorporates 6-question unfolding clinical case studies, matrix/grid questions, and extended multiple-response (SATA) items scored using NCSBN partial-credit rules.',
