@@ -227,4 +227,227 @@ CREATE TABLE IF NOT EXISTS student_qbank_attempts (
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT '';
 ALTER TABLE qbank_subscriptions ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '';
 
+-- ==============================================================================
+-- PHASE 5: ADVANCED DATABASE MODEL MIGRATION (PostgreSQL / Supabase)
+-- ==============================================================================
+
+-- 12. Upgrade qbank_questions with Next Gen NCLEX fields
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'MCQ';
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS stem TEXT DEFAULT '';
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS options TEXT DEFAULT '[]';
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS correct_answers TEXT DEFAULT '[]';
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS rationale_per_option TEXT DEFAULT '[]';
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS body_system TEXT DEFAULT 'Comprehensive Multi-System';
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS client_needs_category TEXT DEFAULT '';
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS exam_track TEXT DEFAULT 'RN';
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'published';
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS reviewer TEXT DEFAULT 'Senior NCLEX Clinical Reviewer';
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS case_study_data TEXT DEFAULT '';
+ALTER TABLE qbank_questions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+
+-- Backfill qbank_questions data
+UPDATE qbank_questions SET
+  stem = CASE WHEN stem IS NULL OR stem = '' THEN statement ELSE stem END,
+  options = CASE WHEN options IS NULL OR options = '' OR options = '[]' THEN options_json ELSE options END,
+  correct_answers = CASE 
+    WHEN (correct_answers IS NULL OR correct_answers = '' OR correct_answers = '[]') AND correct_indices_json IS NOT NULL AND correct_indices_json != '[]' THEN correct_indices_json
+    WHEN (correct_answers IS NULL OR correct_answers = '' OR correct_answers = '[]') THEN '[' || correct_index || ']'
+    ELSE correct_answers 
+  END,
+  rationale_per_option = CASE WHEN rationale_per_option IS NULL OR rationale_per_option = '' OR rationale_per_option = '[]' THEN distractors_json ELSE rationale_per_option END,
+  body_system = CASE WHEN body_system IS NULL OR body_system = '' OR body_system = 'General' THEN COALESCE(organ_system, 'General') ELSE body_system END,
+  client_needs_category = CASE WHEN client_needs_category IS NULL OR client_needs_category = '' THEN COALESCE(client_need, category) ELSE client_needs_category END,
+  exam_track = CASE 
+    WHEN exam_type LIKE '%PN%' THEN 'PN'
+    WHEN exam_type LIKE '%SNLE%' THEN 'SNLE'
+    WHEN exam_type LIKE '%DHA%' THEN 'DHA'
+    WHEN exam_type LIKE '%HAAD%' THEN 'HAAD'
+    ELSE 'RN'
+  END,
+  status = CASE WHEN is_published = 1 THEN 'published' ELSE 'draft' END,
+  type = CASE 
+    WHEN question_type = 'multiple' THEN 'SATA'
+    WHEN UPPER(question_type) IN ('MCQ', 'SATA', 'MATRIX', 'CLOZE', 'DRAG_DROP', 'BOWTIE', 'CASE_STUDY') THEN UPPER(question_type)
+    ELSE 'MCQ'
+  END;
+
+-- Unified questions view
+CREATE OR REPLACE VIEW questions AS
+SELECT 
+  id,
+  type,
+  stem,
+  options,
+  correct_answers,
+  rationale_per_option,
+  body_system,
+  client_needs_category,
+  difficulty,
+  exam_track,
+  status,
+  reviewer,
+  clinical_pearl,
+  case_study_data,
+  is_demo,
+  sort_order,
+  created_at,
+  updated_at,
+  statement,
+  options_json,
+  correct_index,
+  correct_indices_json,
+  correct_rationale,
+  distractors_json,
+  question_type,
+  organ_system,
+  is_published
+FROM qbank_questions;
+
+-- 13. Test Sessions Table
+CREATE TABLE IF NOT EXISTS test_sessions (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL DEFAULT 'Practice Test',
+  mode TEXT NOT NULL DEFAULT 'tutor',
+  exam_track TEXT NOT NULL DEFAULT 'RN',
+  status TEXT NOT NULL DEFAULT 'in_progress',
+  filters_json TEXT DEFAULT '{}',
+  question_ids_json TEXT NOT NULL DEFAULT '[]',
+  current_question_index INTEGER DEFAULT 0,
+  total_questions INTEGER NOT NULL DEFAULT 10,
+  correct_count INTEGER DEFAULT 0,
+  score_percentage NUMERIC(5,2) DEFAULT 0.00,
+  time_limit_seconds INTEGER DEFAULT 0,
+  time_spent_seconds INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
+-- 14. Modernized Attempts Table (supports session_id and partial-credit scoring)
+CREATE TABLE IF NOT EXISTS attempts (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  session_id INTEGER REFERENCES test_sessions(id) ON DELETE SET NULL,
+  question_id INTEGER NOT NULL REFERENCES qbank_questions(id) ON DELETE CASCADE,
+  question_type TEXT NOT NULL DEFAULT 'MCQ',
+  user_answers TEXT NOT NULL DEFAULT '[]',
+  score NUMERIC(5,2) NOT NULL DEFAULT 0.00,
+  is_correct INTEGER NOT NULL DEFAULT 0,
+  time_spent_seconds INTEGER DEFAULT 0,
+  category TEXT DEFAULT '',
+  body_system TEXT DEFAULT '',
+  difficulty TEXT DEFAULT '',
+  exam_track TEXT DEFAULT 'RN',
+  attempted_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 15. Question Flags Table
+CREATE TABLE IF NOT EXISTS flags (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  question_id INTEGER NOT NULL REFERENCES qbank_questions(id) ON DELETE CASCADE,
+  reason TEXT DEFAULT 'review_later',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, question_id)
+);
+
+-- 16. Student Question Notes Table
+CREATE TABLE IF NOT EXISTS notes (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  question_id INTEGER NOT NULL REFERENCES qbank_questions(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ,
+  UNIQUE(user_id, question_id)
+);
+
+-- 17. Flashcard Decks Table
+CREATE TABLE IF NOT EXISTS flashcard_decks (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  category TEXT DEFAULT 'General',
+  is_public INTEGER NOT NULL DEFAULT 0,
+  card_count INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ
+);
+
+-- 18. Flashcards Table (with Leitner / SM-2 spaced repetition fields)
+CREATE TABLE IF NOT EXISTS flashcards (
+  id SERIAL PRIMARY KEY,
+  deck_id INTEGER NOT NULL REFERENCES flashcard_decks(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  question_id INTEGER REFERENCES qbank_questions(id) ON DELETE SET NULL,
+  front TEXT NOT NULL,
+  back TEXT NOT NULL,
+  clinical_pearl TEXT DEFAULT '',
+  box_level INTEGER NOT NULL DEFAULT 1,
+  interval_days INTEGER NOT NULL DEFAULT 1,
+  ease_factor NUMERIC(4,2) NOT NULL DEFAULT 2.50,
+  repetition_count INTEGER NOT NULL DEFAULT 0,
+  next_review_at TIMESTAMPTZ,
+  last_reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 19. Payments Table
+CREATE TABLE IF NOT EXISTS payments (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  payable_type TEXT NOT NULL,
+  payable_id INTEGER NOT NULL,
+  amount NUMERIC(10,2) NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'PKR',
+  payment_method TEXT NOT NULL DEFAULT 'bank_transfer',
+  transaction_id TEXT DEFAULT '',
+  receipt_url TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending',
+  payer_account_name TEXT DEFAULT '',
+  payer_phone TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  verified_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  verified_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 20. Testimonials Table (with verified flag)
+CREATE TABLE IF NOT EXISTS testimonials (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  student_name TEXT NOT NULL,
+  avatar_url TEXT DEFAULT '',
+  credential TEXT DEFAULT 'RN',
+  exam_passed TEXT NOT NULL DEFAULT 'NCLEX-RN',
+  score_or_attempt TEXT DEFAULT 'Passed 85 Questions (1st Attempt)',
+  quote TEXT NOT NULL,
+  rating INTEGER NOT NULL DEFAULT 5,
+  verified INTEGER NOT NULL DEFAULT 0,
+  is_featured INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 21. FAQ Items Table
+CREATE TABLE IF NOT EXISTS faq_items (
+  id SERIAL PRIMARY KEY,
+  question TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'General',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_published INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_questions_track_type ON qbank_questions(exam_track, type, status);
+CREATE INDEX IF NOT EXISTS idx_attempts_user_session ON attempts(user_id, session_id);
+CREATE INDEX IF NOT EXISTS idx_test_sessions_user_status ON test_sessions(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_flashcards_user_review ON flashcards(user_id, next_review_at);
+CREATE INDEX IF NOT EXISTS idx_testimonials_featured_verified ON testimonials(is_featured, verified);
+CREATE INDEX IF NOT EXISTS idx_payments_user_status ON payments(user_id, status);
+
+
 

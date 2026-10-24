@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthFromRequest } from '@/lib/auth';
 import { query, execute } from '@/lib/db';
+import { logAdminAction } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,8 +44,18 @@ export async function POST(req: Request) {
       }
     }
 
+    await logAdminAction(
+      session.userId,
+      'settings.update',
+      'site_settings',
+      undefined,
+      { updatedKeys: Object.keys(settings) },
+      req
+    );
+
     return NextResponse.json({ success: true, message: 'Settings updated successfully' });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
+

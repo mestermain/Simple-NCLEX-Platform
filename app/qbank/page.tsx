@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { 
   CheckCircle2, 
@@ -29,34 +29,57 @@ import {
   CheckCheck,
   AlertTriangle,
   Bookmark,
-  RefreshCw
+  RefreshCw,
+  Calculator,
+  Highlighter,
+  Strikethrough,
+  FileText,
+  AlertCircle
 } from 'lucide-react';
+import { siteConfig } from '@/lib/siteConfig';
+import DemoBadge from '@/components/DemoBadge';
+import CalculatorModal from '@/components/CalculatorModal';
+import ReportProblemModal from '@/components/ReportProblemModal';
+import MatrixQuestion from '@/components/ngn/MatrixQuestion';
+import ClozeQuestion from '@/components/ngn/ClozeQuestion';
+import DragDropQuestion from '@/components/ngn/DragDropQuestion';
+import BowtieQuestion from '@/components/ngn/BowtieQuestion';
+import CaseStudyQuestion from '@/components/ngn/CaseStudyQuestion';
+import CatSimulationBanner from '@/components/ngn/CatSimulationBanner';
 
 interface Question {
   id: number;
   category: string;
   organSystem: string;
+  bodySystem?: string;
   difficulty: string;
   examType: string;
   clientNeed: string;
   statement: string;
-  options: string[];
+  stem?: string;
+  options: any;
   questionType: 'single' | 'multiple';
+  type?: 'MCQ' | 'SATA' | 'MATRIX' | 'CLOZE' | 'DRAG_DROP' | 'BOWTIE' | 'CASE_STUDY';
   isMultipleResponse?: boolean;
   correctIndices?: number[];
   correctIndex?: number;
+  correctAnswers?: any;
   correctRationale?: string;
   clinicalPearl?: string;
-  distractors?: string[];
+  distractors?: any;
+  rationalePerOption?: any;
+  caseStudyData?: any;
 }
 
 interface AttemptResult {
   isCorrect: boolean;
   score: number;
   correctIndices: number[];
-  selectedIndices: number[];
+  selectedIndices: any;
+  correctAnswers?: any;
   correctRationale: string;
-  distractors: string[];
+  distractors: any;
+  rationalePerOption?: any;
   clinicalPearl: string;
 }
 
@@ -79,7 +102,7 @@ export default function QBankPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number[]>>({});
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, any>>({});
   const [attemptResults, setAttemptResults] = useState<Record<number, AttemptResult>>({});
   const [flaggedQuestions, setFlaggedQuestions] = useState<Record<number, boolean>>({});
   
@@ -95,14 +118,43 @@ export default function QBankPage() {
   const [daysRemaining, setDaysRemaining] = useState(0);
   const [userRole, setUserRole] = useState('guest');
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
+  const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false);
+
+  // Phase 6 Exam Tools & State
+  const [isCalcOpen, setIsCalcOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportQuestionTarget, setReportQuestionTarget] = useState<{ id: number; stem: string } | null>(null);
+  const [strikethroughMode, setStrikethroughMode] = useState(false);
+  const [struckOptions, setStruckOptions] = useState<Record<number, number[]>>({});
+  const [highlighterMode, setHighlighterMode] = useState(false);
+  const [highlightedQuestions, setHighlightedQuestions] = useState<Record<number, boolean>>({});
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [currentNote, setCurrentNote] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteToast, setNoteToast] = useState('');
+  const [flashcardToast, setFlashcardToast] = useState('');
+
+  // Active DB Session (for resume & autosave)
+  const [activeDbSession, setActiveDbSession] = useState<any>(null);
+  const [sessionId, setSessionId] = useState<number | null>(null);
 
   // Filters & Modes
+  const [selectedTrack, setSelectedTrack] = useState<string>('all'); // 'all' | 'RN' | 'PN' | 'DHA' | 'HAAD' | 'SNLE'
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all'); // 'all' | 'easy' | 'medium' | 'hard'
+  const [selectedQuestionType, setSelectedQuestionType] = useState<string>('all');
   const [selectedOrganSystem, setSelectedOrganSystem] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unanswered' | 'incorrect' | 'correct' | 'flagged'>('all');
   const [paletteStatusFilter, setPaletteStatusFilter] = useState<'all' | 'unanswered' | 'incorrect' | 'correct' | 'flagged'>('all');
   const [questionFormatFilter, setQuestionFormatFilter] = useState<'mixed' | 'single' | 'multiple'>('mixed');
   const [examMode, setExamMode] = useState(false); // false = Practice Mode (instant rationales), true = Timed Exam Mode
   const [questionLimit, setQuestionLimit] = useState<number | 'all'>('all');
+
+  // Phase 7: CAT (Computerized Adaptive Testing) Simulation State
+  const [isCatMode, setIsCatMode] = useState(false);
+  const [catTheta, setCatTheta] = useState(0.0);
+  const [catConfidenceMargin, setCatConfidenceMargin] = useState(0.80);
+  const [catEarlyPassed, setCatEarlyPassed] = useState(false);
 
   // Session lifecycle
   const [sessionStarted, setSessionStarted] = useState(false);
@@ -119,7 +171,7 @@ export default function QBankPage() {
   const [submittingSub, setSubmittingSub] = useState(false);
   const [subSuccessMsg, setSubSuccessMsg] = useState('');
 
-  // Check URL parameters for direct start
+  // Check URL parameters for direct start, category, mode, or subscription modal
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -129,9 +181,24 @@ export default function QBankPage() {
       }
       if (params.get('mode') === 'exam') {
         setExamMode(true);
+      } else if (params.get('mode') === 'sata') {
+        setQuestionFormatFilter('multiple');
+      }
+      if (params.get('track')) {
+        setSelectedTrack(params.get('track')!);
+      }
+      if (params.get('category')) {
+        setSelectedCategory(params.get('category')!);
       }
       if (params.get('organ')) {
         setSelectedOrganSystem(params.get('organ')!);
+      }
+      if (params.get('subscribe')) {
+        const subId = params.get('subscribe');
+        if (subId === 'plan-30' || subId === '1m') setSubPlan('1m');
+        else if (subId === 'plan-90' || subId === '3m') setSubPlan('3m');
+        else if (subId === 'plan-180' || subId === '6m') setSubPlan('6m');
+        setIsSubModalOpen(true);
       }
       if (params.get('status')) {
         const s = params.get('status') as any;
@@ -142,7 +209,7 @@ export default function QBankPage() {
     }
   }, []);
 
-  // Fetch access & questions
+  // Fetch access, questions & active session check
   useEffect(() => {
     async function loadData() {
       setLoading(true);
@@ -158,7 +225,16 @@ export default function QBankPage() {
           setUserRole(statusData.role || 'guest');
         }
 
-        // 2. Fetch questions and user progress
+        // 2. Check for active in-progress session
+        try {
+          const activeRes = await fetch('/api/qbank/sessions?active=true');
+          const activeData = await activeRes.json();
+          if (activeData.success && activeData.session) {
+            setActiveDbSession(activeData.session);
+          }
+        } catch (_) {}
+
+        // 3. Fetch questions and user progress
         const qRes = await fetch('/api/qbank/questions');
         const qData = await qRes.json();
 
@@ -214,11 +290,16 @@ export default function QBankPage() {
     return dbFlaggedIds.includes(qId);
   };
 
-  // Live Status Counts across the whole bank or current organ filter
+  // Live Status Counts across the whole bank or current organ/category filter
   const liveCounts = useMemo(() => {
-    const base = selectedOrganSystem === 'all'
-      ? questions
-      : questions.filter(q => (q.organSystem || '').toLowerCase().includes(selectedOrganSystem.toLowerCase()));
+    let base = questions;
+    if (selectedCategory !== 'all') {
+      const target = selectedCategory.toLowerCase();
+      base = base.filter(q => (q.category || '').toLowerCase().includes(target) || (q.clientNeed || '').toLowerCase().includes(target));
+    }
+    if (selectedOrganSystem !== 'all') {
+      base = base.filter(q => (q.organSystem || '').toLowerCase().includes(selectedOrganSystem.toLowerCase()));
+    }
 
     let correct = 0;
     let incorrect = 0;
@@ -241,17 +322,48 @@ export default function QBankPage() {
       correct,
       flagged,
     };
-  }, [questions, selectedOrganSystem, attemptResults, flaggedQuestions, dbCorrectIds, dbIncorrectIds, dbFlaggedIds]);
+  }, [questions, selectedOrganSystem, selectedCategory, attemptResults, flaggedQuestions, dbCorrectIds, dbIncorrectIds, dbFlaggedIds]);
 
   // Build the active practice session questions:
-  // 1. Organ System Filter
-  // 2. Status Filter (All, Unanswered, Incorrect, Correct, Flagged)
-  // 3. Mixed Question Logic: Smoothly interleave SATA and single MCQs!
+  // 1. Category / Client Needs Filter
+  // 2. Organ System Filter
+  // 3. Status Filter (All, Unanswered, Incorrect, Correct, Flagged)
+  // 4. Mixed Question Logic: Smoothly interleave SATA and single MCQs!
   const filteredQuestions = useMemo(() => {
-    // Step 1: Organ System
-    let pool = questions.filter((q) => {
+    let pool = questions.filter((q: any) => {
+      // Exam Track Filter
+      if (selectedTrack !== 'all') {
+        const tr = (q.examTrack || q.examType || '').toUpperCase();
+        if (!tr.includes(selectedTrack.toUpperCase())) return false;
+      }
+
+      // Difficulty Filter
+      if (selectedDifficulty !== 'all') {
+        const diff = (q.difficulty || '').toLowerCase();
+        if (diff !== selectedDifficulty.toLowerCase()) return false;
+      }
+
+      // Question Type Filter
+      if (selectedQuestionType !== 'all') {
+        const qType = (q.type || q.questionType || '').toUpperCase();
+        if (selectedQuestionType === 'MCQ' && qType !== 'MCQ' && qType !== 'SINGLE') return false;
+        if (selectedQuestionType === 'SATA' && qType !== 'SATA' && qType !== 'MULTIPLE') return false;
+        if (selectedQuestionType !== 'MCQ' && selectedQuestionType !== 'SATA' && qType !== selectedQuestionType) return false;
+      }
+
+      // Category & Client Needs
+      if (selectedCategory !== 'all') {
+        const qCat = (q.category || '').toLowerCase();
+        const qNeed = (q.clientNeed || q.clientNeedsCategory || '').toLowerCase();
+        const target = selectedCategory.toLowerCase();
+        if (!qCat.includes(target) && !qNeed.includes(target)) {
+          return false;
+        }
+      }
+
+      // Organ System
       if (selectedOrganSystem !== 'all') {
-        const qOrgan = (q.organSystem || '').toLowerCase();
+        const qOrgan = (q.organSystem || q.bodySystem || '').toLowerCase();
         if (!qOrgan.includes(selectedOrganSystem.toLowerCase())) {
           return false;
         }
@@ -275,7 +387,6 @@ export default function QBankPage() {
     } else if (questionFormatFilter === 'multiple') {
       pool = pool.filter(q => q.questionType === 'multiple');
     } else {
-      // 'mixed': Interleave Single MCQs and SATA (Multiple) items for authentic NCLEX feel!
       const singles = pool.filter(q => q.questionType === 'single');
       const multiples = pool.filter(q => q.questionType === 'multiple');
       const mixed: Question[] = [];
@@ -289,9 +400,9 @@ export default function QBankPage() {
 
     // Step 4: Batch Size Limit
     return questionLimit === 'all' ? pool : pool.slice(0, questionLimit);
-  }, [questions, selectedOrganSystem, statusFilter, questionFormatFilter, questionLimit, attemptResults, flaggedQuestions, dbCorrectIds, dbIncorrectIds, dbFlaggedIds]);
+  }, [questions, selectedTrack, selectedDifficulty, selectedQuestionType, selectedOrganSystem, selectedCategory, statusFilter, questionFormatFilter, questionLimit, attemptResults, flaggedQuestions, dbCorrectIds, dbIncorrectIds, dbFlaggedIds]);
 
-  // Sidebar Question Palette Items (filterable by status during testing)
+  // Sidebar Question Palette Items
   const paletteItems = useMemo(() => {
     return filteredQuestions.map((q, idx) => ({ q, originalIndex: idx }))
       .filter(({ q }) => {
@@ -302,7 +413,7 @@ export default function QBankPage() {
   }, [filteredQuestions, paletteStatusFilter, attemptResults, flaggedQuestions, dbCorrectIds, dbIncorrectIds, dbFlaggedIds]);
 
   // Session lifecycle handlers
-  const handleStartSession = () => {
+  const handleStartSession = async () => {
     if (filteredQuestions.length === 0) return;
     setCurrentIndex(0);
     setSessionStarted(true);
@@ -312,52 +423,177 @@ export default function QBankPage() {
       const el = document.getElementById('qbankWorkspaceTop');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     }
+
+    try {
+      const res = await fetch('/api/qbank/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `${selectedTrack !== 'all' ? selectedTrack : 'NCLEX'} Practice Test`,
+          mode: examMode ? 'timed' : 'tutor',
+          examTrack: selectedTrack !== 'all' ? selectedTrack : 'RN',
+          questionIds: filteredQuestions.map(q => q.id),
+          filters: {
+            track: selectedTrack,
+            organSystem: selectedOrganSystem,
+            category: selectedCategory,
+            format: questionFormatFilter,
+          },
+          timeLimitSeconds: examMode ? filteredQuestions.length * 90 : 0,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.sessionId) {
+        setSessionId(data.sessionId);
+      }
+    } catch (_) {}
+  };
+
+  const handleResumeActiveSession = () => {
+    if (!activeDbSession) return;
+    const qIds = activeDbSession.questionIds || [];
+    if (qIds.length > 0) {
+      const matched = questions.filter(q => qIds.includes(q.id));
+      if (matched.length > 0) {
+        setSessionId(activeDbSession.id);
+        setCurrentIndex(Math.min(activeDbSession.current_question_index || 0, matched.length - 1));
+        setSecondsElapsed(activeDbSession.time_spent_seconds || 0);
+        setSessionStarted(true);
+        setSessionCompleted(false);
+        setTimerRunning(true);
+        setActiveDbSession(null);
+      }
+    }
+  };
+
+  const handleNavigateQuestion = (newIndex: number) => {
+    setCurrentIndex(newIndex);
+    if (sessionId) {
+      fetch('/api/qbank/sessions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          currentIndex: newIndex,
+          timeSpentSeconds: secondsElapsed,
+          status: 'in_progress',
+        }),
+      }).catch(() => {});
+    }
   };
 
   const handlePauseSession = () => {
     setSessionStarted(false);
     setTimerRunning(false);
+    if (sessionId) {
+      fetch('/api/qbank/sessions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          currentIndex,
+          timeSpentSeconds: secondsElapsed,
+          status: 'in_progress',
+        }),
+      }).catch(() => {});
+    }
   };
 
   const handleFinishSession = () => {
     setSessionCompleted(true);
     setTimerRunning(false);
+    if (sessionId) {
+      const answeredKeys = Object.keys(attemptResults);
+      const correct = answeredKeys.filter((k) => attemptResults[Number(k)]?.isCorrect).length;
+      const pct = answeredKeys.length > 0 ? Math.round((correct / answeredKeys.length) * 100) : 0;
+      fetch('/api/qbank/sessions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          status: 'completed',
+          scorePercentage: pct,
+          correctCount: correct,
+          timeSpentSeconds: secondsElapsed,
+        }),
+      }).catch(() => {});
+    }
   };
 
   const handleRestartNewSession = () => {
     setSelectedAnswers({});
     setAttemptResults({});
     setFlaggedQuestions({});
+    setStruckOptions({});
     setSecondsElapsed(0);
     setCurrentIndex(0);
     setSessionStarted(false);
     setSessionCompleted(false);
     setTimerRunning(false);
+    setSessionId(null);
   };
 
   const currentQ = filteredQuestions[currentIndex] || filteredQuestions[0];
   const currentQId = currentQ?.id;
-  const currentSelected = (currentQId && selectedAnswers[currentQId]) || [];
+  const currentSelected = currentQId && selectedAnswers[currentQId] !== undefined ? selectedAnswers[currentQId] : (currentQ?.type === 'MATRIX' || currentQ?.type === 'CLOZE' || currentQ?.type === 'BOWTIE' ? {} : []);
   const currentResult = currentQId ? attemptResults[currentQId] : undefined;
   const isAnswered = currentResult !== undefined;
   const isFlagged = currentQId ? isQuestionFlagged(currentQId) : false;
 
-  // Answer selection handler
-  const handleOptionToggle = (optionIndex: number) => {
+  const hasAnswerSelected = useMemo(() => {
+    if (currentSelected === undefined || currentSelected === null) return false;
+    if (currentQ?.type === 'DRAG_DROP') {
+      return Array.isArray(currentQ.options) && currentQ.options.length > 0;
+    }
+    if (Array.isArray(currentSelected)) return currentSelected.length > 0;
+    if (typeof currentSelected === 'object') {
+      if (currentQ?.type === 'BOWTIE') {
+        return Boolean(
+          (currentSelected.actionsToTake?.length || 0) > 0 &&
+          currentSelected.potentialCondition !== undefined &&
+          (currentSelected.parametersToMonitor?.length || 0) > 0
+        );
+      }
+      if (currentQ?.type === 'MATRIX') {
+        const rows = currentQ.options?.rows || [];
+        return rows.length > 0 && Object.keys(currentSelected).length === rows.length;
+      }
+      if (currentQ?.type === 'CLOZE') {
+        const drops = Object.keys(currentQ.options?.dropdowns || {});
+        return drops.length > 0 && Object.keys(currentSelected).length === drops.length;
+      }
+      return Object.keys(currentSelected).length > 0;
+    }
+    return Boolean(currentSelected);
+  }, [currentSelected, currentQ]);
+
+  // Strikethrough & Answer selection handler
+  const handleOptionClick = (optionIndex: number) => {
     if (!currentQ || isAnswered) return;
 
-    if (currentQ.questionType === 'multiple') {
-      // SATA: multiple selections allowed
-      setSelectedAnswers((prev) => {
+    if (strikethroughMode) {
+      // Toggle strikethrough on this option
+      setStruckOptions((prev) => {
         const existing = prev[currentQ.id] || [];
         if (existing.includes(optionIndex)) {
-          return { ...prev, [currentQ.id]: existing.filter((i) => i !== optionIndex) };
+          return { ...prev, [currentQ.id]: existing.filter(i => i !== optionIndex) };
+        } else {
+          return { ...prev, [currentQ.id]: [...existing, optionIndex] };
+        }
+      });
+      return;
+    }
+
+    if (currentQ.questionType === 'multiple' || currentQ.type === 'SATA') {
+      setSelectedAnswers((prev) => {
+        const existing = Array.isArray(prev[currentQ.id]) ? prev[currentQ.id] : [];
+        if (existing.includes(optionIndex)) {
+          return { ...prev, [currentQ.id]: existing.filter((i: number) => i !== optionIndex) };
         } else {
           return { ...prev, [currentQ.id]: [...existing, optionIndex].sort() };
         }
       });
     } else {
-      // Single Choice MCQ
       setSelectedAnswers((prev) => ({
         ...prev,
         [currentQ.id]: [optionIndex],
@@ -365,18 +601,171 @@ export default function QBankPage() {
     }
   };
 
+  // Standard MCQ / SATA option buttons renderer
+  const renderStandardOptions = () => {
+    if (!currentQ || !Array.isArray(currentQ.options)) return null;
+    const selectedArr = Array.isArray(currentSelected) ? currentSelected : [];
+
+    return (
+      <div className="space-y-3 pt-2">
+        {currentQ.options.map((optText: string, optIdx: number) => {
+          const isSelected = selectedArr.includes(optIdx);
+          const hasResult = currentResult !== undefined;
+          const isCorrect = hasResult && currentResult.correctIndices.includes(optIdx);
+          const isStruck = currentQ && (struckOptions[currentQ.id] || []).includes(optIdx);
+
+          let itemStyle = 'border-slate-200 bg-white hover:border-sky-300 hover:bg-sky-50/20 text-slate-800';
+          let boxIcon = currentQ.questionType === 'multiple' ? (
+            <Square className="w-4 h-4 text-slate-400" />
+          ) : (
+            <span className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[10px] text-slate-400" />
+          );
+
+          if (hasResult && !examMode) {
+            if (isCorrect) {
+              itemStyle = 'border-emerald-500 bg-emerald-50/80 text-emerald-950 font-medium';
+              boxIcon = <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
+            } else if (isSelected && !isCorrect) {
+              itemStyle = 'border-rose-400 bg-rose-50 text-rose-950';
+              boxIcon = <XCircle className="w-4 h-4 text-rose-500" />;
+            } else {
+              itemStyle = 'border-slate-100 bg-slate-50 text-slate-400 opacity-60';
+            }
+          } else if (isSelected) {
+            itemStyle = 'border-sky-600 bg-sky-50/70 text-sky-950 ring-2 ring-sky-500/20';
+            boxIcon = currentQ.questionType === 'multiple' ? (
+              <CheckSquare className="w-4 h-4 text-sky-600" />
+            ) : (
+              <span className="w-4 h-4 rounded-full bg-sky-600 flex items-center justify-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-white" />
+              </span>
+            );
+          }
+
+          return (
+            <button
+              key={optIdx}
+              onClick={() => handleOptionClick(optIdx)}
+              disabled={isAnswered && !strikethroughMode}
+              className={`w-full text-left p-4 rounded-xl border transition-all flex items-start gap-3.5 cursor-pointer ${
+                isStruck ? 'line-through opacity-45 decoration-slate-400 bg-slate-50 border-slate-200 text-slate-400' : itemStyle
+              }`}
+            >
+              <span className="pt-0.5 shrink-0">{boxIcon}</span>
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-500 shrink-0 pt-0.5">
+                <span>{String.fromCharCode(65 + optIdx)}.</span>
+              </div>
+              <span className={`text-sm sm:text-base leading-relaxed ${isStruck ? 'line-through decoration-slate-400' : ''}`}>
+                {optText}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Keyboard Shortcuts Listener
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (!sessionStarted || sessionCompleted) return;
+      if (e.altKey && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        setIsCalcOpen(prev => !prev);
+      } else if (e.altKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        handleToggleFlag();
+      } else if (e.altKey && (e.key === 'n' || e.key === 'N')) {
+        e.preventDefault();
+        if (currentIndex < filteredQuestions.length - 1) {
+          handleNavigateQuestion(currentIndex + 1);
+        }
+      } else if (e.altKey && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        if (currentIndex > 0) {
+          handleNavigateQuestion(currentIndex - 1);
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sessionStarted, sessionCompleted, currentIndex, filteredQuestions.length]);
+
+  // Notes API handlers
+  const handleOpenNotes = async () => {
+    setNotesOpen(prev => !prev);
+    if (!notesOpen && currentQId) {
+      try {
+        const res = await fetch(`/api/qbank/notes?questionId=${currentQId}`);
+        const data = await res.json();
+        if (data.success) {
+          setCurrentNote(data.note || '');
+        }
+      } catch (_) {}
+    }
+  };
+
+  const handleSaveNote = async () => {
+    if (!currentQId) return;
+    setSavingNote(true);
+    try {
+      const res = await fetch('/api/qbank/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId: currentQId, content: currentNote }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNoteToast('Note saved!');
+        setTimeout(() => setNoteToast(''), 2000);
+      }
+    } catch (_) {}
+    finally {
+      setSavingNote(false);
+    }
+  };
+
+  // Flashcard API handler
+  const handleCreateFlashcard = async (q: Question) => {
+    try {
+      const res = await fetch('/api/qbank/flashcards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionId: q.id,
+          clinicalPearl: q.clinicalPearl || '',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFlashcardToast('Added to your Spaced Repetition deck! (Review in 24h)');
+        setTimeout(() => setFlashcardToast(''), 3000);
+      } else {
+        alert(data.message || 'Could not save flashcard. Please make sure you are logged in.');
+      }
+    } catch (_) {
+      alert('Error saving flashcard.');
+    }
+  };
+
   // Submit Answer to API
   const handleSubmitAnswer = async () => {
-    if (!currentQ || currentSelected.length === 0 || isAnswered) return;
+    if (!currentQ || !hasAnswerSelected || isAnswered) return;
 
     try {
+      const answersToSend = currentQ.type === 'DRAG_DROP' && (!currentSelected || (Array.isArray(currentSelected) && currentSelected.length === 0))
+        ? (Array.isArray(currentQ.options) ? currentQ.options.map((_, i) => i) : [])
+        : currentSelected;
+
       const res = await fetch('/api/qbank/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           questionId: currentQ.id,
-          selectedIndices: currentSelected,
+          selectedIndices: Array.isArray(answersToSend) ? answersToSend : undefined,
+          userAnswers: answersToSend,
           timeSpentSeconds: 30,
+          sessionId: sessionId || undefined,
         }),
       });
 
@@ -386,16 +775,17 @@ export default function QBankPage() {
           ...prev,
           [currentQ.id]: {
             isCorrect: data.isCorrect,
-            score: data.score,
-            correctIndices: data.correctIndices,
-            selectedIndices: currentSelected,
+            score: data.score !== undefined ? data.score : (data.isCorrect ? 1.0 : 0.0),
+            correctIndices: data.correctIndices || [],
+            selectedIndices: answersToSend,
+            correctAnswers: data.correctAnswers,
             correctRationale: data.evaluation?.correctRationale || data.correctRationale || '',
             distractors: data.evaluation?.distractors || data.distractors || [],
             clinicalPearl: data.evaluation?.clinicalPearl || data.clinicalPearl || '',
+            rationalePerOption: data.rationalePerOption,
           },
         }));
 
-        // Synchronize in-memory IDs for live counters
         if (data.isCorrect) {
           setDbCorrectIds((prev) => Array.from(new Set([...prev, currentQ.id])));
           setDbIncorrectIds((prev) => prev.filter((id) => id !== currentQ.id));
@@ -404,6 +794,24 @@ export default function QBankPage() {
           setDbCorrectIds((prev) => prev.filter((id) => id !== currentQ.id));
         }
         setDbAttemptedIds((prev) => Array.from(new Set([...prev, currentQ.id])));
+
+        // Phase 7: CAT Adaptive Engine Theta Adjustment & 95% Stopping Rule
+        if (isCatMode) {
+          const scoreVal = data.score !== undefined ? data.score : (data.isCorrect ? 1.0 : 0.0);
+          const nextTheta = scoreVal >= 0.7
+            ? Math.min(2.5, catTheta + 0.35 * scoreVal)
+            : Math.max(-2.5, catTheta - 0.35 * (1 - scoreVal));
+          const nextMargin = Math.max(0.15, catConfidenceMargin - 0.015);
+          setCatTheta(nextTheta);
+          setCatConfidenceMargin(nextMargin);
+
+          const totalSolved = Object.keys(attemptResults).length + 1;
+          // NCSBN 95% Confidence Interval Stopping Rule (Minimum 75 questions)
+          if (totalSolved >= 75 && (nextTheta - nextMargin) > 0.05) {
+            setCatEarlyPassed(true);
+            handleFinishSession();
+          }
+        }
       }
     } catch (err) {
       console.error('Error submitting answer:', err);
@@ -508,78 +916,80 @@ export default function QBankPage() {
     <div className="min-h-screen bg-slate-50 flex flex-col">
       
       {/* ── 1. TOP ACCESS & CONTROLS BAR ── */}
-      <section className="bg-slate-900 text-white border-b border-slate-800 py-4 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <section className="bg-slate-900 text-white border-b border-slate-800 py-3 sm:py-4 px-3 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
           
           {/* Access Status Pill */}
-          <div className="flex items-center gap-3">
+          <div className="w-full md:w-auto flex items-center justify-between md:justify-start gap-2">
             {hasAccess ? (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Full Q-Bank Access Active ({questions.length} Items across 10 Organ Systems)</span>
-                {daysRemaining > 0 && <span className="text-slate-400 font-normal">• {daysRemaining} days remaining</span>}
+              <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] sm:text-xs font-semibold">
+                <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
+                <span className="truncate">Full Access ({questions.length} Items)</span>
+                {daysRemaining > 0 && <span className="text-slate-400 font-normal hidden sm:inline">• {daysRemaining}d left</span>}
               </div>
             ) : (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-semibold">
-                  <Lock className="w-4 h-4 text-amber-400" />
-                  <span>Free Demo Mode (High-Yield Sample Items)</span>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 sm:py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] sm:text-xs font-semibold">
+                  <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Free Demo</span>
                 </div>
                 <button
                   onClick={() => setIsSubModalOpen(true)}
-                  className="px-3 py-1.5 text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-colors shadow-sm cursor-pointer"
+                  className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-colors shadow-sm cursor-pointer whitespace-nowrap"
                 >
-                  Unlock All 60 Questions →
+                  Unlock 60 Qs →
                 </button>
               </div>
             )}
           </div>
 
           {/* Practice Session Metrics & Controls */}
-          <div className="flex items-center gap-4 sm:gap-6 text-xs text-slate-300">
+          <div className="w-full md:w-auto flex flex-wrap items-center justify-between md:justify-end gap-2.5 sm:gap-4 text-xs text-slate-300 border-t border-slate-800/80 pt-2 md:pt-0 md:border-0">
             {!sessionStarted && !sessionCompleted ? (
               <button
                 onClick={handleStartSession}
                 disabled={filteredQuestions.length === 0}
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-xs shadow-md shadow-sky-600/30 transition-all cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-xs shadow-md shadow-sky-600/30 transition-all cursor-pointer disabled:opacity-50"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
                 <span>Start Questions ({filteredQuestions.length})</span>
               </button>
             ) : (
               <>
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-sky-400" />
-                  <span className="font-mono font-semibold text-sm text-white">{formatTimer(secondsElapsed)}</span>
+                <div className="flex items-center gap-1.5 bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-700/60">
+                  <Clock className="w-3.5 h-3.5 text-sky-400" />
+                  <span className="font-mono font-bold text-xs sm:text-sm text-white">{formatTimer(secondsElapsed)}</span>
                 </div>
-                <div>
-                  Answered:{' '}
+                <div className="text-[11px] sm:text-xs">
+                  Done:{' '}
                   <span className="font-bold text-white">
-                    {answeredKeys.length} / {filteredQuestions.length}
+                    {answeredKeys.length}/{filteredQuestions.length}
                   </span>
                 </div>
-                <div>
-                  Accuracy:{' '}
+                <div className="text-[11px] sm:text-xs">
+                  Score:{' '}
                   <span className={`font-bold ${accuracyPct >= 75 ? 'text-emerald-400' : accuracyPct >= 50 ? 'text-amber-400' : 'text-slate-200'}`}>
                     {accuracyPct}%
                   </span>
                 </div>
-                <button
-                  onClick={handlePauseSession}
-                  className="flex items-center gap-1 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-colors cursor-pointer"
-                  title="Pause session and adjust settings"
-                >
-                  <Pause className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Pause</span>
-                </button>
-                <button
-                  onClick={handleResetPractice}
-                  className="flex items-center gap-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                  title="Reset current session"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reset</span>
-                </button>
+                <div className="flex items-center gap-1.5 ml-auto md:ml-0">
+                  <button
+                    onClick={handlePauseSession}
+                    className="flex items-center gap-1 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg border border-slate-700 text-xs transition-colors cursor-pointer"
+                    title="Pause session and adjust settings"
+                  >
+                    <Pause className="w-3.5 h-3.5 text-sky-400" />
+                    <span className="hidden sm:inline">Pause</span>
+                  </button>
+                  <button
+                    onClick={handleResetPractice}
+                    className="flex items-center gap-1 text-slate-400 hover:text-white bg-slate-800/40 hover:bg-slate-800 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-xs transition-colors cursor-pointer"
+                    title="Reset current session"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Reset</span>
+                  </button>
+                </div>
               </>
             )}
           </div>
@@ -588,11 +998,34 @@ export default function QBankPage() {
       </section>
 
       {/* ── 2. MAIN WORKSPACE ── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1" id="qbankWorkspaceTop">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 w-full flex-1" id="qbankWorkspaceTop">
+        
+        {/* Mobile & Tablet Quick Palette Trigger during active test */}
+        {sessionStarted && !sessionCompleted && (
+          <div className="lg:hidden flex items-center justify-between p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm mb-4">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs sm:text-sm font-bold text-slate-800">
+                Item {currentIndex + 1} of {filteredQuestions.length}
+              </span>
+              <span className="text-[11px] text-slate-500">
+                ({answeredKeys.length} solved)
+              </span>
+            </div>
+            <button
+              onClick={() => setMobilePaletteOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-700 border border-sky-200 text-xs font-bold transition-all cursor-pointer shadow-xs"
+            >
+              <Layers className="w-3.5 h-3.5 text-sky-600" />
+              <span>Palette & Jump ({answeredKeys.length}/{filteredQuestions.length})</span>
+            </button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
           
-          {/* ── SIDEBAR: FILTERS & QUESTION PALETTE ── */}
-          <div className="lg:col-span-1 space-y-6">
+          {/* ── SIDEBAR: FILTERS & QUESTION PALETTE (Persistent on desktop, hidden during active test on mobile/tablet) ── */}
+          <div className={`space-y-6 lg:col-span-1 ${sessionStarted && !sessionCompleted ? 'hidden lg:block' : 'block'}`}>
             
             {/* Start Button Card for Sidebar */}
             <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200 space-y-3">
@@ -728,74 +1161,82 @@ export default function QBankPage() {
                   onClick={() => setPaletteStatusFilter('all')}
                   className={`px-2 py-1 rounded transition-colors ${paletteStatusFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                 >
-                  All ({filteredQuestions.length})
+                  All ({loading ? '...' : filteredQuestions.length})
                 </button>
                 <button
                   onClick={() => setPaletteStatusFilter('unanswered')}
                   className={`px-2 py-1 rounded transition-colors ${paletteStatusFilter === 'unanswered' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                 >
-                  Unanswered ({filteredQuestions.filter(q => getQuestionStatus(q.id) === 'unanswered').length})
+                  Unanswered ({loading ? '...' : filteredQuestions.filter(q => getQuestionStatus(q.id) === 'unanswered').length})
                 </button>
                 <button
                   onClick={() => setPaletteStatusFilter('incorrect')}
                   className={`px-2 py-1 rounded transition-colors ${paletteStatusFilter === 'incorrect' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-700 hover:bg-rose-100'}`}
                 >
-                  Incorrect ({filteredQuestions.filter(q => getQuestionStatus(q.id) === 'incorrect').length})
+                  Incorrect ({loading ? '...' : filteredQuestions.filter(q => getQuestionStatus(q.id) === 'incorrect').length})
                 </button>
                 <button
                   onClick={() => setPaletteStatusFilter('correct')}
                   className={`px-2 py-1 rounded transition-colors ${paletteStatusFilter === 'correct' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
                 >
-                  Correct ({filteredQuestions.filter(q => getQuestionStatus(q.id) === 'correct').length})
+                  Correct ({loading ? '...' : filteredQuestions.filter(q => getQuestionStatus(q.id) === 'correct').length})
                 </button>
                 <button
                   onClick={() => setPaletteStatusFilter('flagged')}
                   className={`px-2 py-1 rounded transition-colors ${paletteStatusFilter === 'flagged' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'}`}
                 >
-                  Flagged ({filteredQuestions.filter(q => isQuestionFlagged(q.id)).length})
+                  Flagged ({loading ? '...' : filteredQuestions.filter(q => isQuestionFlagged(q.id)).length})
                 </button>
               </div>
 
-              {/* Palette Grid */}
-              <div className="grid grid-cols-5 gap-2 max-h-56 overflow-y-auto custom-scrollbar p-1">
-                {paletteItems.map(({ q, originalIndex }) => {
-                  const isCurrent = originalIndex === currentIndex;
-                  const res = attemptResults[q.id];
-                  const qStatus = getQuestionStatus(q.id);
-                  const flagged = isQuestionFlagged(q.id);
+              {/* Palette Grid with Skeleton Loader */}
+              {loading ? (
+                <div className="grid grid-cols-5 gap-2 p-1">
+                  {[...Array(15)].map((_, i) => (
+                    <div key={i} className="h-9 rounded-lg bg-slate-100 animate-pulse border border-slate-200" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-5 gap-2 max-h-56 overflow-y-auto custom-scrollbar p-1">
+                  {paletteItems.map(({ q, originalIndex }) => {
+                    const isCurrent = originalIndex === currentIndex;
+                    const res = attemptResults[q.id];
+                    const qStatus = getQuestionStatus(q.id);
+                    const flagged = isQuestionFlagged(q.id);
 
-                  let btnStyle = 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100';
+                    let btnStyle = 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100';
 
-                  if (res || qStatus !== 'unanswered') {
-                    if (qStatus === 'correct') {
-                      btnStyle = 'bg-emerald-100 border-emerald-300 text-emerald-800 font-bold';
-                    } else if (qStatus === 'incorrect') {
-                      btnStyle = 'bg-rose-100 border-rose-300 text-rose-800 font-bold';
+                    if (res || qStatus !== 'unanswered') {
+                      if (qStatus === 'correct') {
+                        btnStyle = 'bg-emerald-100 border-emerald-300 text-emerald-800 font-bold';
+                      } else if (qStatus === 'incorrect') {
+                        btnStyle = 'bg-rose-100 border-rose-300 text-rose-800 font-bold';
+                      }
                     }
-                  }
-                  
-                  if (isCurrent) {
-                    btnStyle += ' ring-2 ring-sky-500 border-sky-600';
-                  }
+                    
+                    if (isCurrent) {
+                      btnStyle += ' ring-2 ring-sky-500 border-sky-600';
+                    }
 
-                  return (
-                    <button
-                      key={q.id}
-                      onClick={() => {
-                        setCurrentIndex(originalIndex);
-                        if (!sessionStarted) setSessionStarted(true);
-                      }}
-                      className={`relative h-9 rounded-lg border text-xs font-medium flex items-center justify-center transition-all cursor-pointer ${btnStyle}`}
-                      title={`Item ${originalIndex + 1}: ${q.organSystem} (${q.questionType === 'multiple' ? 'SATA' : 'MCQ'})`}
-                    >
-                      <span>{originalIndex + 1}</span>
-                      {flagged && (
-                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-white" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                    return (
+                      <button
+                        key={q.id}
+                        onClick={() => {
+                          setCurrentIndex(originalIndex);
+                          if (!sessionStarted) setSessionStarted(true);
+                        }}
+                        className={`relative h-9 rounded-lg border text-xs font-medium flex items-center justify-center transition-all cursor-pointer ${btnStyle}`}
+                        title={`Item ${originalIndex + 1}: ${q.organSystem} (${q.questionType === 'multiple' ? 'SATA' : 'MCQ'})`}
+                      >
+                        <span>{originalIndex + 1}</span>
+                        {flagged && (
+                          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-white" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Palette Legend */}
               <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-[10px] text-slate-500">
@@ -863,14 +1304,100 @@ export default function QBankPage() {
 
                   <button
                     onClick={handleStartSession}
-                    disabled={filteredQuestions.length === 0}
+                    disabled={filteredQuestions.length === 0 || loading}
                     className="shrink-0 inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-sm shadow-lg shadow-sky-600/30 transition-all hover:scale-[1.02] active:scale-100 cursor-pointer disabled:opacity-50"
                   >
                     <Play className="w-4 h-4 fill-current" />
-                    <span>Start Questions ({filteredQuestions.length})</span>
+                    <span>{loading ? 'Loading Bank...' : `Start Questions (${filteredQuestions.length})`}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
+
+                {/* In-Progress Session Resume Banner */}
+                {activeDbSession && !sessionStarted && (
+                  <div className="p-4 rounded-xl bg-sky-50 border border-sky-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-sky-950 uppercase tracking-wider">
+                        <Sparkles className="w-4 h-4 text-sky-600 shrink-0" />
+                        <span>In-Progress Practice Session Detected</span>
+                      </div>
+                      <div className="text-xs text-slate-600">
+                        {activeDbSession.title} • Item {Math.min((activeDbSession.current_question_index || 0) + 1, activeDbSession.total_questions || 1)} of {activeDbSession.total_questions} ({formatTimer(activeDbSession.time_spent_seconds || 0)} elapsed)
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={handleResumeActiveSession}
+                        className="flex-1 sm:flex-initial px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-sm transition-all cursor-pointer text-center"
+                      >
+                        Resume Session →
+                      </button>
+                      <button
+                        onClick={() => setActiveDbSession(null)}
+                        className="px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 cursor-pointer"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Track & Difficulty Selectors */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Award className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Target Exam Track</span>
+                    </label>
+                    <select
+                      value={selectedTrack}
+                      onChange={(e) => { setSelectedTrack(e.target.value); setCurrentIndex(0); }}
+                      className="w-full text-xs font-medium p-2.5 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    >
+                      <option value="all">All Tracks (Global NCLEX Pool)</option>
+                      <option value="RN">NCLEX-RN (Registered Nurse)</option>
+                      <option value="PN">NCLEX-PN (Practical Nurse)</option>
+                      <option value="DHA">DHA (Dubai Health Authority)</option>
+                      <option value="HAAD">HAAD / DOH (Abu Dhabi)</option>
+                      <option value="SNLE">SNLE (Saudi Nursing Licensing)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Clinical Difficulty Level</span>
+                    </label>
+                    <select
+                      value={selectedDifficulty}
+                      onChange={(e) => { setSelectedDifficulty(e.target.value); setCurrentIndex(0); }}
+                      className="w-full text-xs font-medium p-2.5 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    >
+                      <option value="all">All Difficulties (Adaptive Mix)</option>
+                      <option value="easy">Easy (Recall & Foundational)</option>
+                      <option value="medium">Medium (Application & Clinical judgment)</option>
+                      <option value="hard">Hard (Priority & Multi-system complex)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Active Category Filter Banner (from footer / URL links) */}
+                {selectedCategory !== 'all' && (
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-900 animate-in fade-in">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-sky-600 shrink-0" />
+                      <span>
+                        Active Topic Filter: <strong className="font-bold uppercase tracking-wider">{selectedCategory}</strong>
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedCategory('all')}
+                      className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white border border-sky-300 text-sky-700 hover:bg-sky-100 transition-colors cursor-pointer"
+                    >
+                      Clear Category Filter
+                    </button>
+                  </div>
+                )}
 
                 {/* 1. QUESTION STATUS FILTER: Correct, Incorrect, Flagged, Unanswered */}
                 <div className="space-y-3">
@@ -882,7 +1409,7 @@ export default function QBankPage() {
                     <span className="text-[11px] text-slate-500">Target your weak areas or review mistakes</span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-2.5">
                     {/* All */}
                     <button
                       type="button"
@@ -897,9 +1424,13 @@ export default function QBankPage() {
                         <span className="text-xs font-bold">All Items</span>
                         <Layers className={`w-3.5 h-3.5 ${statusFilter === 'all' ? 'text-white' : 'text-slate-400'}`} />
                       </div>
-                      <div className={`text-lg font-black ${statusFilter === 'all' ? 'text-white' : 'text-slate-900'}`}>
-                        {liveCounts.all}
-                      </div>
+                      {loading ? (
+                        <div className="h-6 w-12 bg-slate-200 animate-pulse rounded my-0.5" />
+                      ) : (
+                        <div className={`text-lg font-black ${statusFilter === 'all' ? 'text-white' : 'text-slate-900'}`}>
+                          {liveCounts.all}
+                        </div>
+                      )}
                       <div className={`text-[10px] ${statusFilter === 'all' ? 'text-slate-300' : 'text-slate-500'}`}>Total in system</div>
                     </button>
 
@@ -917,9 +1448,13 @@ export default function QBankPage() {
                         <span className="text-xs font-bold">Unanswered</span>
                         <HelpCircle className={`w-3.5 h-3.5 ${statusFilter === 'unanswered' ? 'text-white' : 'text-sky-500'}`} />
                       </div>
-                      <div className={`text-lg font-black ${statusFilter === 'unanswered' ? 'text-white' : 'text-sky-700'}`}>
-                        {liveCounts.unanswered}
-                      </div>
+                      {loading ? (
+                        <div className="h-6 w-12 bg-slate-200 animate-pulse rounded my-0.5" />
+                      ) : (
+                        <div className={`text-lg font-black ${statusFilter === 'unanswered' ? 'text-white' : 'text-sky-700'}`}>
+                          {liveCounts.unanswered}
+                        </div>
+                      )}
                       <div className={`text-[10px] ${statusFilter === 'unanswered' ? 'text-sky-100' : 'text-slate-500'}`}>Fresh test items</div>
                     </button>
 
@@ -937,9 +1472,13 @@ export default function QBankPage() {
                         <span className="text-xs font-bold">Incorrect</span>
                         <XCircle className={`w-3.5 h-3.5 ${statusFilter === 'incorrect' ? 'text-white' : 'text-rose-500'}`} />
                       </div>
-                      <div className={`text-lg font-black ${statusFilter === 'incorrect' ? 'text-white' : 'text-rose-600'}`}>
-                        {liveCounts.incorrect}
-                      </div>
+                      {loading ? (
+                        <div className="h-6 w-12 bg-slate-200 animate-pulse rounded my-0.5" />
+                      ) : (
+                        <div className={`text-lg font-black ${statusFilter === 'incorrect' ? 'text-white' : 'text-rose-600'}`}>
+                          {liveCounts.incorrect}
+                        </div>
+                      )}
                       <div className={`text-[10px] ${statusFilter === 'incorrect' ? 'text-rose-100' : 'text-slate-500'}`}>Retest mistakes</div>
                     </button>
 
@@ -957,9 +1496,13 @@ export default function QBankPage() {
                         <span className="text-xs font-bold">Correct</span>
                         <CheckCheck className={`w-3.5 h-3.5 ${statusFilter === 'correct' ? 'text-white' : 'text-emerald-500'}`} />
                       </div>
-                      <div className={`text-lg font-black ${statusFilter === 'correct' ? 'text-white' : 'text-emerald-600'}`}>
-                        {liveCounts.correct}
-                      </div>
+                      {loading ? (
+                        <div className="h-6 w-12 bg-slate-200 animate-pulse rounded my-0.5" />
+                      ) : (
+                        <div className={`text-lg font-black ${statusFilter === 'correct' ? 'text-white' : 'text-emerald-600'}`}>
+                          {liveCounts.correct}
+                        </div>
+                      )}
                       <div className={`text-[10px] ${statusFilter === 'correct' ? 'text-emerald-100' : 'text-slate-500'}`}>Reinforce mastery</div>
                     </button>
 
@@ -977,9 +1520,13 @@ export default function QBankPage() {
                         <span className="text-xs font-bold">Flagged</span>
                         <Flag className={`w-3.5 h-3.5 ${statusFilter === 'flagged' ? 'text-white' : 'text-amber-500'}`} />
                       </div>
-                      <div className={`text-lg font-black ${statusFilter === 'flagged' ? 'text-white' : 'text-amber-600'}`}>
-                        {liveCounts.flagged}
-                      </div>
+                      {loading ? (
+                        <div className="h-6 w-12 bg-slate-200 animate-pulse rounded my-0.5" />
+                      ) : (
+                        <div className={`text-lg font-black ${statusFilter === 'flagged' ? 'text-white' : 'text-amber-600'}`}>
+                          {liveCounts.flagged}
+                        </div>
+                      )}
                       <div className={`text-[10px] ${statusFilter === 'flagged' ? 'text-amber-100' : 'text-slate-500'}`}>Bookmarked items</div>
                     </button>
                   </div>
@@ -1033,11 +1580,28 @@ export default function QBankPage() {
                   </div>
                 </div>
 
-                {/* 3. QUESTION FORMAT: MIXED SATA + MCQ, Single MCQ, or SATA Only */}
+                {/* 3. QUESTION FORMAT & NEXT-GEN ITEM TYPE FILTER */}
                 <div className="space-y-3 pt-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
-                    Question Format & Type:
-                  </label>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                      Next-Gen NCLEX (NGN) Item Types & Format:
+                    </label>
+                    <select
+                      value={selectedQuestionType}
+                      onChange={(e) => { setSelectedQuestionType(e.target.value); setCurrentIndex(0); }}
+                      className="text-xs font-semibold p-2 rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500 w-full sm:w-auto"
+                    >
+                      <option value="all">All Item Formats (Comprehensive Pool)</option>
+                      <option value="MCQ">Traditional Single-Choice MCQ</option>
+                      <option value="SATA">Extended Multiple Response (SATA)</option>
+                      <option value="MATRIX">Next-Gen Matrix / Grid Table</option>
+                      <option value="CLOZE">Next-Gen Cloze (Dropdown) Vignette</option>
+                      <option value="DRAG_DROP">Next-Gen Drag & Drop Priority Order</option>
+                      <option value="BOWTIE">Next-Gen Bow-Tie Clinical Diagram</option>
+                      <option value="CASE_STUDY">Next-Gen 6-Question Unfolding Case Study</option>
+                    </select>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <button
                       type="button"
@@ -1051,14 +1615,14 @@ export default function QBankPage() {
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-bold text-xs text-indigo-950 flex items-center gap-1.5">
                           <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Mixed (MCQ + SATA)</span>
+                          <span>Mixed (MCQ + Next-Gen)</span>
                         </span>
                         <span className="text-[10px] font-extrabold uppercase bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded">
                           Recommended
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-600">
-                        Smoothly alternates Select All That Apply and single-choice MCQs for true NCLEX simulation.
+                        Smoothly alternates Select All That Apply, Matrix, Bow-Tie, and single MCQs for true NCLEX simulation.
                       </p>
                     </button>
 
@@ -1104,51 +1668,72 @@ export default function QBankPage() {
                   </div>
                 </div>
 
-                {/* 4. Session Mode Selector (Practice vs Timed Mock) */}
+                {/* 4. Session Mode Selector: Practice, Timed Exam, or CAT Simulation */}
                 <div className="space-y-3 pt-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
                     Choose Testing Mode:
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <button
                       type="button"
-                      onClick={() => setExamMode(false)}
+                      onClick={() => { setExamMode(false); setIsCatMode(false); }}
                       className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
-                        !examMode 
-                          ? 'border-sky-500 bg-sky-50/50 ring-2 ring-sky-500/20' 
+                        !examMode && !isCatMode
+                          ? 'border-sky-500 bg-sky-50/50 ring-2 ring-sky-500/20 shadow-2xs' 
                           : 'border-slate-200 hover:border-slate-300 bg-white'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                        <span className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-1.5">
                           <BookOpen className="w-4 h-4 text-sky-600" />
-                          <span>Practice / Tutor Mode</span>
+                          <span>Practice / Tutor</span>
                         </span>
-                        {!examMode && <span className="w-2 h-2 rounded-full bg-sky-600" />}
+                        {!examMode && !isCatMode && <span className="w-2 h-2 rounded-full bg-sky-600" />}
                       </div>
-                      <p className="text-xs text-slate-600">
-                        Instant Saunders rationales and clinical pearls display immediately after each question submit.
+                      <p className="text-[11px] text-slate-600">
+                        Instant original rationales and clinical pearls display immediately after submitting each question.
                       </p>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => setExamMode(true)}
+                      onClick={() => { setExamMode(true); setIsCatMode(false); }}
                       className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
-                        examMode 
-                          ? 'border-sky-500 bg-sky-50/50 ring-2 ring-sky-500/20' 
+                        examMode && !isCatMode
+                          ? 'border-amber-500 bg-amber-50/50 ring-2 ring-amber-500/20 shadow-2xs' 
                           : 'border-slate-200 hover:border-slate-300 bg-white'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                        <span className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-1.5">
                           <Clock className="w-4 h-4 text-amber-600" />
-                          <span>Timed Mock Exam Mode</span>
+                          <span>Timed Mock Exam</span>
                         </span>
-                        {examMode && <span className="w-2 h-2 rounded-full bg-sky-600" />}
+                        {examMode && !isCatMode && <span className="w-2 h-2 rounded-full bg-amber-600" />}
                       </div>
-                      <p className="text-xs text-slate-600">
-                        Simulates live CAT exam conditions. Rationales and scores are hidden until the entire test is submitted.
+                      <p className="text-[11px] text-slate-600">
+                        Simulates live exam conditions. Rationales and scores are hidden until the entire test is submitted.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setExamMode(true); setIsCatMode(true); setQuestionLimit(75); }}
+                      className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                        isCatMode
+                          ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-500/20 shadow-2xs' 
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-xs sm:text-sm text-indigo-950 flex items-center gap-1.5">
+                          <Target className="w-4 h-4 text-indigo-600" />
+                          <span>CAT Simulation</span>
+                        </span>
+                        {isCatMode && <span className="w-2 h-2 rounded-full bg-indigo-600" />}
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        Computerized Adaptive Testing: 75 to 145 items dynamically adjust difficulty with a 95% confidence rule.
                       </p>
                     </button>
                   </div>
@@ -1161,9 +1746,10 @@ export default function QBankPage() {
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {[
-                      { val: 5, label: '5 Questions (Quick Review)' },
-                      { val: 10, label: '10 Questions (Standard)' },
-                      { val: 25, label: '25 Questions (Intensive)' },
+                      { val: 10, label: '10 Questions (Quick Review)' },
+                      { val: 25, label: '25 Questions (Focused Block)' },
+                      { val: 50, label: '50 Questions (Comprehensive)' },
+                      { val: 75, label: '75 Questions (Full CAT Simulation)' },
                       { val: 'all', label: `All Available (${filteredQuestions.length})` }
                     ].map((opt) => (
                       <button
@@ -1182,6 +1768,34 @@ export default function QBankPage() {
                   </div>
                 </div>
 
+                {/* Empty State Banner if 0 questions match */}
+                {filteredQuestions.length === 0 && !loading && (
+                  <div className="p-6 rounded-2xl bg-amber-50/80 border border-amber-200 text-center space-y-3 animate-in fade-in">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+                      <Filter className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-bold text-amber-900">No Questions Match These Criteria</h4>
+                      <p className="text-xs text-amber-800 max-w-md mx-auto">
+                        No items match {selectedCategory !== 'all' ? `topic "${selectedCategory}" ` : ''}{selectedOrganSystem !== 'all' ? `in ${selectedOrganSystem} ` : ''}with status &quot;{statusFilter}&quot;.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory('all');
+                        setSelectedOrganSystem('all');
+                        setStatusFilter('all');
+                        setQuestionFormatFilter('mixed');
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-amber-300 text-amber-900 font-bold text-xs hover:bg-amber-100 transition-colors cursor-pointer shadow-xs"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reset All Filters</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Primary Action Button Bar */}
                 <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="text-xs text-slate-500">
@@ -1190,16 +1804,16 @@ export default function QBankPage() {
                     <span> • Status: </span>
                     <strong className="text-slate-800 capitalize">{statusFilter}</strong>
                     <span> • Ready: </span>
-                    <strong className="text-sky-600">{filteredQuestions.length} Questions</strong>
+                    <strong className="text-sky-600">{loading ? '...' : `${filteredQuestions.length} Questions`}</strong>
                   </div>
 
                   <button
                     onClick={handleStartSession}
-                    disabled={filteredQuestions.length === 0}
+                    disabled={filteredQuestions.length === 0 || loading}
                     className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 text-base font-bold text-white bg-sky-600 hover:bg-sky-500 active:bg-sky-700 rounded-xl shadow-lg shadow-sky-600/30 transition-all hover:scale-[1.02] active:scale-100 cursor-pointer disabled:opacity-50"
                   >
                     <Play className="w-5 h-5 fill-current" />
-                    <span>Start Questions ({filteredQuestions.length} Items)</span>
+                    <span>{loading ? 'Loading Bank...' : `Start Questions (${filteredQuestions.length} Items)`}</span>
                     <ArrowRight className="w-5 h-5" />
                   </button>
                 </div>
@@ -1256,15 +1870,76 @@ export default function QBankPage() {
                   </div>
                 </div>
 
+                {/* CAT Simulation Performance Banner if in CAT mode */}
+                {isCatMode && (
+                  <div className="max-w-2xl mx-auto p-5 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 text-white text-left space-y-4 shadow-md">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-3 h-3 rounded-full ${catTheta > 0.05 ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
+                        <span className="font-extrabold uppercase tracking-wider text-xs text-sky-400">
+                          NCSBN CAT Simulation Decision Engine
+                        </span>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
+                        catTheta > 0.05
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      }`}>
+                        {catTheta > 0.05 ? 'Predicted Pass (Above Standard)' : 'Needs Remediation (Below Standard)'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                      <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700/50">
+                        <span className="text-[11px] text-slate-400 uppercase block">Estimated Ability (θ)</span>
+                        <span className={`text-xl font-black ${catTheta >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {catTheta >= 0 ? `+${catTheta.toFixed(2)}` : catTheta.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700/50">
+                        <span className="text-[11px] text-slate-400 uppercase block">95% Confidence Band</span>
+                        <span className="text-xl font-black text-sky-300 font-mono">
+                          ±{catConfidenceMargin.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700/50 col-span-2 sm:col-span-1">
+                        <span className="text-[11px] text-slate-400 uppercase block">Passing Standard</span>
+                        <span className="text-xl font-black text-white font-mono">
+                          θ = 0.00
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 leading-relaxed border-t border-slate-800 pt-3">
+                      {catEarlyPassed 
+                        ? '✓ 95% Confidence Interval Stopping Rule Triggered: Candidate ability is with 95% statistical certainty above the passing standard at or beyond 75 items.'
+                        : `CAT session concluded after ${answeredKeys.length} items. In the authentic NCSBN CAT NCLEX-RN exam, testing ceases once the 95% confidence interval cleanly clears the passing line, or upon reaching the maximum item limit (145 items).`}
+                    </p>
+                  </div>
+                )}
+
                 {/* Actions */}
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 border-t border-slate-100">
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-4 border-t border-slate-100">
                   <button
                     onClick={handleRestartNewSession}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm shadow-md shadow-sky-600/30 transition-all cursor-pointer"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm shadow-md shadow-sky-600/30 transition-all cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-current" />
-                    <span>Start Another Questions Session</span>
+                    <span>Start New Session</span>
                   </button>
+
+                  {answeredKeys.some(k => !attemptResults[Number(k)]?.isCorrect) && (
+                    <button
+                      onClick={() => {
+                        setStatusFilter('incorrect');
+                        handleRestartNewSession();
+                      }}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-sm transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4 text-rose-600" />
+                      <span>Practice Weak Topics ({answeredKeys.filter(k => !attemptResults[Number(k)]?.isCorrect).length} Missed)</span>
+                    </button>
+                  )}
 
                   <button
                     onClick={() => {
@@ -1272,11 +1947,19 @@ export default function QBankPage() {
                       setSessionStarted(true);
                       setCurrentIndex(0);
                     }}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition-colors cursor-pointer"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition-colors cursor-pointer"
                   >
                     <span>Review Questions & Rationales</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
+
+                  <Link
+                    href="/profile"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition-colors"
+                  >
+                    <Award className="w-4 h-4 text-sky-600" />
+                    <span>View Analytics on Profile</span>
+                  </Link>
                 </div>
 
               </div>
@@ -1284,127 +1967,297 @@ export default function QBankPage() {
               <div className="clinical-card bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 space-y-6">
                 
                 {/* Stage Header */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-3 py-1 text-xs font-bold rounded-md bg-slate-900 text-white">
-                      Item {currentIndex + 1} of {filteredQuestions.length}
-                    </span>
-                    {/* Organ System Badge */}
-                    <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-sky-50 text-sky-800 border border-sky-200 flex items-center gap-1">
-                      <span>🫀</span>
-                      <span>{currentQ.organSystem || 'General Clinical'}</span>
-                    </span>
-                    {/* Format Badge: SATA or MCQ */}
-                    <span className={`px-2 py-1 text-xs font-bold rounded-md uppercase ${currentQ.questionType === 'multiple' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-100 text-slate-700'}`}>
-                      {currentQ.questionType === 'multiple' ? 'SATA (Multi-Select)' : 'MCQ (Single)'}
-                    </span>
+                <div className="flex flex-col gap-3 pb-4 border-b border-slate-100">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-3 py-1 text-xs font-bold rounded-md bg-slate-900 text-white">
+                        Item {currentIndex + 1} of {filteredQuestions.length}
+                      </span>
+                      {/* Organ System Badge */}
+                      <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-sky-50 text-sky-800 border border-sky-200 flex items-center gap-1">
+                        <span>🫀</span>
+                        <span>{currentQ.organSystem || 'General Clinical'}</span>
+                      </span>
+                      {/* Format Badge: NGN Type or SATA or MCQ */}
+                      <span className={`px-2.5 py-1 text-xs font-bold rounded-md uppercase ${
+                        currentQ.type === 'MATRIX' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                        currentQ.type === 'CLOZE' ? 'bg-teal-50 text-teal-700 border border-teal-200' :
+                        currentQ.type === 'DRAG_DROP' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                        currentQ.type === 'BOWTIE' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                        currentQ.type === 'CASE_STUDY' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                        currentQ.questionType === 'multiple' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 
+                        'bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}>
+                        {
+                          currentQ.type === 'MATRIX' ? 'NGN Matrix / Grid' :
+                          currentQ.type === 'CLOZE' ? 'NGN Cloze (Dropdown)' :
+                          currentQ.type === 'DRAG_DROP' ? 'NGN Ordered Priority' :
+                          currentQ.type === 'BOWTIE' ? 'NGN Bow-Tie Item' :
+                          currentQ.type === 'CASE_STUDY' ? 'NGN Unfolding Case Study' :
+                          currentQ.questionType === 'multiple' ? 'SATA (Multi-Select)' : 'MCQ (Single)'
+                        }
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleToggleFlag}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                          isFlagged 
+                            ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold' 
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                        title="Flag Item (Alt+F)"
+                      >
+                        <Flag className={`w-3.5 h-3.5 ${isFlagged ? 'fill-amber-500 text-amber-500' : 'text-slate-400'}`} />
+                        <span>{isFlagged ? 'Flagged' : 'Flag Item'}</span>
+                      </button>
+
+                      <button
+                        onClick={handleFinishSession}
+                        className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                        title="Finish session and view results"
+                      >
+                        Finish Test
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  {/* Clinical Exam Action Toolbar */}
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100/80">
                     <button
-                      onClick={handleToggleFlag}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
-                        isFlagged 
-                          ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold' 
-                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                      }`}
+                      type="button"
+                      onClick={() => setIsCalcOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer shadow-2xs"
+                      title="Digital Dosage Calculator (Alt+C)"
                     >
-                      <Flag className={`w-3.5 h-3.5 ${isFlagged ? 'fill-amber-500 text-amber-500' : 'text-slate-400'}`} />
-                      <span>{isFlagged ? 'Flagged' : 'Flag Item'}</span>
+                      <Calculator className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Calculator</span>
                     </button>
 
                     <button
-                      onClick={handleFinishSession}
-                      className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-                      title="Finish session and view results"
+                      type="button"
+                      onClick={() => setStrikethroughMode((prev) => !prev)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer shadow-2xs ${
+                        strikethroughMode
+                          ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                      title="Strikeout Mode (Toggle to cross out distractors)"
                     >
-                      Finish Test
+                      <Strikethrough className="w-3.5 h-3.5 text-amber-700" />
+                      <span>{strikethroughMode ? 'Strikeout: ON' : 'Strikeout'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setHighlightedQuestions((prev) => ({ ...prev, [currentQ.id]: !prev[currentQ.id] }))}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer shadow-2xs ${
+                        highlightedQuestions[currentQ.id]
+                          ? 'bg-amber-200 text-amber-950 border-amber-400 font-bold'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                      title="Highlight Question Stem"
+                    >
+                      <Highlighter className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Highlight</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleOpenNotes}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer shadow-2xs ${
+                        notesOpen
+                          ? 'bg-indigo-100 text-indigo-900 border-indigo-300 font-bold'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                      title="Clinical Notes (Alt+N)"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Notes</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReportQuestionTarget({ id: currentQ.id, stem: currentQ.statement });
+                        setIsReportModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer ml-auto shadow-2xs"
+                      title="Report an issue with this question"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="hidden sm:inline">Report Item</span>
                     </button>
                   </div>
                 </div>
 
-                {/* SATA Notification Banner if Multiple Response */}
-                {currentQ.questionType === 'multiple' && (
-                  <div className="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs sm:text-sm font-semibold flex items-center gap-2.5">
-                    <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span>
-                      Select All That Apply (SATA): This item has multiple correct answers. Select all clinical options that apply.
-                    </span>
+                {/* CAT Adaptive Simulation Status Banner */}
+                {isCatMode && (
+                  <CatSimulationBanner 
+                    totalAnswered={Object.keys(attemptResults).length}
+                    currentDifficulty={currentQ.difficulty || 'medium'}
+                    thetaEstimate={catTheta}
+                    confidenceMargin={catConfidenceMargin}
+                    minQuestions={75}
+                    maxQuestions={145}
+                  />
+                )}
+
+                {/* Notes Drawer */}
+                {notesOpen && (
+                  <div className="p-4 rounded-xl bg-indigo-50/80 border border-indigo-200 space-y-2 animate-in fade-in">
+                    <div className="flex items-center justify-between text-xs font-bold text-indigo-900">
+                      <span className="flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Private Clinical Notes for Item #{currentQ.id}</span>
+                      </span>
+                      {noteToast && <span className="text-emerald-700 text-xs font-bold animate-pulse">{noteToast}</span>}
+                    </div>
+                    <textarea
+                      value={currentNote}
+                      onChange={(e) => setCurrentNote(e.target.value)}
+                      placeholder="Record clinical concepts, drug dosages, or rationale notes for this question..."
+                      rows={3}
+                      className="w-full text-xs p-3 rounded-lg border border-indigo-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-indigo-700">Notes are saved to your account and synced across sessions.</span>
+                      <button
+                        onClick={handleSaveNote}
+                        disabled={savingNote}
+                        className="px-4 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        {savingNote ? 'Saving...' : 'Save Note'}
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* Clinical Stem Vignette */}
-                <div className="text-base sm:text-lg font-medium text-slate-900 leading-relaxed">
-                  {currentQ.statement}
-                </div>
-
-                {/* Option Choices */}
-                <div className="space-y-3 pt-2">
-                  {currentQ.options.map((optText, optIdx) => {
-                    const isSelected = currentSelected.includes(optIdx);
-                    const hasResult = currentResult !== undefined;
-                    const isCorrect = hasResult && currentResult.correctIndices.includes(optIdx);
-
-                    let itemStyle = 'border-slate-200 bg-white hover:border-sky-300 hover:bg-sky-50/20 text-slate-800';
-                    let boxIcon = currentQ.questionType === 'multiple' ? (
-                      <Square className="w-4 h-4 text-slate-400" />
-                    ) : (
-                      <span className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[10px] text-slate-400" />
-                    );
-
-                    if (hasResult && !examMode) {
-                      if (isCorrect) {
-                        itemStyle = 'border-emerald-500 bg-emerald-50/80 text-emerald-950 font-medium';
-                        boxIcon = <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
-                      } else if (isSelected && !isCorrect) {
-                        itemStyle = 'border-rose-400 bg-rose-50 text-rose-950';
-                        boxIcon = <XCircle className="w-4 h-4 text-rose-500" />;
-                      } else {
-                        itemStyle = 'border-slate-100 bg-slate-50 text-slate-400 opacity-60';
-                      }
-                    } else if (isSelected) {
-                      itemStyle = 'border-sky-600 bg-sky-50/70 text-sky-950 ring-2 ring-sky-500/20';
-                      boxIcon = currentQ.questionType === 'multiple' ? (
-                        <CheckSquare className="w-4 h-4 text-sky-600" />
-                      ) : (
-                        <span className="w-4 h-4 rounded-full bg-sky-600 flex items-center justify-center">
-                          <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                {/* NGN & Standard Question View Renderer */}
+                {currentQ.type === 'CASE_STUDY' ? (
+                  <CaseStudyQuestion
+                    caseStudyData={currentQ.caseStudyData}
+                    stem={currentQ.statement}
+                  >
+                    {renderStandardOptions()}
+                  </CaseStudyQuestion>
+                ) : currentQ.type === 'MATRIX' ? (
+                  <div className="space-y-4">
+                    <div className={`text-base sm:text-lg font-medium leading-relaxed p-3 rounded-xl transition-all ${
+                      highlightedQuestions[currentQ.id]
+                        ? 'bg-amber-100/80 text-amber-950 border border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
+                        : 'text-slate-900 bg-transparent'
+                    }`}>
+                      {currentQ.statement}
+                    </div>
+                    <MatrixQuestion
+                      options={currentQ.options}
+                      value={currentSelected || {}}
+                      onChange={(val) => setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: val }))}
+                      disabled={isAnswered}
+                      isSubmitted={isAnswered}
+                      correctAnswers={currentResult?.correctAnswers || currentQ.correctAnswers}
+                      rationalePerOption={currentResult?.rationalePerOption || currentQ.rationalePerOption}
+                    />
+                  </div>
+                ) : currentQ.type === 'CLOZE' ? (
+                  <div className="space-y-4">
+                    <div className={`text-base sm:text-lg font-medium leading-relaxed p-3 rounded-xl transition-all ${
+                      highlightedQuestions[currentQ.id]
+                        ? 'bg-amber-100/80 text-amber-950 border border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
+                        : 'text-slate-900 bg-transparent'
+                    }`}>
+                      {currentQ.statement}
+                    </div>
+                    <ClozeQuestion
+                      options={currentQ.options}
+                      value={currentSelected || {}}
+                      onChange={(val) => setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: val }))}
+                      disabled={isAnswered}
+                      isSubmitted={isAnswered}
+                      correctAnswers={currentResult?.correctAnswers || currentQ.correctAnswers}
+                      rationalePerOption={currentResult?.rationalePerOption || currentQ.rationalePerOption}
+                    />
+                  </div>
+                ) : currentQ.type === 'DRAG_DROP' ? (
+                  <div className="space-y-4">
+                    <div className={`text-base sm:text-lg font-medium leading-relaxed p-3 rounded-xl transition-all ${
+                      highlightedQuestions[currentQ.id]
+                        ? 'bg-amber-100/80 text-amber-950 border border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
+                        : 'text-slate-900 bg-transparent'
+                    }`}>
+                      {currentQ.statement}
+                    </div>
+                    <DragDropQuestion
+                      options={Array.isArray(currentQ.options) ? currentQ.options : []}
+                      value={Array.isArray(currentSelected) && currentSelected.length > 0 ? currentSelected : (Array.isArray(currentQ.options) ? currentQ.options.map((_, i) => i) : [])}
+                      onChange={(val) => setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: val }))}
+                      disabled={isAnswered}
+                      isSubmitted={isAnswered}
+                      correctAnswers={currentResult?.correctAnswers || currentQ.correctAnswers}
+                      rationalePerOption={currentResult?.rationalePerOption || currentQ.rationalePerOption}
+                    />
+                  </div>
+                ) : currentQ.type === 'BOWTIE' ? (
+                  <div className="space-y-4">
+                    <div className={`text-base sm:text-lg font-medium leading-relaxed p-3 rounded-xl transition-all ${
+                      highlightedQuestions[currentQ.id]
+                        ? 'bg-amber-100/80 text-amber-950 border border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
+                        : 'text-slate-900 bg-transparent'
+                    }`}>
+                      {currentQ.statement}
+                    </div>
+                    <BowtieQuestion
+                      options={currentQ.options}
+                      value={currentSelected || {}}
+                      onChange={(val) => setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: val }))}
+                      disabled={isAnswered}
+                      isSubmitted={isAnswered}
+                      correctAnswers={currentResult?.correctAnswers || currentQ.correctAnswers}
+                      rationalePerOption={currentResult?.rationalePerOption || currentQ.rationalePerOption}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* SATA Notification Banner if Multiple Response */}
+                    {currentQ.questionType === 'multiple' && (
+                      <div className="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs sm:text-sm font-semibold flex items-center gap-2.5">
+                        <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <span>
+                          Select All That Apply (SATA): This item has multiple correct answers. Select all clinical options that apply.
                         </span>
-                      );
-                    }
+                      </div>
+                    )}
 
-                    return (
-                      <button
-                        key={optIdx}
-                        onClick={() => handleOptionToggle(optIdx)}
-                        disabled={isAnswered}
-                        className={`w-full text-left p-4 rounded-xl border transition-all flex items-start gap-3.5 cursor-pointer ${itemStyle}`}
-                      >
-                        <span className="pt-0.5 shrink-0">{boxIcon}</span>
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500 shrink-0 pt-0.5">
-                          <span>{String.fromCharCode(65 + optIdx)}.</span>
-                        </div>
-                        <span className="text-sm sm:text-base leading-relaxed">{optText}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                    {/* Clinical Stem Vignette with Highlighter Effect */}
+                    <div className={`text-base sm:text-lg font-medium leading-relaxed p-3 rounded-xl transition-all ${
+                      highlightedQuestions[currentQ.id]
+                        ? 'bg-amber-100/80 text-amber-950 border border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
+                        : 'text-slate-900 bg-transparent'
+                    }`}>
+                      {currentQ.statement}
+                    </div>
+
+                    {renderStandardOptions()}
+                  </div>
+                )}
 
                 {/* Action Buttons: Submit / Prev / Next */}
-                <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100">
+                <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border-t border-slate-100">
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <button
-                      onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+                      onClick={() => handleNavigateQuestion(Math.max(0, currentIndex - 1))}
                       disabled={currentIndex === 0}
-                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-4 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 cursor-pointer"
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 cursor-pointer transition-colors"
                     >
                       <ChevronLeft className="w-4 h-4" />
                       <span>Previous</span>
                     </button>
                     <button
-                      onClick={() => setCurrentIndex((prev) => Math.min(filteredQuestions.length - 1, prev + 1))}
+                      onClick={() => handleNavigateQuestion(Math.min(filteredQuestions.length - 1, currentIndex + 1))}
                       disabled={currentIndex === filteredQuestions.length - 1}
-                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-4 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 cursor-pointer"
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 cursor-pointer transition-colors"
                     >
                       <span>Next</span>
                       <ChevronRight className="w-4 h-4" />
@@ -1414,28 +2267,28 @@ export default function QBankPage() {
                   {!isAnswered ? (
                     <button
                       onClick={handleSubmitAnswer}
-                      disabled={currentSelected.length === 0}
-                      className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed text-white shadow-sm transition-all cursor-pointer"
+                      disabled={!hasAnswerSelected}
+                      className="w-full sm:w-auto px-7 py-3 sm:py-2.5 text-sm font-bold rounded-xl sm:rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed text-white shadow-sm transition-all cursor-pointer text-center"
                     >
                       Submit Answer
                     </button>
                   ) : (
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs font-bold px-3 py-1.5 rounded-lg ${currentResult?.isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
+                      <span className={`text-xs font-bold px-3 py-2 rounded-lg text-center ${currentResult?.isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
                         {currentResult?.isCorrect ? '✓ Correct Answer' : '✗ Incorrect Response'}
                       </span>
                       {currentIndex === filteredQuestions.length - 1 ? (
                         <button
                           onClick={handleFinishSession}
-                          className="px-5 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center gap-1.5 cursor-pointer"
+                          className="w-full sm:w-auto px-5 py-2.5 sm:py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <CheckCircle2 className="w-4 h-4" />
                           <span>Finish & View Score</span>
                         </button>
                       ) : (
                         <button
-                          onClick={() => setCurrentIndex((prev) => prev + 1)}
-                          className="px-5 py-2 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm cursor-pointer"
+                          onClick={() => handleNavigateQuestion(currentIndex + 1)}
+                          className="w-full sm:w-auto px-5 py-2.5 sm:py-2 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm cursor-pointer text-center"
                         >
                           Next Question →
                         </button>
@@ -1444,15 +2297,44 @@ export default function QBankPage() {
                   )}
                 </div>
 
-                {/* Saunders Rationale Section (Practice Mode) */}
+                {/* Clinical Rationale Section (Practice Mode) */}
                 {isAnswered && !examMode && currentResult && (
                   <div className="mt-8 pt-6 border-t border-slate-200 space-y-4 animate-in fade-in-50 duration-200">
                     
+                    {/* Flashcard & Problem Report Action Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleCreateFlashcard(currentQ)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold transition-colors cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>+ Add to Spaced Repetition Decks</span>
+                        </button>
+                        {flashcardToast && (
+                          <span className="text-emerald-700 text-xs font-semibold animate-pulse">
+                            {flashcardToast}
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setReportQuestionTarget({ id: currentQ.id, stem: currentQ.statement });
+                          setIsReportModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                      >
+                        <AlertCircle className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Report a problem with this rationale</span>
+                      </button>
+                    </div>
+
                     {/* Correct Rationale Box */}
                     <div className="p-5 rounded-xl bg-emerald-50/80 border border-emerald-200 space-y-2">
                       <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Saunders 9th Edition Clinical Rationale</span>
+                        <span>Evidence-Based Clinical Rationale</span>
                       </div>
                       <p className="text-sm text-emerald-950 leading-relaxed">
                         {currentResult.correctRationale}
@@ -1510,17 +2392,145 @@ export default function QBankPage() {
         </div>
       </div>
 
+      {/* ── MOBILE / TABLET QUESTION PALETTE BOTTOM SHEET MODAL ── */}
+      {mobilePaletteOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 lg:hidden">
+          <div
+            className="fixed inset-0 bg-transparent"
+            onClick={() => setMobilePaletteOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="relative z-10 bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl border border-slate-200 max-h-[85vh] overflow-y-auto space-y-4 animate-in slide-in-from-bottom duration-200">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-sky-600" />
+                <h3 className="text-sm font-bold text-slate-900">
+                  Question Palette ({filteredQuestions.length} Items)
+                </h3>
+              </div>
+              <button
+                onClick={() => setMobilePaletteOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                aria-label="Close palette"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Status Filter Tabs */}
+            <div className="flex flex-wrap gap-1 text-[10px] font-semibold">
+              <button
+                onClick={() => setPaletteStatusFilter('all')}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${paletteStatusFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              >
+                All ({filteredQuestions.length})
+              </button>
+              <button
+                onClick={() => setPaletteStatusFilter('unanswered')}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${paletteStatusFilter === 'unanswered' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              >
+                Unanswered ({filteredQuestions.filter(q => getQuestionStatus(q.id) === 'unanswered').length})
+              </button>
+              <button
+                onClick={() => setPaletteStatusFilter('incorrect')}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${paletteStatusFilter === 'incorrect' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-700 hover:bg-rose-100'}`}
+              >
+                Incorrect ({filteredQuestions.filter(q => getQuestionStatus(q.id) === 'incorrect').length})
+              </button>
+              <button
+                onClick={() => setPaletteStatusFilter('correct')}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${paletteStatusFilter === 'correct' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+              >
+                Correct ({filteredQuestions.filter(q => getQuestionStatus(q.id) === 'correct').length})
+              </button>
+              <button
+                onClick={() => setPaletteStatusFilter('flagged')}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${paletteStatusFilter === 'flagged' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'}`}
+              >
+                Flagged ({filteredQuestions.filter(q => isQuestionFlagged(q.id)).length})
+              </button>
+            </div>
+
+            {/* Palette Numbers Grid */}
+            <div className="grid grid-cols-5 sm:grid-cols-6 gap-2 max-h-60 overflow-y-auto custom-scrollbar p-1">
+              {paletteItems.map(({ q, originalIndex }) => {
+                const isCurrent = originalIndex === currentIndex;
+                const res = attemptResults[q.id];
+                const qStatus = getQuestionStatus(q.id);
+                const flagged = isQuestionFlagged(q.id);
+
+                let btnStyle = 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100';
+
+                if (res || qStatus !== 'unanswered') {
+                  if (qStatus === 'correct') {
+                    btnStyle = 'bg-emerald-100 border-emerald-300 text-emerald-800 font-bold';
+                  } else if (qStatus === 'incorrect') {
+                    btnStyle = 'bg-rose-100 border-rose-300 text-rose-800 font-bold';
+                  }
+                }
+                
+                if (isCurrent) {
+                  btnStyle += ' ring-2 ring-sky-500 border-sky-600 font-bold';
+                }
+
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => {
+                      setCurrentIndex(originalIndex);
+                      setMobilePaletteOpen(false);
+                    }}
+                    className={`relative h-10 rounded-lg border text-xs font-semibold flex items-center justify-center transition-all cursor-pointer ${btnStyle}`}
+                  >
+                    <span>{originalIndex + 1}</span>
+                    {flagged && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-white" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Quick Session Controls within Mobile Palette */}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+              <button
+                onClick={() => {
+                  setMobilePaletteOpen(false);
+                  handlePauseSession();
+                }}
+                className="flex items-center gap-1 text-slate-600 hover:text-slate-900 bg-slate-100 px-3 py-2 rounded-lg font-medium cursor-pointer"
+              >
+                <Pause className="w-3.5 h-3.5 text-slate-500" />
+                <span>Pause Test</span>
+              </button>
+              <button
+                onClick={() => {
+                  setMobilePaletteOpen(false);
+                  handleFinishSession();
+                }}
+                className="flex items-center gap-1 text-white bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 rounded-lg font-bold cursor-pointer"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Finish & Score</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* ── 3. SUBSCRIPTION / UPGRADE MODAL ── */}
       {isSubModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-5 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-sky-600 text-white flex items-center justify-center">
                   <Sparkles className="w-4 h-4" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900">
                   Unlock Full Q-Bank Access
                 </h3>
               </div>
@@ -1547,63 +2557,55 @@ export default function QBankPage() {
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleSubscribeSubmit} className="space-y-6 pt-4">
+              <form onSubmit={handleSubscribeSubmit} className="space-y-5 pt-4">
                 
                 {/* Plan Selection */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
                     Select Access Duration
                   </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    <label className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${subPlan === '1m' ? 'border-sky-600 bg-sky-50/70 ring-2 ring-sky-500/20' : 'border-slate-200 hover:border-slate-300'}`}>
-                      <input
-                        type="radio"
-                        name="plan"
-                        value="1m"
-                        checked={subPlan === '1m'}
-                        onChange={() => setSubPlan('1m')}
-                        className="sr-only"
-                      />
-                      <div className="text-xs font-bold text-slate-900">1 Month</div>
-                      <div className="text-sm font-black text-sky-600 mt-1">PKR 3,000</div>
-                    </label>
-
-                    <label className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${subPlan === '3m' ? 'border-sky-600 bg-sky-50/70 ring-2 ring-sky-500/20' : 'border-slate-200 hover:border-slate-300'}`}>
-                      <input
-                        type="radio"
-                        name="plan"
-                        value="3m"
-                        checked={subPlan === '3m'}
-                        onChange={() => setSubPlan('3m')}
-                        className="sr-only"
-                      />
-                      <div className="text-xs font-bold text-slate-900">3 Months</div>
-                      <div className="text-sm font-black text-sky-600 mt-1">PKR 6,500</div>
-                    </label>
-
-                    <label className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${subPlan === '6m' ? 'border-sky-600 bg-sky-50/70 ring-2 ring-sky-500/20' : 'border-slate-200 hover:border-slate-300'}`}>
-                      <input
-                        type="radio"
-                        name="plan"
-                        value="6m"
-                        checked={subPlan === '6m'}
-                        onChange={() => setSubPlan('6m')}
-                        className="sr-only"
-                      />
-                      <div className="text-xs font-bold text-slate-900">6 Months</div>
-                      <div className="text-sm font-black text-sky-600 mt-1">PKR 11,000</div>
-                    </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+                    {siteConfig.qbankPlans.map((plan) => (
+                      <label
+                        key={plan.id}
+                        className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${
+                          subPlan === plan.id
+                            ? 'border-sky-600 bg-sky-50/70 ring-2 ring-sky-500/20'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="plan"
+                          value={plan.id}
+                          checked={subPlan === plan.id}
+                          onChange={() => setSubPlan(plan.id as any)}
+                          className="sr-only"
+                        />
+                        <div className="text-xs font-bold text-slate-900">{plan.name.split(' ')[0]} {plan.durationDays}d</div>
+                        <div className="text-sm font-black text-sky-600 mt-1">
+                          PKR {plan.pricePkr.toLocaleString()}
+                        </div>
+                        <div className="text-[10px] text-slate-400 line-through">
+                          PKR {plan.originalPricePkr.toLocaleString()}
+                        </div>
+                      </label>
+                    ))}
                   </div>
                 </div>
 
                 {/* Payment Instructions */}
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2 text-slate-700">
-                  <div className="font-bold text-slate-900">Bank Transfer / Sadapay / Nayapay:</div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900">Direct Deposit / Transfer Details:</span>
+                    <DemoBadge label="Sample Account" />
+                  </div>
                   <div className="font-mono bg-white p-2 rounded border border-slate-200 space-y-1">
-                    <div>Bank: Sadapay / Meezan Bank</div>
-                    <div>Account Title: Simple NCLEX Academy</div>
-                    <div>Account / IBAN: PK45SADA0000001234567890</div>
-                    <div>JazzCash / EasyPaisa: 0300-1234567</div>
+                    <div>Bank: {siteConfig.banking.bankName}</div>
+                    <div>Account Title: {siteConfig.banking.accountTitle}</div>
+                    <div>Account / IBAN: {siteConfig.banking.iban}</div>
+                    <div>EasyPaisa: {siteConfig.banking.easypaisaNumber} ({siteConfig.banking.easypaisaName})</div>
+                    <div>JazzCash: {siteConfig.banking.jazzcashNumber} ({siteConfig.banking.jazzcashName})</div>
                   </div>
                 </div>
 
@@ -1664,6 +2666,24 @@ export default function QBankPage() {
           </div>
         </div>
       )}
+
+      {/* ── 3. PHASE 6 CLINICAL EXAM MODALS ── */}
+      {/* Dosage Calculator Modal */}
+      <CalculatorModal
+        isOpen={isCalcOpen}
+        onClose={() => setIsCalcOpen(false)}
+      />
+
+      {/* Report Problem / Typo Modal */}
+      <ReportProblemModal
+        isOpen={isReportModalOpen}
+        questionId={reportQuestionTarget?.id || currentQ?.id || 0}
+        questionStem={reportQuestionTarget?.stem || currentQ?.statement || ''}
+        onClose={() => {
+          setIsReportModalOpen(false);
+          setReportQuestionTarget(null);
+        }}
+      />
 
     </div>
   );

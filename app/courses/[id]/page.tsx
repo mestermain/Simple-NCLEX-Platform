@@ -20,6 +20,8 @@ import {
   X,
   FileText
 } from 'lucide-react';
+import { siteConfig } from '@/lib/siteConfig';
+import DemoBadge from '@/components/DemoBadge';
 
 interface CourseDetail {
   id: number;
@@ -194,8 +196,8 @@ export default function CourseDetailPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="text-right">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+              <div className="text-left sm:text-right">
                 <div className="text-2xl font-black text-white">
                   PKR {course.price.toLocaleString()}
                 </div>
@@ -206,7 +208,7 @@ export default function CourseDetailPage() {
 
               <button
                 onClick={() => { setIsModalOpen(true); setEnrollSuccess(false); }}
-                className="px-6 py-3 text-sm font-bold text-white bg-sky-600 hover:bg-sky-500 rounded-xl shadow-lg shadow-sky-600/30 transition-all"
+                className="w-full sm:w-auto px-6 py-3 text-sm font-bold text-white bg-sky-600 hover:bg-sky-500 rounded-xl shadow-lg shadow-sky-600/30 transition-all text-center cursor-pointer"
               >
                 Enroll In This Batch
               </button>
@@ -227,7 +229,7 @@ export default function CourseDetailPage() {
                     Comprehensive Course Curriculum
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Structured lecture schedule with Saunders 9th Edition reading references
+                    Structured lecture schedule with high-yield reading references and course notes
                   </p>
                 </div>
                 <span className="text-xs font-semibold text-slate-600">
@@ -340,7 +342,7 @@ export default function CourseDetailPage() {
               <ul className="space-y-3 text-xs text-slate-700">
                 <li className="flex items-start gap-2.5">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>100% Full Access to all 60+ NCLEX Q-Bank questions, SATA drills, and custom mock exams.</span>
+                  <span>100% Full Access to all NCLEX Q-Bank questions, SATA drills, and custom mock exams.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
@@ -348,16 +350,21 @@ export default function CourseDetailPage() {
                 </li>
                 <li className="flex items-start gap-2.5">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>High-yield Saunders 9th Edition lecture PDFs and drug flashcards downloadable immediately.</span>
+                  <span>Comprehensive clinical lecture slides, pharmacology charts, and study notes accessible immediately.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <span>Direct 1-on-1 WhatsApp access to faculty educators for doubt resolution.</span>
                 </li>
-                <li className="flex items-start gap-2.5">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>Pass Guarantee: Free batch re-attendance if you do not pass on your first scheduled attempt.</span>
-                </li>
+                {siteConfig.claims.passGuarantee && (
+                  <li className="flex items-start gap-2.5">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span className="flex items-center gap-1.5">
+                      <span>{siteConfig.claims.passGuarantee}: Eligible students receive complimentary batch review access.</span>
+                      <DemoBadge label="Policy Note" />
+                    </span>
+                  </li>
+                )}
               </ul>
 
               <div className="pt-2">
@@ -368,6 +375,31 @@ export default function CourseDetailPage() {
                   Enroll Now — PKR {course.price.toLocaleString()}
                 </button>
               </div>
+            </div>
+
+            {/* 4-Step Enrollment Process */}
+            <div className="clinical-card bg-white p-6 rounded-2xl border border-slate-200 space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                Enrollment Steps
+              </h4>
+              <ol className="space-y-3 text-xs text-slate-600">
+                <li className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-sky-100 text-sky-700 font-bold flex items-center justify-center shrink-0 mt-0.5 text-[10px]">1</span>
+                  <span>Click <strong>Enroll Now</strong> to open the secure desk.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-sky-100 text-sky-700 font-bold flex items-center justify-center shrink-0 mt-0.5 text-[10px]">2</span>
+                  <span>Transfer fee via Meezan Bank, Easypaisa, or JazzCash.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-sky-100 text-sky-700 font-bold flex items-center justify-center shrink-0 mt-0.5 text-[10px]">3</span>
+                  <span>Attach receipt screenshot and your WhatsApp number.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center shrink-0 mt-0.5 text-[10px]">4</span>
+                  <span>Receive WhatsApp confirmation & instant Q-Bank access.</span>
+                </li>
+              </ol>
             </div>
 
             <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2 text-xs text-emerald-900">
@@ -388,8 +420,8 @@ export default function CourseDetailPage() {
 
       {/* ── 3. ENROLLMENT MODAL ── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
@@ -418,7 +450,7 @@ export default function CourseDetailPage() {
                   Our faculty admin team will review your proof and approve your enrollment within 2 to 4 hours.
                 </p>
                 <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 text-left">
-                  ✓ Full Q-Bank Access to all 60+ MCQs & SATA questions will activate automatically upon verification.
+                  ✓ Full Q-Bank Access to all clinical MCQs & SATA questions will activate automatically upon verification.
                 </div>
                 <button
                   onClick={() => setIsModalOpen(false)}
@@ -442,12 +474,16 @@ export default function CourseDetailPage() {
                 </div>
 
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2 text-slate-700">
-                  <div className="font-bold text-slate-900">Direct Deposit / Transfer Details:</div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900">Direct Deposit / Transfer Details:</span>
+                    <DemoBadge label="Sample Account" />
+                  </div>
                   <div className="font-mono bg-white p-2.5 rounded border border-slate-200 space-y-1">
-                    <div>Bank: Sadapay / Meezan Bank</div>
-                    <div>Account Title: Simple NCLEX Academy</div>
-                    <div>Account / IBAN: PK45SADA0000001234567890</div>
-                    <div>JazzCash / EasyPaisa: 0300-1234567</div>
+                    <div>Bank: {siteConfig.banking.bankName}</div>
+                    <div>Account Title: {siteConfig.banking.accountTitle}</div>
+                    <div>Account / IBAN: {siteConfig.banking.iban}</div>
+                    <div>EasyPaisa: {siteConfig.banking.easypaisaNumber} ({siteConfig.banking.easypaisaName})</div>
+                    <div>JazzCash: {siteConfig.banking.jazzcashNumber} ({siteConfig.banking.jazzcashName})</div>
                   </div>
                 </div>
 

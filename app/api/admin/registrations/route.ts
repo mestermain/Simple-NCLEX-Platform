@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAuthFromRequest } from '@/lib/auth';
 import { query, queryOne, execute } from '@/lib/db';
+import { updateStatusSchema } from '@/lib/validators';
+import { logAdminAction } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,10 +86,12 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, message: 'Forbidden' }, { status: 403 });
     }
 
-    const { id, status, notes } = await req.json();
-    if (!id || !status) {
-      return NextResponse.json({ success: false, message: 'ID and status required' }, { status: 400 });
+    const body = await req.json();
+    const parsed = updateStatusSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, message: parsed.error.issues[0]?.message || 'Invalid status data' }, { status: 400 });
     }
+    const { id, status, notes } = parsed.data;
 
     const enrollment = await queryOne('SELECT * FROM enrollments WHERE id = ?', [id]);
     if (!enrollment) {
@@ -125,6 +129,15 @@ export async function PUT(req: Request) {
       );
     }
 
+    await logAdminAction(
+      session.userId,
+      `registration.${status}`,
+      'enrollments',
+      id,
+      { courseId: enrollment.course_id, studentUserId: enrollment.user_id, status, notes },
+      req
+    );
+
     return NextResponse.json({ success: true, message: `Registration marked as ${status}` });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
@@ -146,8 +159,19 @@ export async function DELETE(req: Request) {
     }
 
     await execute('DELETE FROM enrollments WHERE id = ?', [id]);
+
+    await logAdminAction(
+      session.userId,
+      'registration.delete',
+      'enrollments',
+      Number(id),
+      { enrollmentId: id },
+      req
+    );
+
     return NextResponse.json({ success: true, message: 'Registration deleted' });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
+

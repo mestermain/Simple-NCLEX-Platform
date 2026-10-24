@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAuthFromRequest } from '@/lib/auth';
 import { query, queryOne, execute } from '@/lib/db';
+import { logAdminAction } from '@/lib/audit';
+import { questionSchema } from '@/lib/validators';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +17,7 @@ export async function GET(req: Request) {
     const category = searchParams.get('category');
     const isDemo = searchParams.get('is_demo');
     const search = searchParams.get('search');
+    const status = searchParams.get('status');
 
     let sql = 'SELECT * FROM qbank_questions WHERE 1=1';
     const params: any[] = [];
@@ -23,6 +26,12 @@ export async function GET(req: Request) {
       sql += ' AND is_demo = 1';
     } else if (isDemo === '0') {
       sql += ' AND is_demo = 0';
+    }
+
+    if (status === 'draft') {
+      sql += ' AND is_published = 0';
+    } else if (status === 'published') {
+      sql += ' AND is_published = 1';
     }
 
     if (category && category !== 'all') {
@@ -64,6 +73,7 @@ export async function GET(req: Request) {
         distractors,
         clinicalPearl: r.clinical_pearl,
         isDemo: r.is_demo === 1,
+        isPublished: r.is_published !== 0,
         sortOrder: r.sort_order,
       };
     });
@@ -81,7 +91,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: 'Forbidden' }, { status: 403 });
     }
 
-    const body = await req.json();
+    const rawBody = await req.json();
+    const parsed = questionSchema.safeParse(rawBody);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, message: parsed.error.issues[0]?.message || 'Invalid question format' },
+        { status: 400 }
+      );
+    }
+
     const {
       category,
       organSystem,
@@ -94,43 +113,47 @@ export async function POST(req: Request) {
       correctIndex,
       correctIndices,
       correctRationale,
-      distractors,
       clinicalPearl,
-      isDemo,
-      sortOrder,
-    } = body;
-
-    if (!statement || !category || !options || options.length === 0) {
-      return NextResponse.json({ success: false, message: 'Missing required question fields' }, { status: 400 });
-    }
+      isPublished,
+    } = parsed.data;
 
     const isMultiple = questionType === 'multiple' || (Array.isArray(correctIndices) && correctIndices.length > 1);
     const resolvedCorrectIndices = isMultiple && Array.isArray(correctIndices) ? correctIndices : [correctIndex || 0];
 
     const result = await execute(
       `INSERT INTO qbank_questions 
-       (category, organ_system, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, question_type, correct_indices_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+       (category, organ_system, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, question_type, correct_indices_json, is_published, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
       [
         category,
-        organSystem || body.organ_system || 'General Clinical',
-        difficulty || 'High Yield',
-        examType || 'NCLEX-RN',
-        clientNeed || '',
+        organSystem,
+        difficulty,
+        examType,
+        clientNeed,
         statement,
         JSON.stringify(options),
         resolvedCorrectIndices[0] || 0,
-        correctRationale || '',
-        JSON.stringify(distractors || []),
-        clinicalPearl || '',
-        isDemo ? 1 : 0,
-        sortOrder || 0,
+        correctRationale,
+        JSON.stringify(rawBody.distractors || []),
+        clinicalPearl,
+        rawBody.isDemo ? 1 : 0,
+        rawBody.sortOrder || 0,
         isMultiple ? 'multiple' : 'single',
         JSON.stringify(resolvedCorrectIndices),
+        isPublished ? 1 : 0,
       ]
     );
 
-    return NextResponse.json({ success: true, message: 'Question created successfully', id: result.lastInsertId });
+    const questionId = result.lastInsertId as number;
+
+    await logAdminAction(
+      'CREATE_QUESTION',
+      `Created question #${questionId} in ${category} (${isPublished ? 'Published' : 'Draft'})`,
+      session.id,
+      session.email
+    );
+
+    return NextResponse.json({ success: true, message: 'Question created successfully', id: questionId });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
@@ -143,9 +166,20 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, message: 'Forbidden' }, { status: 403 });
     }
 
-    const body = await req.json();
+    const rawBody = await req.json();
+    if (!rawBody.id) {
+      return NextResponse.json({ success: false, message: 'Question ID required' }, { status: 400 });
+    }
+
+    const parsed = questionSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, message: parsed.error.issues[0]?.message || 'Invalid question format' },
+        { status: 400 }
+      );
+    }
+
     const {
-      id,
       category,
       organSystem,
       difficulty,
@@ -157,15 +191,9 @@ export async function PUT(req: Request) {
       correctIndex,
       correctIndices,
       correctRationale,
-      distractors,
       clinicalPearl,
-      isDemo,
-      sortOrder,
-    } = body;
-
-    if (!id) {
-      return NextResponse.json({ success: false, message: 'Question ID required' }, { status: 400 });
-    }
+      isPublished,
+    } = parsed.data;
 
     const isMultiple = questionType === 'multiple' || (Array.isArray(correctIndices) && correctIndices.length > 1);
     const resolvedCorrectIndices = isMultiple && Array.isArray(correctIndices) ? correctIndices : [correctIndex || 0];
@@ -186,26 +214,35 @@ export async function PUT(req: Request) {
          is_demo = ?,
          sort_order = ?,
          question_type = ?,
-         correct_indices_json = ?
+         correct_indices_json = ?,
+         is_published = ?
        WHERE id = ?`,
       [
         category,
-        organSystem || body.organ_system || null,
-        difficulty || 'High Yield',
-        examType || 'NCLEX-RN',
-        clientNeed || '',
+        organSystem || null,
+        difficulty,
+        examType,
+        clientNeed,
         statement,
         JSON.stringify(options),
         resolvedCorrectIndices[0] || 0,
-        correctRationale || '',
-        JSON.stringify(distractors || []),
-        clinicalPearl || '',
-        isDemo ? 1 : 0,
-        sortOrder || 0,
+        correctRationale,
+        JSON.stringify(rawBody.distractors || []),
+        clinicalPearl,
+        rawBody.isDemo ? 1 : 0,
+        rawBody.sortOrder || 0,
         isMultiple ? 'multiple' : 'single',
         JSON.stringify(resolvedCorrectIndices),
-        id,
+        isPublished ? 1 : 0,
+        rawBody.id,
       ]
+    );
+
+    await logAdminAction(
+      'UPDATE_QUESTION',
+      `Updated question #${rawBody.id} (${isPublished ? 'Published' : 'Draft'})`,
+      session.id,
+      session.email
     );
 
     return NextResponse.json({ success: true, message: 'Question updated successfully' });
@@ -228,7 +265,17 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, message: 'Question ID required' }, { status: 400 });
     }
 
+    const existing = await queryOne('SELECT statement FROM qbank_questions WHERE id = ?', [id]);
+
     await execute('DELETE FROM qbank_questions WHERE id = ?', [id]);
+
+    await logAdminAction(
+      'DELETE_QUESTION',
+      `Deleted question #${id}${existing ? `: "${existing.statement.slice(0, 40)}..."` : ''}`,
+      session.id,
+      session.email
+    );
+
     return NextResponse.json({ success: true, message: 'Question deleted successfully' });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });

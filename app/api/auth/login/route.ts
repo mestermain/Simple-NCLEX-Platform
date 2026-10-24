@@ -1,17 +1,42 @@
 import { NextResponse } from 'next/server';
 import { queryOne } from '@/lib/db';
 import { verifyPassword, signToken } from '@/lib/auth';
+import { checkLoginRateLimit, recordFailedLoginAttempt, resetLoginRateLimit } from '@/lib/rateLimit';
+import { loginSchema } from '@/lib/validators';
+import { logAdminAction } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const identifier = (body.identifier || body.email || '').trim();
-    const password = body.password;
+    const rawBody = await req.json();
+    
+    // Zod Schema Validation
+    const parsed = loginSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, message: parsed.error.issues[0]?.message || 'Invalid login details' },
+        { status: 400 }
+      );
+    }
 
-    if (!identifier || !password) {
-      return NextResponse.json({ success: false, message: 'Email/Phone and password are required' }, { status: 400 });
+    const { identifier, password } = parsed.data;
+
+    // Rate Limiting Protection (Brute Force Defense)
+    const rateLimitCheck = checkLoginRateLimit(identifier);
+    if (!rateLimitCheck.allowed) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: rateLimitCheck.message || 'Too many failed login attempts. Please wait 15 minutes.' 
+        },
+        { 
+          status: 429,
+          headers: rateLimitCheck.retryAfterSeconds 
+            ? { 'Retry-After': String(rateLimitCheck.retryAfterSeconds) } 
+            : undefined 
+        }
+      );
     }
 
     const normalizedLower = identifier.toLowerCase();
@@ -27,13 +52,24 @@ export async function POST(req: Request) {
     );
 
     if (!user) {
-      return NextResponse.json({ success: false, message: 'Invalid credentials. Please check your email/phone and password.' }, { status: 401 });
+      recordFailedLoginAttempt(identifier);
+      return NextResponse.json(
+        { success: false, message: 'Invalid credentials. Please verify your email/phone and password.' },
+        { status: 401 }
+      );
     }
 
     const isValid = verifyPassword(password, user.password_hash, user.plain_password);
     if (!isValid) {
-      return NextResponse.json({ success: false, message: 'Invalid credentials. Please check your email/phone and password.' }, { status: 401 });
+      recordFailedLoginAttempt(identifier);
+      return NextResponse.json(
+        { success: false, message: 'Invalid credentials. Please verify your email/phone and password.' },
+        { status: 401 }
+      );
     }
+
+    // Reset rate limiter on successful login
+    resetLoginRateLimit(identifier);
 
     const token = signToken({
       id: user.id,
@@ -55,6 +91,16 @@ export async function POST(req: Request) {
       isActive: user.is_active === 1,
     };
 
+    // Audit log if administrator
+    if (user.role === 'admin') {
+      await logAdminAction(
+        'ADMIN_LOGIN',
+        `Administrator signed into management portal from session`,
+        user.id,
+        user.email
+      );
+    }
+
     const response = NextResponse.json({
       success: true,
       message: 'Login successful',
@@ -62,9 +108,11 @@ export async function POST(req: Request) {
       user: safeUser,
     });
 
+    // Secure HTTP-Only Cookie
     response.cookies.set('nclex_token', token, {
       path: '/',
-      httpOnly: false,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
       maxAge: 30 * 24 * 60 * 60,
       sameSite: 'lax',
     });

@@ -1,17 +1,24 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { queryOne, query } from './db';
 
-const JWT_SECRET = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET || 'simple-nclex-platform-super-secret-key-2026';
+const JWT_SECRET = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET || (
+  process.env.NODE_ENV === 'production'
+    ? (() => { throw new Error('FATAL: JWT_SECRET or JWT_SECRET_KEY must be configured in production environment!'); })()
+    : 'simple-nclex-platform-dev-secret-key-change-in-prod-2026'
+);
 
 export interface UserSession {
   id: number;
+  userId: number;
   email: string;
   firstName: string;
   lastName: string;
   role: 'admin' | 'student';
   examType?: string;
 }
+
 
 export interface PlatformAccess {
   hasAccess: boolean;
@@ -24,11 +31,39 @@ export interface PlatformAccess {
   expiresAt?: string;
 }
 
-export function verifyPassword(password: string, hash?: string, plain?: string): boolean {
-  if (plain && password === plain) return true;
-  if (!hash) return false;
+export function validatePasswordStrength(password: string): { valid: boolean; message?: string } {
+  if (!password || password.length < 6) {
+    return { valid: false, message: 'Password must be at least 6 characters long.' };
+  }
+  const hasLetters = /[a-zA-Z]/.test(password);
+  const hasNumbers = /[0-9]/.test(password);
+  if (!hasLetters || !hasNumbers) {
+    return { valid: false, message: 'Password must contain both letters and numbers for candidate security.' };
+  }
+  return { valid: true };
+}
 
-  // Python Werkzeug scrypt hash: scrypt:N:r:p$salt$hash
+export function hashPassword(password: string): string {
+  // Use bcrypt with work factor 10 for industry standard security
+  return bcrypt.hashSync(password, 10);
+}
+
+export function verifyPassword(password: string, hash?: string, plain?: string): boolean {
+  if (!hash) {
+    // Only allow plain fallback if user has no password_hash (legacy unmigrated row)
+    return Boolean(plain && password === plain);
+  }
+
+  // Support modern bcrypt hashes ($2a$, $2b$, $2y$)
+  if (hash.startsWith('$2a$') || hash.startsWith('$2b$') || hash.startsWith('$2y$')) {
+    try {
+      return bcrypt.compareSync(password, hash);
+    } catch (e) {
+      console.error('Bcrypt verify error:', e);
+    }
+  }
+
+  // Support legacy Python Werkzeug / standard scrypt hash: scrypt:N:r:p$salt$hash
   if (hash.startsWith('scrypt:')) {
     const parts = hash.split('$');
     if (parts.length === 3) {
@@ -46,17 +81,7 @@ export function verifyPassword(password: string, hash?: string, plain?: string):
     }
   }
 
-  // Fallback direct match
-  return password === hash;
-}
-
-export function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const N = 32768;
-  const r = 8;
-  const p = 1;
-  const derived = crypto.scryptSync(password, salt, 64, { N, r, p, maxmem: 128 * N * r * 2 });
-  return `scrypt:${N}:${r}:${p}$${salt}$${derived.toString('hex')}`;
+  return false;
 }
 
 export function signToken(user: { id: number; email: string; first_name?: string; firstName?: string; last_name?: string; lastName?: string; role: string; exam_type?: string }): string {
@@ -75,8 +100,10 @@ export function signToken(user: { id: number; email: string; first_name?: string
 export function verifyToken(token: string): UserSession | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const id = Number(decoded.id || decoded.sub || decoded.userId);
     return {
-      id: decoded.id || decoded.sub,
+      id,
+      userId: id,
       email: decoded.email,
       firstName: decoded.firstName || '',
       lastName: decoded.lastName || '',
@@ -87,6 +114,7 @@ export function verifyToken(token: string): UserSession | null {
     return null;
   }
 }
+
 
 export function getAuthFromRequest(req: Request): UserSession | null {
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');

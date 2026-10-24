@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAuthFromRequest } from '@/lib/auth';
 import { query, queryOne, execute } from '@/lib/db';
+import { courseSchema } from '@/lib/validators';
+import { logAdminAction } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +52,11 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
+    const parsed = courseSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, message: parsed.error.issues[0]?.message || 'Invalid course data' }, { status: 400 });
+    }
+
     const {
       title,
       description,
@@ -62,11 +69,7 @@ export async function POST(req: Request) {
       badgeText,
       emoji,
       imageUrl,
-    } = body;
-
-    if (!title || !price) {
-      return NextResponse.json({ success: false, message: 'Title and price are required' }, { status: 400 });
-    }
+    } = parsed.data;
 
     const result = await execute(
       `INSERT INTO courses 
@@ -76,10 +79,10 @@ export async function POST(req: Request) {
         title,
         description || '',
         category || 'nclex-rn',
-        Number(price),
-        Number(originalPrice || price),
-        Number(durationHours || 40),
-        Number(questionsCount || 2000),
+        price,
+        originalPrice || price,
+        durationHours || 40,
+        questionsCount || 2000,
         level || 'Comprehensive Review',
         badgeText || 'NextGen 2026',
         emoji || '📚',
@@ -87,7 +90,17 @@ export async function POST(req: Request) {
       ]
     );
 
-    return NextResponse.json({ success: true, message: 'Course created successfully', id: result.lastInsertId });
+    const newId = result.lastInsertId;
+    await logAdminAction(
+      session.userId,
+      'course.create',
+      'courses',
+      newId,
+      { title, category, price },
+      req
+    );
+
+    return NextResponse.json({ success: true, message: 'Course created successfully', id: newId });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
@@ -101,6 +114,11 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json();
+    const parsed = courseSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, message: parsed.error.issues[0]?.message || 'Invalid course data' }, { status: 400 });
+    }
+
     const {
       id,
       title,
@@ -114,10 +132,10 @@ export async function PUT(req: Request) {
       badgeText,
       emoji,
       imageUrl,
-    } = body;
+    } = parsed.data;
 
     if (!id) {
-      return NextResponse.json({ success: false, message: 'Course ID required' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'Course ID required for updating' }, { status: 400 });
     }
 
     await execute(
@@ -138,16 +156,25 @@ export async function PUT(req: Request) {
         title,
         description || '',
         category || 'nclex-rn',
-        Number(price),
-        Number(originalPrice || price),
-        Number(durationHours || 40),
-        Number(questionsCount || 2000),
+        price,
+        originalPrice || price,
+        durationHours || 40,
+        questionsCount || 2000,
         level || 'Comprehensive Review',
         badgeText || '',
         emoji || '📚',
         imageUrl || '',
         id,
       ]
+    );
+
+    await logAdminAction(
+      session.userId,
+      'course.update',
+      'courses',
+      id,
+      { title, category, price },
+      req
     );
 
     return NextResponse.json({ success: true, message: 'Course updated successfully' });
@@ -171,8 +198,19 @@ export async function DELETE(req: Request) {
     }
 
     await execute('DELETE FROM courses WHERE id = ?', [id]);
+
+    await logAdminAction(
+      session.userId,
+      'course.delete',
+      'courses',
+      Number(id),
+      { courseId: id },
+      req
+    );
+
     return NextResponse.json({ success: true, message: 'Course deleted successfully' });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
+

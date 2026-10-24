@@ -14,8 +14,15 @@ import {
   Search, 
   X, 
   ShieldCheck,
-  Video
+  Video,
+  CheckCircle2,
+  HelpCircle,
+  PhoneCall,
+  Layers,
+  Award
 } from 'lucide-react';
+import { siteConfig } from '@/lib/siteConfig';
+import DemoBadge from '@/components/DemoBadge';
 
 interface Course {
   id: number;
@@ -47,6 +54,23 @@ export default function CoursesPage() {
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [enrollSuccess, setEnrollSuccess] = useState(false);
+
+  // Sync with URL query parameters on initial load
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const categoryParam = params.get('category');
+      const trackParam = params.get('track');
+      if (categoryParam) {
+        setActiveCategory(categoryParam);
+      } else if (trackParam) {
+        const found = siteConfig.tracks.find(t => t.id.toLowerCase() === trackParam.toLowerCase());
+        if (found) {
+          setActiveCategory(found.categorySlug);
+        }
+      }
+    }
+  }, []);
 
   useEffect(() => {
     async function fetchCourses() {
@@ -109,10 +133,12 @@ export default function CoursesPage() {
   };
 
   const categories = [
-    { id: 'all', name: 'All Exam Batches' },
+    { id: 'all', name: 'All Exam Tracks' },
     { id: 'nclex-rn', name: 'NCLEX-RN (NextGen)' },
-    { id: 'snle', name: 'Saudi SNLE' },
-    { id: 'prometric', name: 'Gulf Prometric (DHA/MOH)' },
+    { id: 'nclex-pn', name: 'NCLEX-PN Practical' },
+    { id: 'snle', name: 'Saudi SNLE (SCFHS)' },
+    { id: 'dha', name: 'Dubai DHA' },
+    { id: 'haad', name: 'Abu Dhabi HAAD' },
   ];
 
   return (
@@ -123,7 +149,7 @@ export default function CoursesPage() {
         <div className="max-w-7xl mx-auto text-center space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-400/30 text-xs font-semibold text-sky-400">
             <GraduationCap className="w-4 h-4" />
-            <span>Interactive Live Batches Aligned with Saunders 9th Edition</span>
+            <span>Interactive Live Batches Aligned with NCSBN Test Plan</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white">
@@ -240,7 +266,7 @@ export default function CoursesPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Saunders 9th Edition High-Yield Study Notes</span>
+                      <span>Comprehensive High-Yield Course Study Notes</span>
                     </div>
                   </div>
 
@@ -280,12 +306,145 @@ export default function CoursesPage() {
             ))}
           </div>
         )}
+
+        {/* ── 3. PLAN COMPARISON MATRIX ── */}
+        <div className="mt-20 space-y-8">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-sky-700">Feature Matrix</span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Compare Preparation Plans
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600">
+              Find the perfect preparation style between self-paced question practice and full live mentor instruction.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-left text-xs sm:text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="p-4 sm:p-5 font-bold text-slate-900">Feature / Learning Deliverable</th>
+                  <th className="p-4 sm:p-5 font-bold text-slate-700 text-center">Free Trial</th>
+                  <th className="p-4 sm:p-5 font-bold text-sky-700 text-center bg-sky-50/50">Q-Bank Subscription</th>
+                  <th className="p-4 sm:p-5 font-bold text-indigo-700 text-center bg-indigo-50/50">Live Course Batch</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                <tr>
+                  <td className="p-4 font-medium">Sample Diagnostic Questions</td>
+                  <td className="p-4 text-center font-bold text-emerald-600">5 Questions</td>
+                  <td className="p-4 text-center font-bold text-emerald-600 bg-sky-50/20">Full Question Bank</td>
+                  <td className="p-4 text-center font-bold text-emerald-600 bg-indigo-50/20">Full Q-Bank & Live Drills</td>
+                </tr>
+                <tr>
+                  <td className="p-4 font-medium">Select All That Apply (SATA) Items</td>
+                  <td className="p-4 text-center text-slate-400">Limited</td>
+                  <td className="p-4 text-center text-emerald-600 font-bold bg-sky-50/20">Full Access</td>
+                  <td className="p-4 text-center text-emerald-600 font-bold bg-indigo-50/20">Full Access</td>
+                </tr>
+                <tr>
+                  <td className="p-4 font-medium">Evidence-Based Distractor Breakdown</td>
+                  <td className="p-4 text-center font-bold text-emerald-600">Included</td>
+                  <td className="p-4 text-center font-bold text-emerald-600 bg-sky-50/20">Included</td>
+                  <td className="p-4 text-center font-bold text-emerald-600 bg-indigo-50/20">Included</td>
+                </tr>
+                <tr>
+                  <td className="p-4 font-medium">Timed Exam Mode & CAT Simulator</td>
+                  <td className="p-4 text-center text-slate-400">—</td>
+                  <td className="p-4 text-center font-bold text-emerald-600 bg-sky-50/20">Included</td>
+                  <td className="p-4 text-center font-bold text-emerald-600 bg-indigo-50/20">Included</td>
+                </tr>
+                <tr>
+                  <td className="p-4 font-medium">Live Google Meet Classes (4x / week)</td>
+                  <td className="p-4 text-center text-slate-400">—</td>
+                  <td className="p-4 text-center text-slate-400 bg-sky-50/20">—</td>
+                  <td className="p-4 text-center font-bold text-indigo-700 bg-indigo-50/20">30–48 Hours Live</td>
+                </tr>
+                <tr>
+                  <td className="p-4 font-medium">PDF Lecture Slides & Study Sheets</td>
+                  <td className="p-4 text-center text-slate-400">—</td>
+                  <td className="p-4 text-center text-slate-400 bg-sky-50/20">—</td>
+                  <td className="p-4 text-center font-bold text-indigo-700 bg-indigo-50/20">Downloadable PDFs</td>
+                </tr>
+                <tr>
+                  <td className="p-4 font-medium">1-on-1 WhatsApp Senior Faculty Mentor</td>
+                  <td className="p-4 text-center text-slate-400">—</td>
+                  <td className="p-4 text-center text-slate-400 bg-sky-50/20">—</td>
+                  <td className="p-4 text-center font-bold text-indigo-700 bg-indigo-50/20">Direct Support</td>
+                </tr>
+                <tr>
+                  <td className="p-4 font-medium">First-Time Pass Retake Commitment</td>
+                  <td className="p-4 text-center text-slate-400">—</td>
+                  <td className="p-4 text-center text-slate-400 bg-sky-50/20">—</td>
+                  <td className="p-4 text-center font-bold text-emerald-600 bg-indigo-50/20">Included (Cohort Guarantee)</td>
+                </tr>
+                <tr className="bg-slate-50/50 font-bold">
+                  <td className="p-4 text-slate-900">Pricing / Investment</td>
+                  <td className="p-4 text-center text-slate-900">Free</td>
+                  <td className="p-4 text-center text-sky-700 bg-sky-50/50">From PKR 4,500</td>
+                  <td className="p-4 text-center text-indigo-700 bg-indigo-50/50">From PKR 14,000</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── 4. STEP-BY-STEP ENROLLMENT GUIDE ── */}
+        <div className="mt-16 p-8 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-6">
+          <div className="text-center max-w-xl mx-auto space-y-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-sky-700">Simple Enrollment Desk</span>
+            <h3 className="text-xl font-bold text-slate-900">How To Join An Upcoming Live Cohort</h3>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 pt-2">
+            <div className="space-y-2 text-center sm:text-left">
+              <div className="w-10 h-10 rounded-xl bg-sky-600 text-white font-bold flex items-center justify-center text-sm shadow-md shadow-sky-600/20">
+                1
+              </div>
+              <h4 className="font-bold text-sm text-slate-900">Select Track</h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Choose your target exam batch (NCLEX-RN, PN, DHA, HAAD, or SNLE) and click Enroll Now.
+              </p>
+            </div>
+
+            <div className="space-y-2 text-center sm:text-left">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white font-bold flex items-center justify-center text-sm shadow-md shadow-indigo-600/20">
+                2
+              </div>
+              <h4 className="font-bold text-sm text-slate-900">Transfer Tuition</h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Send fee via Meezan Bank IBAN, Easypaisa, or JazzCash using details in the enrollment modal.
+              </p>
+            </div>
+
+            <div className="space-y-2 text-center sm:text-left">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white font-bold flex items-center justify-center text-sm shadow-md shadow-emerald-600/20">
+                3
+              </div>
+              <h4 className="font-bold text-sm text-slate-900">Attach Receipt</h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Provide your WhatsApp number and upload transaction receipt screenshot for instant verification.
+              </p>
+            </div>
+
+            <div className="space-y-2 text-center sm:text-left">
+              <div className="w-10 h-10 rounded-xl bg-slate-900 text-white font-bold flex items-center justify-center text-sm shadow-md shadow-slate-900/20">
+                4
+              </div>
+              <h4 className="font-bold text-sm text-slate-900">Start Learning</h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Admissions desk approves access, adds you to the WhatsApp batch group, and unlocks full Q-Bank.
+              </p>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       {/* ── 3. ENROLLMENT MODAL ── */}
       {selectedCourse && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
@@ -314,7 +473,7 @@ export default function CoursesPage() {
                   Thank you! Our faculty admin team will verify your payment and approve your enrollment within 2 to 4 hours.
                 </p>
                 <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 text-left">
-                  ✓ Once approved, your student profile will grant you 100% full unrestricted access to all 60+ NCLEX Q-Bank questions, SATA drills, and class curriculum.
+                  ✓ Once approved, your student profile will grant you 100% full unrestricted access to all NCLEX Q-Bank questions, SATA drills, and class curriculum.
                 </div>
                 <button
                   onClick={() => setSelectedCourse(null)}
@@ -341,12 +500,16 @@ export default function CoursesPage() {
 
                 {/* Bank / Payment Instructions */}
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2 text-slate-700">
-                  <div className="font-bold text-slate-900">Direct Deposit / Transfer Details:</div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900">Direct Deposit / Transfer Details:</span>
+                    <DemoBadge label="Sample Account" />
+                  </div>
                   <div className="font-mono bg-white p-2.5 rounded border border-slate-200 space-y-1">
-                    <div>Bank: Sadapay / Meezan Bank</div>
-                    <div>Account Title: Simple NCLEX Academy</div>
-                    <div>Account / IBAN: PK45SADA0000001234567890</div>
-                    <div>JazzCash / EasyPaisa: 0300-1234567</div>
+                    <div>Bank: {siteConfig.banking.bankName}</div>
+                    <div>Account Title: {siteConfig.banking.accountTitle}</div>
+                    <div>Account / IBAN: {siteConfig.banking.iban}</div>
+                    <div>EasyPaisa: {siteConfig.banking.easypaisaNumber} ({siteConfig.banking.easypaisaName})</div>
+                    <div>JazzCash: {siteConfig.banking.jazzcashNumber} ({siteConfig.banking.jazzcashName})</div>
                   </div>
                 </div>
 

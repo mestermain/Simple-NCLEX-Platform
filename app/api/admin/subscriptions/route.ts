@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAuthFromRequest } from '@/lib/auth';
 import { query, queryOne, execute } from '@/lib/db';
+import { updateSubscriptionStatusSchema } from '@/lib/validators';
+import { logAdminAction } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,10 +76,13 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, message: 'Forbidden' }, { status: 403 });
     }
 
-    const { id, status, notes, durationDays } = await req.json();
-    if (!id || !status) {
-      return NextResponse.json({ success: false, message: 'ID and status required' }, { status: 400 });
+    const body = await req.json();
+    const parsed = updateSubscriptionStatusSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, message: parsed.error.issues[0]?.message || 'Invalid subscription update data' }, { status: 400 });
     }
+
+    const { id, status, notes, durationDays } = parsed.data;
 
     const sub = await queryOne('SELECT * FROM qbank_subscriptions WHERE id = ?', [id]);
     if (!sub) {
@@ -127,6 +132,15 @@ export async function PUT(req: Request) {
       }
     }
 
+    await logAdminAction(
+      session.userId,
+      `subscription.${status}`,
+      'qbank_subscriptions',
+      id,
+      { studentUserId: sub.user_id, planName: sub.plan_name, status, notes, expiresAt: status === 'approved' ? expiresAtStr : undefined },
+      req
+    );
+
     return NextResponse.json({ success: true, message: `Subscription marked as ${status}` });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
@@ -148,8 +162,19 @@ export async function DELETE(req: Request) {
     }
 
     await execute('DELETE FROM qbank_subscriptions WHERE id = ?', [id]);
+
+    await logAdminAction(
+      session.userId,
+      'subscription.delete',
+      'qbank_subscriptions',
+      Number(id),
+      { subscriptionId: id },
+      req
+    );
+
     return NextResponse.json({ success: true, message: 'Subscription deleted' });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
+

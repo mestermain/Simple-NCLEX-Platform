@@ -11,8 +11,17 @@ export async function GET(req: Request) {
     const params: any[] = [];
 
     if (category && category !== 'all') {
-      sql += ' AND category = ?';
-      params.push(category);
+      const catLower = category.toLowerCase();
+      if (catLower === 'dha' || catLower === 'haad') {
+        sql += ' AND (category = ? OR category = ? OR LOWER(title) LIKE ?)';
+        params.push(catLower, 'prometric', `%${catLower}%`);
+      } else if (catLower === 'prometric') {
+        sql += ' AND (category = ? OR category = ?)';
+        params.push('prometric', 'dha');
+      } else {
+        sql += ' AND category = ?';
+        params.push(catLower);
+      }
     }
 
     if (search) {
