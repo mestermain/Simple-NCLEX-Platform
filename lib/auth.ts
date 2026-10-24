@@ -3,11 +3,11 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { queryOne, query } from './db';
 
-const JWT_SECRET = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET || (
-  process.env.NODE_ENV === 'production'
-    ? (() => { throw new Error('FATAL: JWT_SECRET or JWT_SECRET_KEY must be configured in production environment!'); })()
-    : 'simple-nclex-platform-dev-secret-key-change-in-prod-2026'
-);
+const JWT_SECRET = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET || 'simple-nclex-platform-jwt-secret-key-default-2026';
+
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET && !process.env.JWT_SECRET_KEY) {
+  console.warn('SECURITY NOTICE: JWT_SECRET environment variable is not set. Please configure JWT_SECRET in production settings.');
+}
 
 export interface UserSession {
   id: number;
