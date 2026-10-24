@@ -479,7 +479,7 @@ export default function ReadinessEstimatorPage() {
                     Unlock Full Q-Bank Practice & Next Gen Item Types
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                    Elevate your clinical readiness with original rationales, CAT adaptive simulation tests, and clinical spaced repetition flashcards.
+                    Elevate your clinical readiness with original rationales, CAT adaptive simulation tests, and high-yield clinical pearls.
                   </p>
                 </div>
 

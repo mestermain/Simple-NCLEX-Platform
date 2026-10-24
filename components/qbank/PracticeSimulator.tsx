@@ -149,7 +149,6 @@ export default function PracticeSimulator({
   const [currentNote, setCurrentNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [noteToast, setNoteToast] = useState('');
-  const [flashcardToast, setFlashcardToast] = useState('');
 
   // Active DB Session (for resume & autosave)
   const [activeDbSession, setActiveDbSession] = useState<any>(null);
@@ -743,29 +742,6 @@ export default function PracticeSimulator({
     } catch (_) {}
     finally {
       setSavingNote(false);
-    }
-  };
-
-  // Flashcard API handler
-  const handleCreateFlashcard = async (q: Question) => {
-    try {
-      const res = await fetch('/api/qbank/flashcards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionId: q.id,
-          clinicalPearl: q.clinicalPearl || '',
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setFlashcardToast('Added to your Spaced Repetition deck! (Review in 24h)');
-        setTimeout(() => setFlashcardToast(''), 3000);
-      } else {
-        alert(data.message || 'Could not save flashcard. Please make sure you are logged in.');
-      }
-    } catch (_) {
-      alert('Error saving flashcard.');
     }
   };
 
@@ -2416,23 +2392,8 @@ export default function PracticeSimulator({
                 {isAnswered && !examMode && currentResult && (
                   <div className="mt-8 pt-6 border-t border-slate-200 space-y-4 animate-in fade-in-50 duration-200">
                     
-                    {/* Flashcard & Problem Report Action Bar */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleCreateFlashcard(currentQ)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold transition-colors cursor-pointer"
-                        >
-                          <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>+ Add to Spaced Repetition Decks</span>
-                        </button>
-                        {flashcardToast && (
-                          <span className="text-emerald-700 text-xs font-semibold animate-pulse">
-                            {flashcardToast}
-                          </span>
-                        )}
-                      </div>
-
+                    {/* Clinical Actions & Problem Report Action Bar */}
+                    <div className="flex flex-wrap items-center justify-end gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                       <button
                         onClick={() => {
                           setReportQuestionTarget({ id: currentQ.id, stem: currentQ.statement });

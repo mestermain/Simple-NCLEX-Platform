@@ -129,10 +129,10 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/flashcards" className="text-slate-400 hover:text-sky-400 transition-colors flex items-center gap-1">
-                  <span>Spaced Repetition Flashcards</span>
-                  <span className="text-[10px] bg-indigo-950 text-indigo-400 px-1.5 py-0.2 rounded border border-indigo-800">
-                    SM-2
+                <Link href="/app/create-test" className="text-slate-400 hover:text-sky-400 transition-colors flex items-center gap-1">
+                  <span>Adaptive CAT Simulator</span>
+                  <span className="text-[10px] bg-sky-950 text-sky-400 px-1.5 py-0.2 rounded border border-sky-800">
+                    NGN
                   </span>
                 </Link>
               </li>

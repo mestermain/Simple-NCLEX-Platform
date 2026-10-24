@@ -496,10 +496,10 @@ export default function StudentProfilePage() {
                       <span>Practice Weak Topics ({data.analytics.weakTopics[0].system})</span>
                     </Link>
                     <Link
-                      href="/flashcards"
+                      href="/app/create-test?start=true&mode=exam"
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl border border-amber-300 bg-white hover:bg-amber-50 text-amber-900 font-bold text-xs transition-colors shrink-0"
                     >
-                      <span>Study Flashcards →</span>
+                      <span>Take Practice Drill →</span>
                     </Link>
                   </div>
                 </div>
@@ -509,23 +509,23 @@ export default function StudentProfilePage() {
             {/* STUDY ENGINES & GROWTH TOOLS SHOWCASE */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Link 
-                href="/flashcards"
-                className="clinical-card bg-white p-5 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all group flex items-start gap-4"
+                href="/app/create-test"
+                className="clinical-card bg-white p-5 rounded-2xl border border-slate-200 hover:border-sky-300 hover:shadow-md transition-all group flex items-start gap-4"
               >
-                <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 shrink-0 group-hover:scale-105 transition-transform">
+                <div className="w-12 h-12 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600 shrink-0 group-hover:scale-105 transition-transform">
                   <Sparkles className="w-6 h-6" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                      Clinical Flashcard Decks
+                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-sky-600 transition-colors">
+                      Adaptive CAT Simulator
                     </h4>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-indigo-50 text-indigo-700 border border-indigo-200">
-                      Leitner 5-Box
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-50 text-sky-700 border border-sky-200">
+                      NextGen 2026
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 leading-relaxed">
-                    Review evidence-based clinical pearls and missed Q-Bank questions using SM-2 spaced repetition memory intervals.
+                    Practice with computerized adaptive testing, NGN case studies, and timed full-length NCLEX simulations.
                   </p>
                 </div>
               </Link>

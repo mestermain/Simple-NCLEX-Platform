@@ -135,13 +135,6 @@ export default function AppShell({ user, children }: AppShellProps) {
             Quick Navigation
           </div>
           <Link
-            href="/flashcards"
-            className="flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            <span>Spaced Flashcards</span>
-          </Link>
-          <Link
             href="/profile"
             className="flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
           >

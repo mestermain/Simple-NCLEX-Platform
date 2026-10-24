@@ -115,7 +115,7 @@ export default function QBankMarketingPage() {
     {
       step: '03',
       title: 'Remediate Weaknesses & Master Concepts',
-      description: 'Review deep option-by-option explanations, convert difficult clinical concepts into 1-click spaced repetition flashcards, and watch your passing readiness climb.'
+      description: 'Review deep option-by-option explanations, master difficult clinical concepts with high-yield clinical pearls, and watch your passing readiness climb.'
     }
   ];
 
@@ -124,7 +124,7 @@ export default function QBankMarketingPage() {
     { feature: 'NextGen NGN Item Types (Bow-Tie, Matrix, Case Studies)', free: 'Basic MCQ & SATA Only', paid: 'All 7 NextGen Formats Included' },
     { feature: 'In-Depth Rationales & Pathophysiology', free: 'Basic Answer Key', paid: 'Option-by-Option Clinical Rationales' },
     { feature: 'Computerized Adaptive Testing (CAT) Simulation', free: 'Unavailable', paid: 'Full IRT Adaptive Engine with 95% Stopping Rule' },
-    { feature: 'Spaced Repetition & Flashcard Integration', free: 'Unavailable', paid: '1-Click Save to Leitner Review Deck' },
+    { feature: 'Targeted Remediation & Weak Area Drills', free: 'Unavailable', paid: 'Unlimited Custom Remediation Quizzes' },
     { feature: 'Detailed Passing Readiness & Analytics', free: 'Basic Accuracy %', paid: 'Comprehensive Client Needs Analytics & Passing Score' },
     { feature: 'Mobile, Tablet & Desktop Cloud Sync', free: 'Included', paid: 'Included (24/7 Unlimited Access)' },
     { feature: 'Direct Clinical Faculty Academic Support', free: 'Community', paid: 'Dedicated WhatsApp Faculty Advising' },
