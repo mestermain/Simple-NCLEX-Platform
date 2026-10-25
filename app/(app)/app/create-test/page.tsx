@@ -35,21 +35,30 @@ export default function CreateTestPage() {
   const initialStart = searchParams.get('start') === 'true';
   const paramMode = searchParams.get('mode');
   const paramCount = parseInt(searchParams.get('count') || searchParams.get('limit') || '0', 10);
+  const paramMockTest = parseInt(searchParams.get('mockTest') || searchParams.get('mock_test') || '0', 10);
 
-  const [testMode, setTestMode] = useState<'tutor' | 'timed' | 'cat'>(
-    paramMode === 'cat' ? 'cat' : paramMode === 'exam' || paramMode === 'timed' ? 'timed' : 'tutor'
+  const [selectedMockTest, setSelectedMockTest] = useState<number | null>(
+    paramMockTest >= 1 && paramMockTest <= 4 ? paramMockTest : null
   );
-  const [questionCount, setQuestionCount] = useState<number>(paramCount > 0 ? paramCount : 25);
+  const [testMode, setTestMode] = useState<'tutor' | 'timed' | 'cat'>(
+    paramMockTest > 0 ? 'timed' : paramMode === 'cat' ? 'cat' : paramMode === 'exam' || paramMode === 'timed' ? 'timed' : 'tutor'
+  );
+  const [questionCount, setQuestionCount] = useState<number>(paramMockTest > 0 ? 75 : paramCount > 0 ? paramCount : 25);
   const [questionStatus, setQuestionStatus] = useState<'all' | 'unused' | 'incorrect' | 'flagged'>('unused');
   const [selectedSystems, setSelectedSystems] = useState<string[]>(['all']);
-  const [testStarted, setTestStarted] = useState<boolean>(initialStart);
+  const [testStarted, setTestStarted] = useState<boolean>(initialStart || paramMockTest > 0);
   const [isLaunching, setIsLaunching] = useState(false);
 
   useEffect(() => {
-    if (initialStart) {
+    if (initialStart || paramMockTest > 0) {
+      if (paramMockTest >= 1 && paramMockTest <= 4) {
+        setSelectedMockTest(paramMockTest);
+        setTestMode('timed');
+        setQuestionCount(75);
+      }
       setTestStarted(true);
     }
-  }, [initialStart]);
+  }, [initialStart, paramMockTest]);
 
   const toggleSystem = (sys: string) => {
     if (sys === 'all') {
@@ -71,6 +80,18 @@ export default function CreateTestPage() {
       setIsLaunching(false);
       setTestStarted(true);
     }, 400);
+  };
+
+  const handleLaunchMockExam = (mockTestNumber: number) => {
+    setSelectedMockTest(mockTestNumber);
+    setTestMode('timed');
+    setQuestionCount(75);
+    setSelectedSystems(['all']);
+    setIsLaunching(true);
+    setTimeout(() => {
+      setIsLaunching(false);
+      setTestStarted(true);
+    }, 300);
   };
 
   // ── ACTIVE PEACEFUL MOCK TEST RUNNER ──
@@ -99,10 +120,11 @@ export default function CreateTestPage() {
 
         {/* Live Interactive Simulator in Peaceful Exam Mode */}
         <PracticeSimulator
-          initialMode={testMode === 'timed' ? 'exam' : testMode}
-          initialCount={questionCount}
+          initialMode={selectedMockTest ? 'exam' : testMode === 'timed' ? 'exam' : testMode}
+          initialCount={selectedMockTest ? 75 : questionCount}
           initialSystem={selectedSystems[0] !== 'all' ? selectedSystems[0] : undefined}
           initialStatus={questionStatus === 'unused' ? 'unanswered' : questionStatus}
+          initialMockTest={selectedMockTest}
           autoStart={true}
           onExit={() => setTestStarted(false)}
         />
@@ -134,6 +156,61 @@ export default function CreateTestPage() {
           <ArrowLeft className="w-4 h-4" />
           <span>Dashboard</span>
         </Link>
+      </div>
+
+      {/* ── 4 OFFICIAL FULL-LENGTH MOCK EXAMS ── */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl p-6 sm:p-7 border border-slate-800 shadow-md space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-amber-400/20 text-amber-300 rounded-xl border border-amber-400/30">
+              <Clock className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-extrabold text-white">
+                4 Official Full-Length Mock Exams
+              </h2>
+              <p className="text-xs text-slate-300">
+                5-Hour Reverse Countdown Timer • Strictly capped at 75 Questions
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 self-start sm:self-center">
+            Peaceful Exam Simulation
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+          {[1, 2, 3, 4].map((num) => (
+            <div
+              key={num}
+              className="p-4 rounded-xl bg-slate-800/80 border border-slate-700/80 hover:border-amber-400/60 transition-all flex flex-col justify-between space-y-3 group"
+            >
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-sm text-white group-hover:text-amber-300 transition-colors">
+                    Mock Test {num}
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-700 text-slate-200">
+                    75 MCQs
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-400 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-amber-400" />
+                  <span>5:00:00 Countdown</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleLaunchMockExam(num)}
+                className="w-full py-2 px-3 rounded-lg bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Launch Mock {num}</span>
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Test Creation Form */}

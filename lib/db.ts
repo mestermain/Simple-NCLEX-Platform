@@ -193,6 +193,7 @@ function ensureSqliteSchema(db: any) {
           is_demo INTEGER NOT NULL DEFAULT 0,
           is_published INTEGER NOT NULL DEFAULT 1,
           sort_order INTEGER DEFAULT 0,
+          mock_test INTEGER DEFAULT NULL,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS flashcard_decks (
@@ -229,6 +230,25 @@ function ensureSqliteSchema(db: any) {
       `);
       insertAdmin.run('Faculty', 'Administrator', adminEmail, adminHash, 'Admin123!', '+92 300 1234567', 'NCLEX-RN', 'admin');
     }
+
+    // Ensure mock_test column exists in qbank_questions for 4 full-length mock exams
+    try {
+      const qCols = db.prepare("PRAGMA table_info(qbank_questions)").all();
+      if (qCols && !qCols.some((c: any) => c.name === 'mock_test')) {
+        db.exec("ALTER TABLE qbank_questions ADD COLUMN mock_test INTEGER DEFAULT NULL");
+        db.exec("DROP VIEW IF EXISTS questions");
+        db.exec(`
+          CREATE VIEW questions AS
+          SELECT 
+            id, type, stem, options, correct_answers, rationale_per_option, body_system,
+            client_needs_category, difficulty, exam_track, status, reviewer, clinical_pearl,
+            case_study_data, is_demo, sort_order, created_at, updated_at, statement,
+            options_json, correct_index, correct_indices_json, correct_rationale,
+            distractors_json, question_type, organ_system, is_published, mock_test
+          FROM qbank_questions
+        `);
+      }
+    } catch (_) {}
   } catch (err) {
     console.warn('ensureSqliteSchema notice:', err);
   }

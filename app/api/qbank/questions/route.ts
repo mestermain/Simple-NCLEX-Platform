@@ -17,6 +17,7 @@ export async function GET(req: Request) {
     const examTrack = searchParams.get('exam_track') || searchParams.get('track') || searchParams.get('exam_type') || 'all';
     const search = searchParams.get('search') || '';
     const limitParam = searchParams.get('limit');
+    const mockTestParam = searchParams.get('mock_test') || searchParams.get('mockTest');
     const mode = searchParams.get('mode') || 'tutor'; // 'tutor' | 'timed' | 'exam'
     const revealRationales = searchParams.get('reveal') === 'true'; // Admin or review only
 
@@ -79,6 +80,21 @@ export async function GET(req: Request) {
       const trackUpper = examTrack.toUpperCase();
       sql += ' AND (UPPER(COALESCE(exam_track, exam_type)) LIKE ? OR UPPER(COALESCE(exam_track, exam_type)) = ?)';
       params.push(`%${trackUpper}%`, trackUpper);
+    }
+
+    // Mock Test filter (1, 2, 3, 4, none, all)
+    let parsedMockTest: number | null = null;
+    if (mockTestParam && mockTestParam !== 'all') {
+      if (mockTestParam === 'none') {
+        sql += ' AND (mock_test IS NULL OR mock_test = 0)';
+      } else {
+        const mtNum = parseInt(mockTestParam, 10);
+        if (!isNaN(mtNum) && mtNum >= 1 && mtNum <= 4) {
+          parsedMockTest = mtNum;
+          sql += ' AND mock_test = ?';
+          params.push(mtNum);
+        }
+      }
     }
 
     // Difficulty filter
@@ -145,12 +161,19 @@ export async function GET(req: Request) {
       }
     }
 
-    // Apply limit if specified
+    // Apply limit (Mock tests strictly capped at max 75 questions)
+    const isMockTest = parsedMockTest !== null;
+    const maxLimit = isMockTest ? 75 : undefined;
     if (limitParam) {
       const limitVal = parseInt(limitParam, 10);
       if (!isNaN(limitVal) && limitVal > 0) {
-        filteredRows = filteredRows.slice(0, limitVal);
+        const finalLimit = maxLimit ? Math.min(maxLimit, limitVal) : limitVal;
+        filteredRows = filteredRows.slice(0, finalLimit);
+      } else if (maxLimit) {
+        filteredRows = filteredRows.slice(0, maxLimit);
       }
+    } else if (maxLimit) {
+      filteredRows = filteredRows.slice(0, maxLimit);
     }
 
     // Determine if answers & rationales should be hidden
@@ -178,6 +201,7 @@ export async function GET(req: Request) {
 
       return {
         id: r.id,
+        mockTest: r.mock_test ?? null,
         type: normalizedType,
         questionType: isMultiple ? 'multiple' : 'single',
         stem: r.stem || r.statement,

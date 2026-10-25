@@ -50,6 +50,7 @@ import SubscriptionModal from '@/components/qbank/SubscriptionModal';
 
 interface Question {
   id: number;
+  mockTest?: number | null;
   category: string;
   organSystem: string;
   bodySystem?: string;
@@ -103,6 +104,7 @@ export interface PracticeSimulatorProps {
   initialCount?: number;
   initialSystem?: string;
   initialStatus?: string;
+  initialMockTest?: number | null;
   autoStart?: boolean;
   onExit?: () => void;
 }
@@ -112,6 +114,7 @@ export default function PracticeSimulator({
   initialCount,
   initialSystem,
   initialStatus,
+  initialMockTest,
   autoStart = false,
   onExit,
 }: PracticeSimulatorProps = {}) {
@@ -164,8 +167,9 @@ export default function PracticeSimulator({
   const [statusFilter, setStatusFilter] = useState<'all' | 'unanswered' | 'incorrect' | 'correct' | 'flagged'>((initialStatus as any) || 'all');
   const [paletteStatusFilter, setPaletteStatusFilter] = useState<'all' | 'unanswered' | 'incorrect' | 'correct' | 'flagged'>('all');
   const [questionFormatFilter, setQuestionFormatFilter] = useState<'mixed' | 'single' | 'multiple'>('mixed');
-  const [examMode, setExamMode] = useState(initialMode === 'exam' || initialMode === 'cat'); // false = Practice Mode (instant rationales), true = Timed Exam Mode
-  const [questionLimit, setQuestionLimit] = useState<number | 'all'>(initialCount || 'all');
+  const [selectedMockTest, setSelectedMockTest] = useState<number | null>(initialMockTest || null);
+  const [examMode, setExamMode] = useState(initialMode === 'exam' || initialMode === 'cat' || Boolean(initialMockTest)); // false = Practice Mode (instant rationales), true = Timed Exam Mode
+  const [questionLimit, setQuestionLimit] = useState<number | 'all'>(initialMockTest ? 75 : (initialCount || 'all'));
 
   // Phase 7: CAT (Computerized Adaptive Testing) Simulation State
   const [isCatMode, setIsCatMode] = useState(initialMode === 'cat');
@@ -178,8 +182,11 @@ export default function PracticeSimulator({
   const [sessionCompleted, setSessionCompleted] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<'incorrect' | 'all' | 'flagged'>('incorrect');
 
-  // Timer: strictly begins when questions finish loading and first item renders
+  // 5-Hour Reverse Countdown Timer for Mock Tests (18,000s -> 00:00:00)
+  const MOCK_TEST_TOTAL_SECONDS = 5 * 3600; // 18,000 seconds = 5 hours
+  const isMockTest = Boolean(selectedMockTest !== null || examMode);
   const [secondsElapsed, setSecondsElapsed] = useState(0);
+  const [secondsRemaining, setSecondsRemaining] = useState(MOCK_TEST_TOTAL_SECONDS);
   const [timerRunning, setTimerRunning] = useState(false);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
 
@@ -190,10 +197,28 @@ export default function PracticeSimulator({
   const [submittingSub, setSubmittingSub] = useState(false);
   const [subSuccessMsg, setSubSuccessMsg] = useState('');
 
+  // Sync initialMockTest if passed from props
+  useEffect(() => {
+    if (initialMockTest && initialMockTest >= 1 && initialMockTest <= 4) {
+      setSelectedMockTest(initialMockTest);
+      setExamMode(true);
+      setQuestionLimit(75);
+    }
+  }, [initialMockTest]);
+
   // Check URL parameters for direct start, category, mode, or subscription modal
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
+      const mtParam = params.get('mockTest') || params.get('mock_test');
+      if (mtParam) {
+        const mtNum = parseInt(mtParam, 10);
+        if (!isNaN(mtNum) && mtNum >= 1 && mtNum <= 4) {
+          setSelectedMockTest(mtNum);
+          setExamMode(true);
+          setQuestionLimit(75);
+        }
+      }
       if (params.get('start') === 'true') {
         setSessionStarted(true);
       }
@@ -274,18 +299,33 @@ export default function PracticeSimulator({
       // Once questions are downloaded, if a session was requested to start, begin timer cleanly at 0
       if (autoStart || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('start') === 'true')) {
         setSecondsElapsed(0);
+        setSecondsRemaining(MOCK_TEST_TOTAL_SECONDS);
         setTimerRunning(true);
       }
     }
-  }, [autoStart]);
+  }, [autoStart, MOCK_TEST_TOTAL_SECONDS]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
+  // 5-Hour Reverse Countdown Formatter: HH:MM:SS
+  const formatCountdown = (totalSeconds: number) => {
+    const s = Math.max(0, totalSeconds);
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const formatTimer = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
+    const s = Math.max(0, totalSeconds);
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    if (hrs > 0) {
+      return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -347,6 +387,11 @@ export default function PracticeSimulator({
   // 4. Mixed Question Logic: Smoothly interleave SATA and single MCQs!
   const filteredQuestions = useMemo(() => {
     let pool = questions.filter((q: any) => {
+      // Mock Test Filter: if selectedMockTest is set, only include questions assigned to this mock test
+      if (selectedMockTest !== null) {
+        if (q.mockTest !== selectedMockTest) return false;
+      }
+
       // Exam Track Filter
       if (selectedTrack !== 'all') {
         const tr = (q.examTrack || q.examType || '').toUpperCase();
@@ -414,9 +459,12 @@ export default function PracticeSimulator({
       pool = mixed;
     }
 
-    // Step 4: Batch Size Limit
-    return questionLimit === 'all' ? pool : pool.slice(0, questionLimit);
-  }, [questions, selectedTrack, selectedDifficulty, selectedQuestionType, selectedOrganSystem, selectedCategory, statusFilter, questionFormatFilter, questionLimit, attemptResults, flaggedQuestions, dbCorrectIds, dbIncorrectIds, dbFlaggedIds]);
+    // Step 4: Batch Size Limit (Mock tests strictly capped at max 75 questions)
+    const effectiveLimit = selectedMockTest !== null 
+      ? Math.min(75, questionLimit === 'all' ? 75 : questionLimit) 
+      : questionLimit;
+    return effectiveLimit === 'all' ? pool : pool.slice(0, effectiveLimit);
+  }, [questions, selectedMockTest, selectedTrack, selectedDifficulty, selectedQuestionType, selectedOrganSystem, selectedCategory, statusFilter, questionFormatFilter, questionLimit, attemptResults, flaggedQuestions, dbCorrectIds, dbIncorrectIds, dbFlaggedIds]);
 
   // Sidebar Question Palette Items
   const paletteItems = useMemo(() => {
@@ -433,6 +481,7 @@ export default function PracticeSimulator({
     if (filteredQuestions.length === 0) return;
     setCurrentIndex(0);
     setSecondsElapsed(0);
+    setSecondsRemaining(MOCK_TEST_TOTAL_SECONDS);
     setSessionStarted(true);
     setSessionCompleted(false);
     if (!loading && currentQ) {
@@ -448,17 +497,20 @@ export default function PracticeSimulator({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: `${selectedTrack !== 'all' ? selectedTrack : 'NCLEX'} Practice Test`,
-          mode: examMode ? 'timed' : 'tutor',
+          title: selectedMockTest 
+            ? `NCLEX Mock Test ${selectedMockTest} (5-Hour Simulation)` 
+            : `${selectedTrack !== 'all' ? selectedTrack : 'NCLEX'} Practice Test`,
+          mode: isMockTest ? 'timed' : 'tutor',
           examTrack: selectedTrack !== 'all' ? selectedTrack : 'RN',
           questionIds: filteredQuestions.map(q => q.id),
           filters: {
+            mockTest: selectedMockTest,
             track: selectedTrack,
             organSystem: selectedOrganSystem,
             category: selectedCategory,
             format: questionFormatFilter,
           },
-          timeLimitSeconds: examMode ? filteredQuestions.length * 90 : 0,
+          timeLimitSeconds: isMockTest ? MOCK_TEST_TOTAL_SECONDS : 0,
         }),
       });
       const data = await res.json();
@@ -476,7 +528,9 @@ export default function PracticeSimulator({
       if (matched.length > 0) {
         setSessionId(activeDbSession.id);
         setCurrentIndex(Math.min(activeDbSession.current_question_index || 0, matched.length - 1));
-        setSecondsElapsed(activeDbSession.time_spent_seconds || 0);
+        const spent = activeDbSession.time_spent_seconds || 0;
+        setSecondsElapsed(spent);
+        setSecondsRemaining(Math.max(0, MOCK_TEST_TOTAL_SECONDS - spent));
         setSessionStarted(true);
         setSessionCompleted(false);
         setTimerRunning(true);
@@ -558,6 +612,7 @@ export default function PracticeSimulator({
     setFlaggedQuestions({});
     setStruckOptions({});
     setSecondsElapsed(0);
+    setSecondsRemaining(MOCK_TEST_TOTAL_SECONDS);
     setCurrentIndex(0);
     setSessionStarted(false);
     setSessionCompleted(false);
@@ -578,10 +633,22 @@ export default function PracticeSimulator({
     if (sessionStarted && timerRunning && !sessionCompleted && !loading && Boolean(currentQ)) {
       interval = setInterval(() => {
         setSecondsElapsed((prev) => prev + 1);
+        if (isMockTest) {
+          setSecondsRemaining((prev) => {
+            if (prev <= 1) {
+              clearInterval(interval);
+              setTimeout(() => {
+                handleFinishSession();
+              }, 0);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [sessionStarted, timerRunning, sessionCompleted, loading, currentQ]);
+  }, [sessionStarted, timerRunning, sessionCompleted, loading, currentQ, isMockTest]);
 
   const hasAnswerSelected = useMemo(() => {
     if (currentSelected === undefined || currentSelected === null) return false;
@@ -1023,7 +1090,13 @@ export default function PracticeSimulator({
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                 <span className="text-xs font-bold uppercase tracking-wider text-sky-400">
-                  {isCatMode ? 'Adaptive CAT Simulation' : examMode ? 'Timed Mock Exam' : 'Clinical Practice Drill'}
+                  {selectedMockTest 
+                    ? `Mock Test ${selectedMockTest} (Max 75 Questions)` 
+                    : isCatMode 
+                    ? 'Adaptive CAT Simulation' 
+                    : examMode 
+                    ? 'Timed Mock Exam' 
+                    : 'Clinical Practice Drill'}
                 </span>
               </div>
               <div className="h-4 w-px bg-slate-700 hidden sm:block" />
@@ -1037,10 +1110,19 @@ export default function PracticeSimulator({
 
             {/* Center: Peaceful Timer & Pause Button */}
             <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80">
-              <Clock className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-              <span className="font-mono font-bold text-xs sm:text-sm text-white tracking-wider">
-                {loading || !currentQ ? '00:00' : formatTimer(secondsElapsed)}
-              </span>
+              <Clock className={`w-3.5 h-3.5 ${isMockTest ? 'text-amber-400' : 'text-sky-400'} shrink-0`} />
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono font-bold text-xs sm:text-sm text-white tracking-wider">
+                  {loading || !currentQ 
+                    ? (isMockTest ? '05:00:00' : '00:00') 
+                    : (isMockTest ? formatCountdown(secondsRemaining) : formatTimer(secondsElapsed))}
+                </span>
+                {isMockTest && (
+                  <span className="text-[10px] text-amber-400/90 font-bold uppercase tracking-wider hidden lg:inline">
+                    (5h Countdown)
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={handlePauseExam}
@@ -1508,6 +1590,72 @@ export default function PracticeSimulator({
                     <span>{loading ? 'Loading Bank...' : `Start Questions (${filteredQuestions.length})`}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
+                </div>
+
+                {/* ── 4 FULL-LENGTH MOCK EXAMS (5 Hours • Max 75 Questions) ── */}
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 to-indigo-950 text-white border border-slate-800 shadow-md space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-amber-400" />
+                      <span className="font-bold text-sm text-white">
+                        4 Official Full-Length Mock Exams
+                      </span>
+                      <span className="text-[10px] bg-amber-400/20 text-amber-300 font-extrabold px-2 py-0.5 rounded-full border border-amber-400/30">
+                        5 Hours · Max 75 MCQs
+                      </span>
+                    </div>
+                    {selectedMockTest !== null && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMockTest(null);
+                          setExamMode(false);
+                        }}
+                        className="text-xs text-slate-300 hover:text-white underline cursor-pointer"
+                      >
+                        Switch to Custom Practice
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Each full-length mock exam features a <strong>5-hour reverse countdown timer</strong> and a strictly enforced <strong>75-question ceiling</strong> to simulate actual NCLEX testing conditions.
+                  </p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+                    {[1, 2, 3, 4].map((num) => {
+                      const countInBank = questions.filter(q => q.mockTest === num).length;
+                      const isSelected = selectedMockTest === num;
+                      return (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => {
+                            setSelectedMockTest(num);
+                            setExamMode(true);
+                            setIsCatMode(false);
+                            setQuestionLimit(75);
+                            setCurrentIndex(0);
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                            isSelected
+                              ? 'border-amber-400 bg-amber-400/15 ring-2 ring-amber-400/40 text-white shadow-sm'
+                              : 'border-slate-700/80 bg-slate-800/60 hover:border-slate-600 text-slate-200 hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-xs">Mock Test {num}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${isSelected ? 'bg-amber-400 text-slate-950 font-black' : 'bg-slate-700 text-slate-300'}`}>
+                              {countInBank} / 75
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-1">
+                            <Clock className="w-3 h-3 text-amber-400/80" />
+                            <span>5-Hour Reverse</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* In-Progress Session Resume Banner */}
@@ -2026,15 +2174,27 @@ export default function PracticeSimulator({
 
                 <div className="space-y-2 max-w-md mx-auto">
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold uppercase tracking-wider">
-                    Session Complete
+                    {selectedMockTest ? `Mock Test ${selectedMockTest} Complete` : 'Session Complete'}
                   </span>
                   <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                    Practice Test Finished!
+                    {selectedMockTest ? `NCLEX Mock Test ${selectedMockTest} Finished!` : 'Practice Test Finished!'}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-600">
                     Review your clinical decision metrics and distractor safety breakdown below.
                   </p>
                 </div>
+
+                {isMockTest && secondsRemaining <= 0 && (
+                  <div className="max-w-2xl mx-auto p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm flex items-center gap-3 text-left shadow-xs">
+                    <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+                    <div>
+                      <span className="font-bold">5-Hour Mock Exam Time Expired</span>
+                      <p className="text-xs text-amber-800 mt-0.5">
+                        The 5-hour countdown has elapsed. All your attempted answers have been recorded and scored.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Score Cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto text-left">
@@ -2055,8 +2215,13 @@ export default function PracticeSimulator({
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                     <div className="text-xs text-slate-500 font-semibold uppercase">Time Spent</div>
                     <div className="text-2xl font-black text-sky-600 mt-1">
-                      {formatTimer(secondsElapsed)}
+                      {formatCountdown(secondsElapsed)}
                     </div>
+                    {isMockTest && (
+                      <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                        Remaining: {formatCountdown(secondsRemaining)} / 05:00:00
+                      </div>
+                    )}
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
@@ -3047,8 +3212,10 @@ export default function PracticeSimulator({
                 <span className="font-bold text-emerald-600 text-sm">{answeredKeys.length}</span>
               </div>
               <div>
-                <span className="block text-slate-400 font-medium">Time</span>
-                <span className="font-bold font-mono text-slate-800 text-sm">{formatTimer(secondsElapsed)}</span>
+                <span className="block text-slate-400 font-medium">{isMockTest ? 'Time Left' : 'Time'}</span>
+                <span className="font-bold font-mono text-slate-800 text-sm">
+                  {isMockTest ? formatCountdown(secondsRemaining) : formatTimer(secondsElapsed)}
+                </span>
               </div>
             </div>
 

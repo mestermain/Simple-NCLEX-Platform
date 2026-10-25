@@ -41,6 +41,7 @@ export const questionSchema = z.object({
   correctRationale: z.string().trim().min(5, 'Clinical rationale is required'),
   clinicalPearl: z.string().trim().default(''),
   isPublished: z.boolean().default(true),
+  mockTest: z.coerce.number().int().min(1).max(4).nullable().optional(),
 });
 
 export const courseSchema = z.object({

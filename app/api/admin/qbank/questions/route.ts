@@ -18,9 +18,19 @@ export async function GET(req: Request) {
     const isDemo = searchParams.get('is_demo');
     const search = searchParams.get('search');
     const status = searchParams.get('status');
+    const mockTestParam = searchParams.get('mock_test') || searchParams.get('mockTest');
 
     let sql = 'SELECT * FROM qbank_questions WHERE 1=1';
     const params: any[] = [];
+
+    if (mockTestParam && mockTestParam !== 'all') {
+      if (mockTestParam === 'none' || mockTestParam === 'null' || mockTestParam === '0') {
+        sql += ' AND (mock_test IS NULL OR mock_test = 0)';
+      } else {
+        sql += ' AND mock_test = ?';
+        params.push(Number(mockTestParam));
+      }
+    }
 
     if (isDemo === '1') {
       sql += ' AND is_demo = 1';
@@ -75,6 +85,7 @@ export async function GET(req: Request) {
         isDemo: r.is_demo === 1,
         isPublished: r.is_published !== 0,
         sortOrder: r.sort_order,
+        mockTest: r.mock_test !== undefined && r.mock_test !== null ? Number(r.mock_test) : null,
       };
     });
 
@@ -115,15 +126,17 @@ export async function POST(req: Request) {
       correctRationale,
       clinicalPearl,
       isPublished,
+      mockTest,
     } = parsed.data;
 
     const isMultiple = questionType === 'multiple' || (Array.isArray(correctIndices) && correctIndices.length > 1);
     const resolvedCorrectIndices = isMultiple && Array.isArray(correctIndices) ? correctIndices : [correctIndex || 0];
+    const resolvedMockTest = mockTest ? Number(mockTest) : null;
 
     const result = await execute(
       `INSERT INTO qbank_questions 
-       (category, organ_system, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, question_type, correct_indices_json, is_published, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+       (category, organ_system, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, question_type, correct_indices_json, is_published, mock_test, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
       [
         category,
         organSystem,
@@ -141,6 +154,7 @@ export async function POST(req: Request) {
         isMultiple ? 'multiple' : 'single',
         JSON.stringify(resolvedCorrectIndices),
         isPublished ? 1 : 0,
+        resolvedMockTest,
       ]
     );
 
@@ -148,7 +162,7 @@ export async function POST(req: Request) {
 
     await logAdminAction(
       'CREATE_QUESTION',
-      `Created question #${questionId} in ${category} (${isPublished ? 'Published' : 'Draft'})`,
+      `Created question #${questionId} in ${category} (${isPublished ? 'Published' : 'Draft'}${resolvedMockTest ? `, Mock Test ${resolvedMockTest}` : ''})`,
       session.id,
       session.email
     );
@@ -169,6 +183,19 @@ export async function PUT(req: Request) {
     const rawBody = await req.json();
     if (!rawBody.id) {
       return NextResponse.json({ success: false, message: 'Question ID required' }, { status: 400 });
+    }
+
+    // Quick Mock Test Assignment handler
+    if (rawBody.assignOnly || (rawBody.mockTest !== undefined && Object.keys(rawBody).length <= 3)) {
+      const targetMock = rawBody.mockTest ? Number(rawBody.mockTest) : null;
+      await execute('UPDATE qbank_questions SET mock_test = ? WHERE id = ?', [targetMock, rawBody.id]);
+      await logAdminAction(
+        'ASSIGN_MOCK_TEST',
+        `Assigned question #${rawBody.id} to ${targetMock ? `Mock Test ${targetMock}` : 'Regular Q-Bank (No Mock Test)'}`,
+        session.id,
+        session.email
+      );
+      return NextResponse.json({ success: true, message: 'Mock test assignment updated successfully' });
     }
 
     const parsed = questionSchema.safeParse(rawBody);
@@ -193,10 +220,12 @@ export async function PUT(req: Request) {
       correctRationale,
       clinicalPearl,
       isPublished,
+      mockTest,
     } = parsed.data;
 
     const isMultiple = questionType === 'multiple' || (Array.isArray(correctIndices) && correctIndices.length > 1);
     const resolvedCorrectIndices = isMultiple && Array.isArray(correctIndices) ? correctIndices : [correctIndex || 0];
+    const resolvedMockTest = mockTest !== undefined ? (mockTest ? Number(mockTest) : null) : (rawBody.mockTest ? Number(rawBody.mockTest) : null);
 
     await execute(
       `UPDATE qbank_questions SET
@@ -215,7 +244,8 @@ export async function PUT(req: Request) {
          sort_order = ?,
          question_type = ?,
          correct_indices_json = ?,
-         is_published = ?
+         is_published = ?,
+         mock_test = ?
        WHERE id = ?`,
       [
         category,
@@ -234,6 +264,7 @@ export async function PUT(req: Request) {
         isMultiple ? 'multiple' : 'single',
         JSON.stringify(resolvedCorrectIndices),
         isPublished ? 1 : 0,
+        resolvedMockTest,
         rawBody.id,
       ]
     );

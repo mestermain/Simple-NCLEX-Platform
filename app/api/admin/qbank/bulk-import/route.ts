@@ -70,6 +70,7 @@ export async function POST(req: Request) {
     const format = body.format || 'auto';
     const defaultCategory = body.defaultCategory || 'Pharmacology & Parenteral Therapies';
     const defaultExamType = body.defaultExamType || 'NCLEX-RN';
+    const defaultMockTest = body.defaultMockTest ? Number(body.defaultMockTest) : null;
     const isDemo = Boolean(body.isDemo);
 
     if (!rawContent) {
@@ -95,6 +96,7 @@ export async function POST(req: Request) {
 
         const rawIndices = row.correct_indices || row.correct_index || row.answer || '0';
         const correctIndices = String(rawIndices).split(/[,;]/).map(s => Number(s.trim())).filter(n => !isNaN(n));
+        const rowMock = row.mock_test || row.mocktest || row.mock_test_id || row.mockTest;
 
         return {
           statement: row.statement || row.question || '',
@@ -106,6 +108,7 @@ export async function POST(req: Request) {
           exam_type: row.exam_type || row.exam || defaultExamType,
           client_need: row.client_need || '',
           clinical_pearl: row.clinical_pearl || row.pearl || '',
+          mock_test: rowMock ? Number(rowMock) : (defaultMockTest || null),
         };
       });
     } else {
@@ -171,10 +174,13 @@ export async function POST(req: Request) {
       if (isMultiple) msqCount++;
       else mcqCount++;
 
+      const rowMock = item.mock_test || item.mocktest || item.mock_test_id || item.mockTest;
+      const resolvedMockTest = rowMock ? Number(rowMock) : (defaultMockTest || null);
+
       await execute(
         `INSERT INTO qbank_questions 
-         (category, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, question_type, correct_indices_json, is_published, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 1, CURRENT_TIMESTAMP)`,
+         (category, difficulty, exam_type, client_need, statement, options_json, correct_index, correct_rationale, distractors_json, clinical_pearl, is_demo, sort_order, question_type, correct_indices_json, is_published, mock_test, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 1, ?, CURRENT_TIMESTAMP)`,
         [
           category,
           difficulty,
@@ -189,6 +195,7 @@ export async function POST(req: Request) {
           isDemo ? 1 : 0,
           qType,
           JSON.stringify(correctIndices),
+          resolvedMockTest,
         ]
       );
 

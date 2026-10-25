@@ -254,18 +254,34 @@ export default async function QBankDashboardPage() {
               Launch a pre-configured practice test to build muscle memory under exam conditions.
             </p>
             <div className="space-y-2.5 pt-1">
+              <div className="p-3.5 rounded-xl bg-slate-900 text-white space-y-2.5 border border-slate-800 shadow-sm">
+                <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>4 Official Mock Tests</span>
+                  </span>
+                  <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded font-extrabold border border-amber-400/30">
+                    5 Hours · 75 MCQs
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[1, 2, 3, 4].map((mNum) => (
+                    <Link
+                      key={mNum}
+                      href={`/app/create-test?start=true&mockTest=${mNum}&mode=exam&count=75`}
+                      className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-center text-[11px] font-bold text-slate-200 hover:text-white transition-colors block border border-slate-700/80 hover:border-amber-400/50"
+                    >
+                      Mock Test {mNum} →
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
               <Link
                 href="/app/create-test?start=true&mode=tutor&count=10"
                 className="w-full p-3 rounded-xl border border-slate-200 hover:border-sky-300 hover:bg-sky-50/40 text-left text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors block"
               >
                 <span>⚡ 10-Question Quick Drill (Tutor)</span>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-              </Link>
-              <Link
-                href="/app/create-test?start=true&mode=exam&count=75"
-                className="w-full p-3 rounded-xl border border-slate-200 hover:border-sky-300 hover:bg-sky-50/40 text-left text-xs font-semibold text-slate-800 flex items-center justify-between transition-colors block"
-              >
-                <span>⏱️ Full Timed Mock Exam (75 Items)</span>
                 <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
               </Link>
               <Link

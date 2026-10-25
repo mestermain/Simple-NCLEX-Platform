@@ -37,7 +37,8 @@ import {
   RefreshCw,
   FileSpreadsheet,
   Activity,
-  CheckCircle
+  CheckCircle,
+  PlusCircle
 } from 'lucide-react';
 
 interface AdminStats {
@@ -52,6 +53,7 @@ interface AdminStats {
 
 interface QBankItem {
   id: number;
+  mockTest?: number | null;
   category: string;
   organSystem?: string;
   difficulty: string;
@@ -217,9 +219,11 @@ function AdminContent() {
   const [questions, setQuestions] = useState<QBankItem[]>([]);
   const [qSearch, setQSearch] = useState('');
   const [qStatusFilter, setQStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
+  const [qMockTestFilter, setQMockTestFilter] = useState<'all' | '1' | '2' | '3' | '4' | 'none'>('all');
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Partial<QBankItem>>({
     category: 'Pharmacology & Parenteral Therapies',
+    organSystem: 'Cardiovascular System',
     difficulty: 'High Yield',
     examType: 'NCLEX-RN',
     statement: '',
@@ -229,12 +233,14 @@ function AdminContent() {
     correctIndex: 0,
     correctRationale: '',
     clinicalPearl: '',
+    mockTest: null,
   });
 
   // Bulk import state
   const [jsonCode, setJsonCode] = useState('');
   const [importFormat, setImportFormat] = useState<'json' | 'csv'>('json');
   const [importDefaultCat, setImportDefaultCat] = useState('Pharmacology & Parenteral Therapies');
+  const [importMockTest, setImportMockTest] = useState<string>(''); // '' = none (regular Q-Bank)
   const [importResult, setImportResult] = useState<any>(null);
   const [importing, setImporting] = useState(false);
 
@@ -519,6 +525,7 @@ function AdminContent() {
           format: importFormat,
           defaultCategory: importDefaultCat,
           defaultExamType: 'NCLEX-RN',
+          defaultMockTest: importMockTest ? parseInt(importMockTest, 10) : null,
         }),
       });
 
@@ -608,6 +615,72 @@ function AdminContent() {
         fetchAuditLogs();
       } else {
         alert(data.message);
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleAssignMockTest = async (id: number, mockTest: number | null) => {
+    try {
+      setQuestions(prev => prev.map(q => q.id === id ? { ...q, mockTest } : q));
+      const res = await fetch('/api/admin/qbank/questions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, assignOnly: true, mockTest }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.message || 'Failed to update mock test assignment');
+        fetchQuestions();
+      } else {
+        fetchAuditLogs();
+      }
+    } catch (err: any) {
+      alert(err.message);
+      fetchQuestions();
+    }
+  };
+
+  const handleSaveQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingQuestion.statement?.trim()) {
+      alert('Question statement is required.');
+      return;
+    }
+    try {
+      const isMultiple = editingQuestion.questionType === 'multiple';
+      const payload = {
+        ...editingQuestion,
+        type: isMultiple ? 'SATA' : 'MCQ',
+        mockTest: editingQuestion.mockTest ? Number(editingQuestion.mockTest) : null,
+      };
+      const res = await fetch('/api/admin/qbank/questions', {
+        method: editingQuestion.id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsQuestionModalOpen(false);
+        fetchQuestions();
+        fetchAuditLogs();
+        setEditingQuestion({
+          category: 'Pharmacology & Parenteral Therapies',
+          organSystem: 'Cardiovascular System',
+          difficulty: 'High Yield',
+          examType: 'NCLEX-RN',
+          statement: '',
+          options: ['', '', '', ''],
+          questionType: 'single',
+          correctIndices: [0],
+          correctIndex: 0,
+          correctRationale: '',
+          clinicalPearl: '',
+          mockTest: null,
+        });
+      } else {
+        alert(data.message || 'Failed to save question');
       }
     } catch (err: any) {
       alert(err.message);
@@ -1436,16 +1509,75 @@ function AdminContent() {
             {/* ── TAB 4: QUESTION BANK ── */}
             {activeTab === 'questions' && (
               <div className="space-y-4">
+                {/* ── 4 MOCK TESTS STATUS & OVERVIEW ── */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  {[1, 2, 3, 4].map((mNum) => {
+                    const count = questions.filter(q => q.mockTest === mNum).length;
+                    const pct = Math.min(100, Math.round((count / 75) * 100));
+                    return (
+                      <div
+                        key={mNum}
+                        onClick={() => setQMockTestFilter(qMockTestFilter === mNum.toString() ? 'all' : mNum.toString() as any)}
+                        className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                          qMockTestFilter === mNum.toString()
+                            ? 'bg-sky-50 border-sky-400 ring-2 ring-sky-400/20 shadow-xs'
+                            : 'bg-white border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="font-bold text-slate-800">Mock Test {mNum}</span>
+                          <span className="text-[10px] text-slate-500 font-semibold">{pct}%</span>
+                        </div>
+                        <div className="text-xl font-black text-slate-900">
+                          {count} <span className="text-xs font-semibold text-slate-400">/ 75</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${count >= 75 ? 'bg-emerald-500' : 'bg-sky-600'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-1.5 flex items-center justify-between">
+                          <span>5h reverse timer</span>
+                          <span className="font-bold text-sky-600">Filter</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <div
+                    onClick={() => setQMockTestFilter(qMockTestFilter === 'none' ? 'all' : 'none')}
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                      qMockTestFilter === 'none'
+                        ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-400/20 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-bold text-slate-800">Regular Q-Bank</span>
+                      <span className="text-[10px] text-slate-500 font-semibold">Practice</span>
+                    </div>
+                    <div className="text-xl font-black text-slate-900">
+                      {questions.filter(q => !q.mockTest).length}
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full mt-2" />
+                    <div className="text-[10px] text-slate-400 mt-1.5 flex items-center justify-between">
+                      <span>Unassigned pool</span>
+                      <span className="font-bold text-slate-600">Filter</span>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="clinical-card bg-white p-5 rounded-2xl border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                    <div className="relative w-full sm:w-72">
+                    <div className="relative w-full sm:w-64">
                       <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                       <input
                         type="text"
                         placeholder="Search questions or rationales..."
                         value={qSearch}
                         onChange={(e) => setQSearch(e.target.value)}
-                        className="w-full text-xs pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 bg-white"
+                        className="w-full text-xs pl-9 pr-4 py-2 rounded-lg border border-slate-200 bg-white"
                       />
                     </div>
 
@@ -1453,7 +1585,7 @@ function AdminContent() {
                       <button
                         type="button"
                         onClick={() => setQStatusFilter('all')}
-                        className={`px-3 py-1 rounded-md font-semibold transition-colors ${
+                        className={`px-2.5 py-1 rounded-md font-semibold transition-colors ${
                           qStatusFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
@@ -1462,7 +1594,7 @@ function AdminContent() {
                       <button
                         type="button"
                         onClick={() => setQStatusFilter('published')}
-                        className={`px-3 py-1 rounded-md font-semibold transition-colors ${
+                        className={`px-2.5 py-1 rounded-md font-semibold transition-colors ${
                           qStatusFilter === 'published' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
@@ -1471,23 +1603,50 @@ function AdminContent() {
                       <button
                         type="button"
                         onClick={() => setQStatusFilter('draft')}
-                        className={`px-3 py-1 rounded-md font-semibold transition-colors ${
+                        className={`px-2.5 py-1 rounded-md font-semibold transition-colors ${
                           qStatusFilter === 'draft' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
                         Drafts ({questions.filter(q => q.isPublished === false).length})
                       </button>
                     </div>
+
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs">
+                      <span className="text-[10px] text-slate-400 px-1 font-bold uppercase">Mock:</span>
+                      {['all', '1', '2', '3', '4', 'none'].map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => setQMockTestFilter(f as any)}
+                          className={`px-2 py-1 rounded-md font-semibold transition-colors capitalize ${
+                            qMockTestFilter === f ? 'bg-white text-sky-800 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {f === 'none' ? 'Unassigned' : f === 'all' ? 'All' : `M${f}`}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => switchTab('bulk-import')}
-                    className="px-4 py-2 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 rounded-lg flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                  >
-                    <FileCode className="w-4 h-4" />
-                    <span>Bulk Importer (JSON / CSV)</span>
-                  </button>
+                  <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setIsQuestionModalOpen(true)}
+                      className="px-3.5 py-2 text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white rounded-lg flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-xs"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      <span>Add Single MCQ</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => switchTab('bulk-import')}
+                      className="px-3.5 py-2 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 rounded-lg flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <FileCode className="w-4 h-4" />
+                      <span>Bulk Importer</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="clinical-card bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -1495,7 +1654,7 @@ function AdminContent() {
                     ← Swipe horizontally to view full question details & actions →
                   </div>
                   <div className="overflow-x-auto custom-scrollbar">
-                    <table className="w-full text-left text-xs min-w-[780px]">
+                    <table className="w-full text-left text-xs min-w-[850px]">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider">
                         <tr>
                           <th className="p-3.5">ID</th>
@@ -1503,7 +1662,8 @@ function AdminContent() {
                           <th className="p-3.5">Type</th>
                           <th className="p-3.5">Statement</th>
                           <th className="p-3.5">Organ System & Category</th>
-                          <th className="p-3.5">Correct Answer(s)</th>
+                          <th className="p-3.5">Correct</th>
+                          <th className="p-3.5">Assign Mock Test</th>
                           <th className="p-3.5 text-right">Actions</th>
                         </tr>
                       </thead>
@@ -1512,6 +1672,11 @@ function AdminContent() {
                           .filter((q) => {
                             if (qStatusFilter === 'published' && q.isPublished === false) return false;
                             if (qStatusFilter === 'draft' && q.isPublished !== false) return false;
+                            if (qMockTestFilter === '1' && q.mockTest !== 1) return false;
+                            if (qMockTestFilter === '2' && q.mockTest !== 2) return false;
+                            if (qMockTestFilter === '3' && q.mockTest !== 3) return false;
+                            if (qMockTestFilter === '4' && q.mockTest !== 4) return false;
+                            if (qMockTestFilter === 'none' && (q.mockTest !== null && q.mockTest !== undefined && q.mockTest !== 0)) return false;
                             if (!qSearch) return true;
                             const matchText = (q.statement + ' ' + q.category + ' ' + (q.organSystem || '') + ' ' + q.correctRationale).toLowerCase();
                             return matchText.includes(qSearch.toLowerCase());
@@ -1538,7 +1703,7 @@ function AdminContent() {
                                   {q.questionType === 'multiple' ? 'SATA (MSQ)' : 'MCQ (Single)'}
                                 </span>
                               </td>
-                              <td className="p-3.5 max-w-md font-medium text-slate-900 truncate" title={q.statement}>
+                              <td className="p-3.5 max-w-xs sm:max-w-md font-medium text-slate-900 truncate" title={q.statement}>
                                 {q.statement}
                               </td>
                               <td className="p-3.5 whitespace-nowrap">
@@ -1551,6 +1716,20 @@ function AdminContent() {
                                     ? q.correctIndices.map((i) => String.fromCharCode(65 + i)).join(', ')
                                     : String.fromCharCode(65 + (q.correctIndex || 0))}
                                 </span>
+                              </td>
+                              <td className="p-3.5 whitespace-nowrap">
+                                <select
+                                  value={q.mockTest || ''}
+                                  onChange={(e) => handleAssignMockTest(q.id, e.target.value ? parseInt(e.target.value, 10) : null)}
+                                  className="text-xs p-1.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer shadow-2xs"
+                                  title="Assign this MCQ to Mock Test 1, 2, 3, 4 or None"
+                                >
+                                  <option value="">None (Regular Q-Bank)</option>
+                                  <option value="1">Mock Test 1</option>
+                                  <option value="2">Mock Test 2</option>
+                                  <option value="3">Mock Test 3</option>
+                                  <option value="4">Mock Test 4</option>
+                                </select>
                               </td>
                               <td className="p-3.5 text-right whitespace-nowrap">
                                 <div className="flex items-center justify-end gap-1">
@@ -1644,7 +1823,7 @@ function AdminContent() {
                       </div>
                     </div>
 
-                    <div className="sm:col-span-2">
+                    <div>
                       <label className="font-semibold text-slate-700 block mb-1">
                         Default Category (fallback if omitted in row)
                       </label>
@@ -1654,6 +1833,26 @@ function AdminContent() {
                         onChange={(e) => setImportDefaultCat(e.target.value)}
                         className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white"
                       />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">
+                        Assign to Mock Test (Optional)
+                      </label>
+                      <select
+                        value={importMockTest}
+                        onChange={(e) => setImportMockTest(e.target.value)}
+                        className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white font-medium"
+                      >
+                        <option value="">None (Regular Q-Bank only)</option>
+                        <option value="1">Mock Test 1 (5-Hour Exam)</option>
+                        <option value="2">Mock Test 2 (5-Hour Exam)</option>
+                        <option value="3">Mock Test 3 (5-Hour Exam)</option>
+                        <option value="4">Mock Test 4 (5-Hour Exam)</option>
+                      </select>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        If not selected, items stay in regular Q-Bank
+                      </span>
                     </div>
                   </div>
 
@@ -2253,6 +2452,199 @@ function AdminContent() {
                   className="px-5 py-2 font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-lg"
                 >
                   Save Course
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── QUESTION MODAL (ADD / INSERT SINGLE QUESTION) ── */}
+      {isQuestionModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {editingQuestion.id ? `Edit Question #${editingQuestion.id}` : 'Add Single Question to Q-Bank'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Insert a question with options, rationales, and optional mock test assignment.
+                </p>
+              </div>
+              <button 
+                onClick={() => setIsQuestionModalOpen(false)} 
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveQuestion} className="space-y-4 pt-4 text-xs">
+              {/* Question Statement */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Question Statement / Clinical Scenario *</label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Enter the clinical scenario or question stem..."
+                  value={editingQuestion.statement || ''}
+                  onChange={(e) => setEditingQuestion({ ...editingQuestion, statement: e.target.value })}
+                  className="w-full p-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+
+              {/* Options */}
+              <div className="space-y-2">
+                <label className="font-bold text-slate-700 block">Answer Options (4 choices)</label>
+                {(editingQuestion.options && editingQuestion.options.length === 4 ? editingQuestion.options : ['', '', '', '']).map((opt, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="font-bold text-slate-500 w-6 text-center">
+                      {String.fromCharCode(65 + i)}:
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      placeholder={`Option ${String.fromCharCode(65 + i)}`}
+                      value={opt}
+                      onChange={(e) => {
+                        const newOpts = [...(editingQuestion.options || ['', '', '', ''])];
+                        newOpts[i] = e.target.value;
+                        setEditingQuestion({ ...editingQuestion, options: newOpts });
+                      }}
+                      className="flex-1 p-2 rounded-lg border border-slate-200"
+                    />
+                    <label className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 cursor-pointer">
+                      <input
+                        type={editingQuestion.questionType === 'multiple' ? 'checkbox' : 'radio'}
+                        name="correctAnswerSelect"
+                        checked={
+                          editingQuestion.questionType === 'multiple'
+                            ? (editingQuestion.correctIndices || []).includes(i)
+                            : (editingQuestion.correctIndex ?? 0) === i
+                        }
+                        onChange={(e) => {
+                          if (editingQuestion.questionType === 'multiple') {
+                            const cur = new Set(editingQuestion.correctIndices || []);
+                            if (e.target.checked) cur.add(i);
+                            else cur.delete(i);
+                            setEditingQuestion({ ...editingQuestion, correctIndices: Array.from(cur) });
+                          } else {
+                            setEditingQuestion({ ...editingQuestion, correctIndex: i, correctIndices: [i] });
+                          }
+                        }}
+                      />
+                      <span>Correct</span>
+                    </label>
+                  </div>
+                ))}
+              </div>
+
+              {/* Question Type & Correct Explanation */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Question Type</label>
+                  <select
+                    value={editingQuestion.questionType || 'single'}
+                    onChange={(e) => setEditingQuestion({ ...editingQuestion, questionType: e.target.value as any })}
+                    className="w-full p-2.5 rounded-lg border border-slate-200 bg-white"
+                  >
+                    <option value="single">Single Choice MCQ</option>
+                    <option value="multiple">Multiple Response SATA</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Assign to Mock Test (Optional)
+                  </label>
+                  <select
+                    value={editingQuestion.mockTest || ''}
+                    onChange={(e) => setEditingQuestion({ ...editingQuestion, mockTest: e.target.value ? parseInt(e.target.value, 10) : null })}
+                    className="w-full p-2.5 rounded-lg border border-amber-300 bg-amber-50/50 font-bold text-slate-800"
+                  >
+                    <option value="">None (Regular Q-Bank only)</option>
+                    <option value="1">Mock Test 1 (5-Hour Exam • Max 75)</option>
+                    <option value="2">Mock Test 2 (5-Hour Exam • Max 75)</option>
+                    <option value="3">Mock Test 3 (5-Hour Exam • Max 75)</option>
+                    <option value="4">Mock Test 4 (5-Hour Exam • Max 75)</option>
+                  </select>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                    Optional: If not selected, this MCQ will not be in any mock test.
+                  </span>
+                </div>
+              </div>
+
+              {/* Organ System & Category */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Body / Organ System</label>
+                  <select
+                    value={editingQuestion.organSystem || 'Cardiovascular System'}
+                    onChange={(e) => setEditingQuestion({ ...editingQuestion, organSystem: e.target.value })}
+                    className="w-full p-2.5 rounded-lg border border-slate-200 bg-white"
+                  >
+                    <option value="Cardiovascular System">Cardiovascular System</option>
+                    <option value="Respiratory System">Respiratory System</option>
+                    <option value="Neurological & Sensory System">Neurological & Sensory System</option>
+                    <option value="Gastrointestinal & Hepatic System">Gastrointestinal & Hepatic System</option>
+                    <option value="Renal & Urinary System">Renal & Urinary System</option>
+                    <option value="Endocrine System">Endocrine System</option>
+                    <option value="Musculoskeletal System">Musculoskeletal System</option>
+                    <option value="Hematologic & Immune System">Hematologic & Immune System</option>
+                    <option value="Reproductive & Maternal-Newborn">Reproductive & Maternal-Newborn</option>
+                    <option value="Mental Health & Psychosocial">Mental Health & Psychosocial</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Category / Client Need</label>
+                  <input
+                    type="text"
+                    value={editingQuestion.category || ''}
+                    onChange={(e) => setEditingQuestion({ ...editingQuestion, category: e.target.value })}
+                    className="w-full p-2.5 rounded-lg border border-slate-200"
+                    placeholder="e.g. Pharmacology & Parenteral Therapies"
+                  />
+                </div>
+              </div>
+
+              {/* Rationales & Clinical Pearl */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Correct Rationale & Explanation</label>
+                <textarea
+                  rows={2}
+                  placeholder="Explain why the correct answer is right and the pathophysiology..."
+                  value={editingQuestion.correctRationale || ''}
+                  onChange={(e) => setEditingQuestion({ ...editingQuestion, correctRationale: e.target.value })}
+                  className="w-full p-2.5 rounded-lg border border-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Clinical Pearl / Key Takeaway</label>
+                <input
+                  type="text"
+                  placeholder="High-yield memory anchor or NCLEX exam tip..."
+                  value={editingQuestion.clinicalPearl || ''}
+                  onChange={(e) => setEditingQuestion({ ...editingQuestion, clinicalPearl: e.target.value })}
+                  className="w-full p-2.5 rounded-lg border border-slate-200"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsQuestionModalOpen(false)}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-lg shadow-xs cursor-pointer"
+                >
+                  Save Question to Q-Bank
                 </button>
               </div>
             </form>
