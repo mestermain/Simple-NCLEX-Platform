@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     const search = searchParams.get('search') || '';
     const limitParam = searchParams.get('limit');
     const mockTestParam = searchParams.get('mock_test') || searchParams.get('mockTest');
-    const mode = searchParams.get('mode') || 'tutor'; // 'tutor' | 'timed' | 'exam'
+    const mode = searchParams.get('mode') || (mockTestParam ? 'exam' : 'tutor'); // Mock tests run in exam mode by default
     const revealRationales = searchParams.get('reveal') === 'true'; // Admin or review only
 
     const session = getAuthFromRequest(req);
@@ -145,10 +145,24 @@ export async function GET(req: Request) {
 
     const rows = await query(sql, params);
 
+    // Guaranteed deduplication: ensure no duplicate question IDs or duplicate stems
+    const seenIds = new Set<number>();
+    const seenStems = new Set<string>();
+    const uniqueRows = rows.filter((r: any) => {
+      const qid = Number(r.id);
+      const stemNorm = (r.stem || r.statement || '').trim().toLowerCase();
+      if (seenIds.has(qid) || (stemNorm && seenStems.has(stemNorm))) {
+        return false;
+      }
+      seenIds.add(qid);
+      if (stemNorm) seenStems.add(stemNorm);
+      return true;
+    });
+
     // Filter by question source (all, unused, incorrect, flagged)
     const effectiveStatus = source !== 'all' ? source : status;
 
-    let filteredRows = rows;
+    let filteredRows = uniqueRows;
     if (session && effectiveStatus !== 'all') {
       if (effectiveStatus === 'unused' || effectiveStatus === 'unanswered') {
         filteredRows = filteredRows.filter((r: any) => !userAttemptedIds.includes(r.id));

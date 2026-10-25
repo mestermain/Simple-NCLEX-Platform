@@ -387,9 +387,9 @@ export default function PracticeSimulator({
   // 4. Mixed Question Logic: Smoothly interleave SATA and single MCQs!
   const filteredQuestions = useMemo(() => {
     let pool = questions.filter((q: any) => {
-      // Mock Test Filter: if selectedMockTest is set, only include questions assigned to this mock test
+      // Mock Test Isolation: if taking a mock test, strictly include questions assigned to this mock test
       if (selectedMockTest !== null) {
-        if (q.mockTest !== selectedMockTest) return false;
+        return q.mockTest === selectedMockTest;
       }
 
       // Exam Track Filter
@@ -432,8 +432,8 @@ export default function PracticeSimulator({
       return true;
     });
 
-    // Step 2: Status Filter (Correct, Incorrect, Flagged, Unanswered)
-    if (statusFilter !== 'all') {
+    // Step 2: Status Filter (Correct, Incorrect, Flagged, Unanswered) - only in practice mode
+    if (selectedMockTest === null && statusFilter !== 'all') {
       pool = pool.filter((q) => {
         if (statusFilter === 'flagged') {
           return isQuestionFlagged(q.id);
@@ -443,23 +443,39 @@ export default function PracticeSimulator({
     }
 
     // Step 3: Format Filter & SATA/MCQ Mixing
-    if (questionFormatFilter === 'single') {
-      pool = pool.filter(q => q.questionType === 'single');
-    } else if (questionFormatFilter === 'multiple') {
-      pool = pool.filter(q => q.questionType === 'multiple');
-    } else {
-      const singles = pool.filter(q => q.questionType === 'single');
-      const multiples = pool.filter(q => q.questionType === 'multiple');
-      const mixed: Question[] = [];
-      const maxLen = Math.max(singles.length, multiples.length);
-      for (let i = 0; i < maxLen; i++) {
-        if (i < singles.length) mixed.push(singles[i]);
-        if (i < multiples.length) mixed.push(multiples[i]);
+    if (selectedMockTest === null) {
+      if (questionFormatFilter === 'single') {
+        pool = pool.filter(q => q.questionType === 'single');
+      } else if (questionFormatFilter === 'multiple') {
+        pool = pool.filter(q => q.questionType === 'multiple');
+      } else {
+        const singles = pool.filter(q => q.questionType === 'single');
+        const multiples = pool.filter(q => q.questionType === 'multiple');
+        const others = pool.filter(q => q.questionType !== 'single' && q.questionType !== 'multiple');
+        const mixed: Question[] = [];
+        const maxLen = Math.max(singles.length, multiples.length);
+        for (let i = 0; i < maxLen; i++) {
+          if (i < singles.length) mixed.push(singles[i]);
+          if (i < multiples.length) mixed.push(multiples[i]);
+        }
+        pool = [...mixed, ...others];
       }
-      pool = mixed;
     }
 
-    // Step 4: Batch Size Limit (Mock tests strictly capped at max 75 questions)
+    // Step 4: Guaranteed Deduplication - ensure NO duplicate question IDs or duplicate stems in any test!
+    const seenIds = new Set<number>();
+    const seenStems = new Set<string>();
+    pool = pool.filter(q => {
+      const stemNorm = (q.statement || q.stem || '').trim().toLowerCase();
+      if (seenIds.has(q.id) || (stemNorm && seenStems.has(stemNorm))) {
+        return false;
+      }
+      seenIds.add(q.id);
+      if (stemNorm) seenStems.add(stemNorm);
+      return true;
+    });
+
+    // Step 5: Batch Size Limit (Mock tests strictly capped at max 75 questions)
     const effectiveLimit = selectedMockTest !== null 
       ? Math.min(75, questionLimit === 'all' ? 75 : questionLimit) 
       : questionLimit;
@@ -576,11 +592,45 @@ export default function PracticeSimulator({
     handlePauseExam();
   };
 
-  const handleFinishSession = () => {
-    // If candidate has an unsubmitted selected answer on current item, record it
-    if (currentQ && hasAnswerSelected && !attemptResults[currentQ.id] && !submittingAnswer) {
-      handleSubmitAnswer(false);
+  const handleFinishSession = async () => {
+    // If candidate has an unsubmitted selected answer on current item, submit it
+    if (currentQ && hasAnswerSelected && !submittingAnswer) {
+      const qToSubmit = currentQ;
+      const answersToSend = qToSubmit.type === 'DRAG_DROP' && (!currentSelected || (Array.isArray(currentSelected) && currentSelected.length === 0))
+        ? (Array.isArray(qToSubmit.options) ? qToSubmit.options.map((_, i) => i) : [])
+        : currentSelected;
+
+      try {
+        const res = await fetch('/api/qbank/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            questionId: qToSubmit.id,
+            selectedIndices: Array.isArray(answersToSend) ? answersToSend : undefined,
+            userAnswers: answersToSend,
+            timeSpentSeconds: 30,
+            sessionId: sessionId || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setAttemptResults((prev) => ({
+            ...prev,
+            [qToSubmit.id]: {
+              isCorrect: data.isCorrect,
+              score: data.score !== undefined ? data.score : (data.isCorrect ? 1.0 : 0.0),
+              correctIndices: data.correctIndices || [],
+              selectedIndices: answersToSend,
+              correctAnswers: data.correctAnswers,
+              correctRationale: data.evaluation?.correctRationale || data.correctRationale || '',
+              distractors: data.evaluation?.distractors || data.distractors || [],
+              clinicalPearl: data.evaluation?.clinicalPearl || data.clinicalPearl || '',
+            },
+          }));
+        }
+      } catch (_) {}
     }
+
     setSessionCompleted(true);
     setTimerRunning(false);
     setIsExamPaused(false);
@@ -588,10 +638,38 @@ export default function PracticeSimulator({
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+
+    // Proactively fetch revealed questions so ALL rationales are 100% available for every question (including missed/unanswered)
+    try {
+      const qRes = await fetch(`/api/qbank/questions?reveal=true${selectedMockTest ? `&mock_test=${selectedMockTest}` : ''}`);
+      const qData = await qRes.json();
+      if (qData.success && Array.isArray(qData.questions)) {
+        const qMap = new Map<number, any>(qData.questions.map((q: any) => [q.id, q]));
+        setQuestions((prev) => prev.map((q) => {
+          const revealed: any = qMap.get(q.id);
+          if (revealed) {
+            return {
+              ...q,
+              correctIndex: revealed.correctIndex,
+              correctIndices: revealed.correctIndices,
+              correctAnswers: revealed.correctAnswers,
+              correctRationale: revealed.correctRationale,
+              clinicalPearl: revealed.clinicalPearl,
+              distractors: revealed.distractors,
+              rationalePerOption: revealed.rationalePerOption,
+            };
+          }
+          return q;
+        }));
+      }
+    } catch (e) {
+      console.warn('Could not load revealed rationales on exam finish:', e);
+    }
+
     if (sessionId) {
       const answeredKeys = Object.keys(attemptResults);
       const correct = answeredKeys.filter((k) => attemptResults[Number(k)]?.isCorrect).length;
-      const pct = answeredKeys.length > 0 ? Math.round((correct / answeredKeys.length) * 100) : 0;
+      const pct = filteredQuestions.length > 0 ? Math.round((correct / filteredQuestions.length) * 100) : 0;
       fetch('/api/qbank/sessions', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -691,35 +769,28 @@ export default function PracticeSimulator({
     setSelectedAnswers((prev) => ({ ...prev, [qToSubmit.id]: answersToSend }));
 
     // Instant optimistic attempt recording so the solved count immediately increments
-    setAttemptResults((prev) => {
-      if (prev[qToSubmit.id]) return prev;
-      return {
-        ...prev,
-        [qToSubmit.id]: {
-          isCorrect: false,
-          score: 0,
-          correctIndices: qToSubmit.correctIndices || [],
-          selectedIndices: answersToSend,
-          correctAnswers: qToSubmit.correctAnswers,
-          correctRationale: qToSubmit.correctRationale || '',
-          distractors: qToSubmit.distractors || [],
-          clinicalPearl: qToSubmit.clinicalPearl || '',
-        },
-      };
-    });
+    setAttemptResults((prev) => ({
+      ...prev,
+      [qToSubmit.id]: {
+        isCorrect: prev[qToSubmit.id]?.isCorrect || false,
+        score: prev[qToSubmit.id]?.score || 0,
+        correctIndices: qToSubmit.correctIndices || [],
+        selectedIndices: answersToSend,
+        correctAnswers: qToSubmit.correctAnswers,
+        correctRationale: qToSubmit.correctRationale || '',
+        distractors: qToSubmit.distractors || [],
+        clinicalPearl: qToSubmit.clinicalPearl || '',
+      },
+    }));
 
     setSubmittingAnswer(true);
 
-    // If autoAdvance is requested, advance immediately without waiting for network response!
-    if (autoAdvance) {
-      if (qIndexAtSubmit === filteredQuestions.length - 1) {
-        handleFinishSession();
-      } else {
-        setCurrentIndex(qIndexAtSubmit + 1);
-        if (typeof window !== 'undefined') {
-          const el = document.getElementById('qbankWorkspaceTop');
-          if (el) el.scrollIntoView({ behavior: 'smooth' });
-        }
+    // If autoAdvance is requested and NOT on the last question, advance immediately!
+    if (autoAdvance && qIndexAtSubmit < filteredQuestions.length - 1) {
+      setCurrentIndex(qIndexAtSubmit + 1);
+      if (typeof window !== 'undefined') {
+        const el = document.getElementById('qbankWorkspaceTop');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
       }
     }
 
@@ -775,7 +846,7 @@ export default function PracticeSimulator({
           const totalSolved = Object.keys(attemptResults).length + 1;
           if (totalSolved >= 75 && (nextTheta - nextMargin) > 0.05) {
             setCatEarlyPassed(true);
-            handleFinishSession();
+            await handleFinishSession();
           }
         }
       }
@@ -783,12 +854,16 @@ export default function PracticeSimulator({
       console.error('Error submitting answer:', err);
     } finally {
       setSubmittingAnswer(false);
+      // If autoAdvance on the last question, finish the session now that submission is complete
+      if (autoAdvance && qIndexAtSubmit === filteredQuestions.length - 1) {
+        await handleFinishSession();
+      }
     }
   };
 
   const handleNavigateQuestion = (newIndex: number) => {
-    // If candidate has an unsubmitted selected answer on current item, submit it so it's never lost!
-    if (currentQ && hasAnswerSelected && !attemptResults[currentQ.id] && !submittingAnswer) {
+    // If candidate has an unsubmitted selected answer on current item, submit it in background
+    if (currentQ && hasAnswerSelected && !submittingAnswer) {
       handleSubmitAnswer(false);
     }
     setCurrentIndex(newIndex);
@@ -810,24 +885,24 @@ export default function PracticeSimulator({
     }
   };
 
-  // Next in Exam Mode: works completely like Submit (saves, counts +1, auto-advances or finishes)
+  // Next Question: keeps/records current answer, increments count, and advances immediately!
   const handleExamNext = async () => {
     if (submittingAnswer) return;
 
-    if (hasAnswerSelected && !attemptResults[currentQ?.id]) {
+    if (hasAnswerSelected) {
       await handleSubmitAnswer(true);
     } else {
       if (currentIndex === filteredQuestions.length - 1) {
-        handleFinishSession();
+        await handleFinishSession();
       } else {
         handleNavigateQuestion(currentIndex + 1);
       }
     }
   };
 
-  // Strikethrough & Answer selection handler
+  // Strikethrough & Answer selection handler - candidates can freely select/change answers throughout test
   const handleOptionClick = (optionIndex: number) => {
-    if (!currentQ || isAnswered) return;
+    if (!currentQ || sessionCompleted) return;
 
     if (strikethroughMode) {
       // Toggle strikethrough on this option
@@ -879,18 +954,8 @@ export default function PracticeSimulator({
             <span className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[10px] text-slate-400" />
           );
 
-          if (hasResult && !examMode) {
-            if (isCorrect) {
-              itemStyle = 'border-emerald-500 bg-emerald-50/80 text-emerald-950 font-medium';
-              boxIcon = <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
-            } else if (isSelected && !isCorrect) {
-              itemStyle = 'border-rose-400 bg-rose-50 text-rose-950';
-              boxIcon = <XCircle className="w-4 h-4 text-rose-500" />;
-            } else {
-              itemStyle = 'border-slate-100 bg-slate-50 text-slate-400 opacity-60';
-            }
-          } else if (isSelected) {
-            itemStyle = 'border-sky-600 bg-sky-50/70 text-sky-950 ring-2 ring-sky-500/20';
+          if (isSelected) {
+            itemStyle = 'border-sky-600 bg-sky-50/70 text-sky-950 ring-2 ring-sky-500/20 font-medium';
             boxIcon = currentQ.questionType === 'multiple' ? (
               <CheckSquare className="w-4 h-4 text-sky-600" />
             ) : (
@@ -904,7 +969,7 @@ export default function PracticeSimulator({
             <button
               key={optIdx}
               onClick={() => handleOptionClick(optIdx)}
-              disabled={isAnswered && !strikethroughMode}
+              disabled={sessionCompleted && !strikethroughMode}
               className={`w-full text-left p-4 rounded-xl border transition-all flex items-start gap-3.5 cursor-pointer ${
                 isStruck ? 'line-through opacity-45 decoration-slate-400 bg-slate-50 border-slate-200 text-slate-400' : itemStyle
               }`}
@@ -1024,7 +1089,9 @@ export default function PracticeSimulator({
   // Calculate score stats for active session
   const answeredKeys = Object.keys(attemptResults);
   const correctCount = answeredKeys.filter((k) => attemptResults[Number(k)]?.isCorrect).length;
-  const accuracyPct = answeredKeys.length > 0 ? Math.round((correctCount / answeredKeys.length) * 100) : 0;
+  const accuracyPct = filteredQuestions.length > 0
+    ? Math.round((correctCount / filteredQuestions.length) * 100)
+    : (answeredKeys.length > 0 ? Math.round((correctCount / answeredKeys.length) * 100) : 0);
 
   // Handle subscription submit
   const handleSubscribeSubmit = async (e: React.FormEvent) => {
@@ -2208,7 +2275,7 @@ export default function PracticeSimulator({
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                     <div className="text-xs text-slate-500 font-semibold uppercase">Correct Items</div>
                     <div className="text-2xl font-black text-emerald-600 mt-1">
-                      {correctCount} / {answeredKeys.length}
+                      {correctCount} / {filteredQuestions.length}
                     </div>
                   </div>
 
@@ -2331,7 +2398,7 @@ export default function PracticeSimulator({
                     if (res !== undefined) {
                       return !res.isCorrect;
                     }
-                    return selectedAnswers[q.id] === undefined;
+                    return true;
                   });
 
                   const flaggedList = filteredQuestions.filter(
@@ -2762,8 +2829,8 @@ export default function PracticeSimulator({
                       options={currentQ.options}
                       value={currentSelected || {}}
                       onChange={(val) => setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: val }))}
-                      disabled={isAnswered}
-                      isSubmitted={isAnswered}
+                      disabled={sessionCompleted}
+                      isSubmitted={sessionCompleted}
                       correctAnswers={currentResult?.correctAnswers || currentQ.correctAnswers}
                       rationalePerOption={currentResult?.rationalePerOption || currentQ.rationalePerOption}
                     />
@@ -2781,8 +2848,8 @@ export default function PracticeSimulator({
                       options={currentQ.options}
                       value={currentSelected || {}}
                       onChange={(val) => setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: val }))}
-                      disabled={isAnswered}
-                      isSubmitted={isAnswered}
+                      disabled={sessionCompleted}
+                      isSubmitted={sessionCompleted}
                       correctAnswers={currentResult?.correctAnswers || currentQ.correctAnswers}
                       rationalePerOption={currentResult?.rationalePerOption || currentQ.rationalePerOption}
                     />
@@ -2800,8 +2867,8 @@ export default function PracticeSimulator({
                       options={Array.isArray(currentQ.options) ? currentQ.options : []}
                       value={Array.isArray(currentSelected) && currentSelected.length > 0 ? currentSelected : (Array.isArray(currentQ.options) ? currentQ.options.map((_, i) => i) : [])}
                       onChange={(val) => setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: val }))}
-                      disabled={isAnswered}
-                      isSubmitted={isAnswered}
+                      disabled={sessionCompleted}
+                      isSubmitted={sessionCompleted}
                       correctAnswers={currentResult?.correctAnswers || currentQ.correctAnswers}
                       rationalePerOption={currentResult?.rationalePerOption || currentQ.rationalePerOption}
                     />
@@ -2819,8 +2886,8 @@ export default function PracticeSimulator({
                       options={currentQ.options}
                       value={currentSelected || {}}
                       onChange={(val) => setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: val }))}
-                      disabled={isAnswered}
-                      isSubmitted={isAnswered}
+                      disabled={sessionCompleted}
+                      isSubmitted={sessionCompleted}
                       correctAnswers={currentResult?.correctAnswers || currentQ.correctAnswers}
                       rationalePerOption={currentResult?.rationalePerOption || currentQ.rationalePerOption}
                     />
@@ -2850,7 +2917,7 @@ export default function PracticeSimulator({
                   </div>
                 )}
 
-                {/* Action Buttons: Prev / Pause / Next (Next works completely like Submit) */}
+                {/* Action Buttons: Prev / Pause / Next (Next keeps current answer, counts it, and advances immediately) */}
                 <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border-t border-slate-100">
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <button
@@ -2873,145 +2940,32 @@ export default function PracticeSimulator({
                     </button>
                   </div>
 
-                  {examMode ? (
-                    /* ── EXAM MODE: "Next Question" works completely like Submit (saves, increments +1, advances/finishes) ── */
-                    <button
-                      type="button"
-                      onClick={handleExamNext}
-                      disabled={submittingAnswer}
-                      className="w-full sm:w-auto px-7 py-3 sm:py-2.5 text-sm font-bold rounded-xl sm:rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-sm transition-all cursor-pointer text-center flex items-center justify-center gap-2"
-                    >
-                      {submittingAnswer ? (
-                        <span>Saving & Advancing...</span>
-                      ) : currentIndex === filteredQuestions.length - 1 ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Submit & Finish Exam</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Next Question</span>
-                          <ChevronRight className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
-                  ) : !isAnswered ? (
-                    /* ── TUTOR MODE (Unanswered): Check Rationale or Next Question ── */
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                      <button
-                        type="button"
-                        onClick={() => handleSubmitAnswer(false)}
-                        disabled={!hasAnswerSelected || submittingAnswer}
-                        className="px-4 py-2 text-xs font-bold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        Check Rationale
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleExamNext}
-                        disabled={submittingAnswer}
-                        className="px-6 py-2.5 sm:py-2 text-xs font-bold rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                      >
-                        {submittingAnswer ? (
-                          <span>Saving...</span>
-                        ) : (
-                          <>
-                            <span>Next Question</span>
-                            <ChevronRight className="w-4 h-4" />
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  ) : (
-                    /* ── TUTOR MODE (Answered): Display status and next question ── */
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
-                      <span className={`text-xs font-bold px-3 py-2 rounded-lg text-center ${currentResult?.isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                        {currentResult?.isCorrect ? '✓ Correct Answer' : '✗ Incorrect Response'}
-                      </span>
-                      {currentIndex === filteredQuestions.length - 1 ? (
-                        <button
-                          type="button"
-                          onClick={handleFinishSession}
-                          className="w-full sm:w-auto px-5 py-2.5 sm:py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Finish & View Score</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleNavigateQuestion(currentIndex + 1)}
-                          className="w-full sm:w-auto px-5 py-2.5 sm:py-2 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm cursor-pointer text-center flex items-center justify-center gap-1.5"
-                        >
-                          <span>Next Question</span>
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  {/* Single unified Next / Submit button: Next means next question while keeping result of present question */}
+                  <button
+                    type="button"
+                    onClick={handleExamNext}
+                    disabled={submittingAnswer}
+                    className={`w-full sm:w-auto px-7 py-3 sm:py-2.5 text-sm font-bold rounded-xl sm:rounded-lg text-white shadow-sm transition-all cursor-pointer text-center flex items-center justify-center gap-2 ${
+                      currentIndex === filteredQuestions.length - 1
+                        ? 'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700'
+                        : 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800'
+                    }`}
+                  >
+                    {submittingAnswer ? (
+                      <span>{currentIndex === filteredQuestions.length - 1 ? 'Finishing Exam & Calculating Score...' : 'Saving & Advancing...'}</span>
+                    ) : currentIndex === filteredQuestions.length - 1 ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Submit & Finish Exam</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Next Question</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
                 </div>
-
-                {/* Clinical Rationale Section (Practice Mode) */}
-                {isAnswered && !examMode && currentResult && (
-                  <div className="mt-8 pt-6 border-t border-slate-200 space-y-4 animate-in fade-in-50 duration-200">
-                    
-                    {/* Clinical Actions & Problem Report Action Bar */}
-                    <div className="flex flex-wrap items-center justify-end gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                      <button
-                        onClick={() => {
-                          setReportQuestionTarget({ id: currentQ.id, stem: currentQ.statement });
-                          setIsReportModalOpen(true);
-                        }}
-                        className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
-                      >
-                        <AlertCircle className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Report a problem with this rationale</span>
-                      </button>
-                    </div>
-
-                    {/* Correct Rationale Box */}
-                    <div className="p-5 rounded-xl bg-emerald-50/80 border border-emerald-200 space-y-2">
-                      <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Evidence-Based Clinical Rationale</span>
-                      </div>
-                      <p className="text-sm text-emerald-950 leading-relaxed">
-                        {currentResult.correctRationale}
-                      </p>
-                    </div>
-
-                    {/* Clinical Pearl Box */}
-                    {currentResult.clinicalPearl && (
-                      <div className="p-5 rounded-xl bg-amber-50/80 border border-amber-200 space-y-1.5">
-                        <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
-                          <Flame className="w-4 h-4 text-amber-600" />
-                          <span>Clinical Exam Pearl</span>
-                        </div>
-                        <p className="text-sm text-amber-950 leading-relaxed">
-                          {currentResult.clinicalPearl}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Distractor Analysis */}
-                    {currentResult.distractors && currentResult.distractors.length > 0 && (
-                      <div className="p-5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                        <div className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                          Distractor Clinical Traps & Patient Safety:
-                        </div>
-                        <ul className="space-y-2 text-xs text-slate-600">
-                          {currentResult.distractors.map((d, dIdx) => (
-                            <li key={dIdx} className="flex items-start gap-2.5">
-                              <span className="text-rose-500 font-bold mt-0.5">•</span>
-                              <span className="leading-relaxed">{d}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                  </div>
-                )}
 
               </div>
             ) : (

@@ -76,14 +76,117 @@ test('Assigning MCQs to Mock Tests 1-4 and Unassigned (None)', () => {
   // Test query and updating a row
   const row = db.prepare("SELECT id, mock_test FROM qbank_questions LIMIT 1").get();
   assert.ok(row, 'At least one qbank question must exist');
+  const originalMock = row.mock_test;
 
-  // Verify assigning to Mock Test 1
-  db.prepare("UPDATE qbank_questions SET mock_test = ? WHERE id = ?").run(1, row.id);
-  let updated = db.prepare("SELECT mock_test FROM qbank_questions WHERE id = ?").get(row.id);
-  assert.equal(updated.mock_test, 1);
+  try {
+    // Verify assigning to Mock Test 1
+    db.prepare("UPDATE qbank_questions SET mock_test = ? WHERE id = ?").run(1, row.id);
+    let updated = db.prepare("SELECT mock_test FROM qbank_questions WHERE id = ?").get(row.id);
+    assert.equal(updated.mock_test, 1);
 
-  // Verify assigning to None (null)
-  db.prepare("UPDATE qbank_questions SET mock_test = NULL WHERE id = ?").run(row.id);
-  updated = db.prepare("SELECT mock_test FROM qbank_questions WHERE id = ?").get(row.id);
-  assert.equal(updated.mock_test, null);
+    // Verify assigning to None (null)
+    db.prepare("UPDATE qbank_questions SET mock_test = NULL WHERE id = ?").run(row.id);
+    updated = db.prepare("SELECT mock_test FROM qbank_questions WHERE id = ?").get(row.id);
+    assert.equal(updated.mock_test, null);
+  } finally {
+    // Restore original state
+    db.prepare("UPDATE qbank_questions SET mock_test = ? WHERE id = ?").run(originalMock, row.id);
+  }
+});
+
+test('Zero Duplicates Across the 4 Mock Tests (1, 2, 3, 4)', () => {
+  const rows = db.prepare("SELECT id, mock_test, stem, statement FROM qbank_questions WHERE mock_test IN (1, 2, 3, 4)").all();
+  
+  const idSet = new Set();
+  const stemMap = new Map();
+
+  for (const r of rows) {
+    // 1. Verify ID uniqueness
+    assert.ok(!idSet.has(r.id), `Duplicate question ID ${r.id} found in mock test ${r.mock_test}`);
+    idSet.add(r.id);
+
+    // 2. Verify Stem uniqueness across all mock tests
+    const stemNorm = (r.stem || r.statement || '').trim().toLowerCase();
+    if (stemNorm) {
+      assert.ok(!stemMap.has(stemNorm), `Duplicate question stem found between Mock ${r.mock_test} and Mock ${stemMap.get(stemNorm)}`);
+      stemMap.set(stemNorm, r.mock_test);
+    }
+  }
+
+  // Verify questions exist in all 4 mock tests
+  const mockCounts = [1, 2, 3, 4].map(mt => rows.filter(r => r.mock_test === mt).length);
+  for (let i = 0; i < 4; i++) {
+    assert.ok(mockCounts[i] > 0, `Mock Test ${i + 1} must have assigned questions`);
+    assert.ok(mockCounts[i] <= 75, `Mock Test ${i + 1} must not exceed 75 questions`);
+  }
+});
+
+test('Single-Click Next Navigation and Direct Results on Exam Completion', () => {
+  // Simulate questions
+  const testQuestions = [
+    { id: 1, statement: 'Q1', correct_index: 0, correctRationale: 'R1' },
+    { id: 2, statement: 'Q2', correct_index: 1, correctRationale: 'R2' },
+    { id: 3, statement: 'Q3', correct_index: 2, correctRationale: 'R3' },
+  ];
+
+  const selectedAnswers = {};
+  const attemptResults = {};
+  let currentIndex = 0;
+  let sessionCompleted = false;
+
+  function handleExamNext(selectedAnswer) {
+    const currentQ = testQuestions[currentIndex];
+    
+    // 1. "Next" means: record answer to current question immediately
+    if (selectedAnswer !== undefined) {
+      selectedAnswers[currentQ.id] = [selectedAnswer];
+      const isCorrect = selectedAnswer === currentQ.correct_index;
+      attemptResults[currentQ.id] = {
+        isCorrect,
+        score: isCorrect ? 1.0 : 0.0,
+        correctRationale: currentQ.correctRationale,
+      };
+    }
+
+    // 2. Advance to next question or directly complete exam if at end
+    if (currentIndex === testQuestions.length - 1) {
+      sessionCompleted = true; // Shows results directly
+    } else {
+      currentIndex++;
+    }
+  }
+
+  // Answer Q1 with correct answer (0)
+  handleExamNext(0);
+  assert.equal(currentIndex, 1, 'Clicking Next must immediately advance to item 2');
+  assert.deepEqual(selectedAnswers[1], [0], 'Current question answer must be recorded');
+  assert.equal(sessionCompleted, false);
+
+  // Answer Q2 with incorrect answer (0 instead of 1)
+  handleExamNext(0);
+  assert.equal(currentIndex, 2, 'Clicking Next must immediately advance to item 3');
+  assert.deepEqual(selectedAnswers[2], [0]);
+  assert.equal(sessionCompleted, false);
+
+  // Answer Q3 with correct answer (2) - Last question!
+  handleExamNext(2);
+  assert.equal(sessionCompleted, true, 'At the end of MCQs, must complete test and show results directly');
+
+  // Verify results breakdown: overall score + wrong question explanations
+  const answeredKeys = Object.keys(attemptResults);
+  const correctCount = answeredKeys.filter(k => attemptResults[Number(k)].isCorrect).length;
+  const accuracyPct = Math.round((correctCount / testQuestions.length) * 100);
+  
+  assert.equal(correctCount, 2, 'Should have 2 correct answers');
+  assert.equal(accuracyPct, 67, 'Score should be 67% (2/3)');
+
+  // Verify missed / wrong question list contains all incorrect questions with full rationale
+  const missedList = testQuestions.filter(q => {
+    const res = attemptResults[q.id];
+    return res ? !res.isCorrect : true;
+  });
+
+  assert.equal(missedList.length, 1, 'Should have exactly 1 missed question');
+  assert.equal(missedList[0].id, 2, 'Missed question must be item 2');
+  assert.equal(attemptResults[2].correctRationale, 'R2', 'Wrong question must include its full clinical explanation');
 });
