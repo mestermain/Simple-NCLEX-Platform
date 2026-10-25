@@ -1207,14 +1207,6 @@ export default function PracticeSimulator({
               </button>
               <button
                 type="button"
-                onClick={() => setIsCalcOpen(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold transition-all cursor-pointer"
-              >
-                <Calculator className="w-3.5 h-3.5 text-sky-600" />
-                <span>Calc</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setMobilePaletteOpen(true)}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all cursor-pointer"
               >
@@ -2487,16 +2479,6 @@ export default function PracticeSimulator({
                   <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100/80">
                     <button
                       type="button"
-                      onClick={() => setIsCalcOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer shadow-2xs"
-                      title="Digital Dosage Calculator (Alt+C)"
-                    >
-                      <Calculator className="w-3.5 h-3.5 text-sky-600" />
-                      <span>Calculator</span>
-                    </button>
-
-                    <button
-                      type="button"
                       onClick={() => setStrikethroughMode((prev) => !prev)}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer shadow-2xs ${
                         strikethroughMode
@@ -3036,20 +3018,6 @@ export default function PracticeSimulator({
           setReportQuestionTarget(null);
         }}
       />
-
-      {/* Floating Quick Calculator Trigger in Peaceful Exam Mode */}
-      {sessionStarted && !sessionCompleted && (
-        <button
-          type="button"
-          onClick={() => setIsCalcOpen(true)}
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-2.5 rounded-full bg-slate-900/90 hover:bg-sky-600 text-white shadow-xl border border-slate-700/80 backdrop-blur-sm text-xs font-bold transition-all cursor-pointer hover:scale-105 active:scale-95"
-          title="Open Dosage Calculator (Alt+C)"
-        >
-          <Calculator className="w-4 h-4 text-sky-400" />
-          <span>Calculator</span>
-          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] bg-slate-800 rounded text-slate-300 font-mono">Alt+C</kbd>
-        </button>
-      )}
 
       {/* ── 4. DEDICATED MOCK EXAM PAUSE MODAL ── */}
       {isExamPaused && (
